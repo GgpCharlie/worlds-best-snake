@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Snake Game by charlie</title>
+    <style>
+        /* CSS - This makes things look nice */
+        body {
+            background-color: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            border: 3px dashed white;
+            background-color: rgb(2, 92, 17);
+        }
+    </style>
+</head>
+<body>
+    <!-- This is where the game will be drawn -->
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <p style="color: white; font-size: 24px; position: absolute; top: 10px; left: 10px;">Score: <span id="score">0</span></p>
+    <div id="modeSelect" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <p style="color: white; font-size: 28px; margin-bottom: 20px;">Choose Difficulty:</p>
+        <button id="easyBtn" style="padding: 15px 30px; font-size: 20px; margin: 10px; background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 10px;">😊 Easy</button>
+        <button id="mediumBtn" style="padding: 15px 30px; font-size: 20px; margin: 10px; background-color: #FF9800; color: white; border: none; cursor: pointer; border-radius: 10px;">😎 Medium</button>
+        <button id="hardBtn" style="padding: 15px 30px; font-size: 20px; margin: 10px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 10px;">🔥 Hard</button>
+        <button id="buruBtn" style="padding: 15px 30px; font-size: 20px; margin: 10px; background-color: #9C27B0; color: white; border: none; cursor: pointer; border-radius: 10px;">🎯 Buru no Shot</button>
+    </div>
+    <button id="startBtn" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px 40px; font-size: 24px; display: none; background-color: green; color: white; border: none; cursor: pointer; border-radius: 10px;">🐍 Start Game!</button>
+    <button id="restartBtn" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px 40px; font-size: 24px; display: none; background-color: green; color: white; border: none; cursor: pointer; border-radius: 10px;">🔄 Play Again!</button>
+    <div id="modeSwitcher" style="position: absolute; top: 10px; right: 10px; display: none;">
+        <p style="color: white; font-size: 14px; margin-bottom: 5px;">Change Mode:</p>
+        <button id="switchEasy" style="padding: 8px 15px; font-size: 14px; margin: 2px; background-color: #4CAF50; color: white; border: none; cursor: pointer; border-radius: 5px;">😊 Easy</button>
+        <button id="switchMedium" style="padding: 8px 15px; font-size: 14px; margin: 2px; background-color: #FF9800; color: white; border: none; cursor: pointer; border-radius: 5px;">😎 Medium</button>
+        <button id="switchHard" style="padding: 8px 15px; font-size: 14px; margin: 2px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 5px;">🔥 Hard</button>
+    </div>
+
+    <script>
+        // JavaScript - This is where the magic happens!
+        
+        // Get the canvas (the drawing area)
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const restartBtn = document.getElementById('restartBtn');
+        const startBtn = document.getElementById('startBtn');
+        const modeSelect = document.getElementById('modeSelect');
+        const easyBtn = document.getElementById('easyBtn');
+        const mediumBtn = document.getElementById('mediumBtn');
+        const hardBtn = document.getElementById('hardBtn');
+        const buruBtn = document.getElementById('buruBtn');
+        const modeSwitcher = document.getElementById('modeSwitcher');
+        const switchEasy = document.getElementById('switchEasy');
+        const switchMedium = document.getElementById('switchMedium');
+        const switchHard = document.getElementById('switchHard');
+
+        // Game settings
+        const gridSize = 20;  // Each square is 20 pixels
+        const tileCount = canvas.width / gridSize;  // How many squares across
+
+        // The snake - starts in the middle (3 parts long)
+        let snake = [
+            {x: 10, y: 10},
+            {x: 9, y: 10},
+            {x: 8, y: 10}
+        ];
+
+        // Food position
+        let food = {x: 15, y: 15};
+
+        // Bombs (obstacles)
+        let bombs = [];
+        let bombsPerFood = 0; // Set based on difficulty
+
+        // Direction the snake is moving (moving right to start)
+        let dx = 1;
+        let dy = 0;
+
+        // Score
+        let score = 0;
+
+        // Game speed (in milliseconds - lower is faster!)
+        let selectedSpeed = 150; // Default (Easy)
+        let gameSpeed = 150;
+        let gameInterval;
+
+        // Draw the snake with better graphics
+        function drawSnake() {
+            for (let i = 0; i < snake.length; i++) {
+                let part = snake[i];
+                let x = part.x * gridSize;
+                let y = part.y * gridSize;
+
+                if (i === 0) {
+                    // HEAD - darker green with eyes
+                    ctx.fillStyle = '#0a5c0a';
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, gridSize, gridSize, 5);
+                    ctx.fill();
+
+                    // Eyes based on direction
+                    ctx.fillStyle = 'white';
+                    if (dx === 1) { // moving right
+                        ctx.beginPath(); ctx.arc(x + 15, y + 6, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 15, y + 14, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.fillStyle = 'black';
+                        ctx.beginPath(); ctx.arc(x + 17, y + 6, 1.5, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 17, y + 14, 1.5, 0, Math.PI * 2); ctx.fill();
+                    } else if (dx === -1) { // moving left
+                        ctx.beginPath(); ctx.arc(x + 5, y + 6, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 5, y + 14, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.fillStyle = 'black';
+                        ctx.beginPath(); ctx.arc(x + 3, y + 6, 1.5, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 3, y + 14, 1.5, 0, Math.PI * 2); ctx.fill();
+                    } else if (dy === -1) { // moving up
+                        ctx.beginPath(); ctx.arc(x + 6, y + 5, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 14, y + 5, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.fillStyle = 'black';
+                        ctx.beginPath(); ctx.arc(x + 6, y + 3, 1.5, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 14, y + 3, 1.5, 0, Math.PI * 2); ctx.fill();
+                    } else { // moving down
+                        ctx.beginPath(); ctx.arc(x + 6, y + 15, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 14, y + 15, 3, 0, Math.PI * 2); ctx.fill();
+                        ctx.fillStyle = 'black';
+                        ctx.beginPath(); ctx.arc(x + 6, y + 17, 1.5, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(x + 14, y + 17, 1.5, 0, Math.PI * 2); ctx.fill();
+                    }
+                } else {
+                    // BODY - gradient from dark to light green
+                    let greenValue = 100 + (i * 5);
+                    if (greenValue > 200) greenValue = 200;
+                    ctx.fillStyle = `rgb(0, ${greenValue}, 0)`;
+                    ctx.beginPath();
+                    ctx.roundRect(x + 1, y + 1, gridSize - 2, gridSize - 2, 4);
+                    ctx.fill();
+
+                    // Add scale pattern
+                    ctx.fillStyle = `rgba(255, 255, 255, 0.1)`;
+                    ctx.beginPath();
+                    ctx.arc(x + gridSize/2, y + gridSize/2, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // Draw the food with better graphics
+        function drawFood() {
+            let x = food.x * gridSize;
+            let y = food.y * gridSize;
+            let centerX = x + gridSize / 2;
+            let centerY = y + gridSize / 2;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(centerX + 2, centerY + 2, 9, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Apple body
+            let gradient = ctx.createRadialGradient(centerX - 2, centerY - 2, 2, centerX, centerY, 9);
+            gradient.addColorStop(0, '#ff4444');
+            gradient.addColorStop(1, '#cc0000');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 9, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.beginPath();
+            ctx.arc(centerX - 3, centerY - 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Stem
+            ctx.strokeStyle = '#5c3a1e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY - 8);
+            ctx.lineTo(centerX + 1, centerY - 12);
+            ctx.stroke();
+
+            // Leaf
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath();
+            ctx.ellipse(centerX + 4, centerY - 11, 4, 2, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw bombs
+        function drawBombs() {
+            for (let bomb of bombs) {
+                let x = bomb.x * gridSize;
+                let y = bomb.y * gridSize;
+                let centerX = x + gridSize / 2;
+                let centerY = y + gridSize / 2;
+
+                // Bomb body (black circle)
+                ctx.fillStyle = '#333';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 9, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Fuse
+                ctx.strokeStyle = '#8B4513';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY - 8);
+                ctx.lineTo(centerX + 3, centerY - 13);
+                ctx.stroke();
+
+                // Spark
+                ctx.fillStyle = '#FF6600';
+                ctx.beginPath();
+                ctx.arc(centerX + 3, centerY - 13, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // X mark
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 4, centerY - 4);
+                ctx.lineTo(centerX + 4, centerY + 4);
+                ctx.moveTo(centerX + 4, centerY - 4);
+                ctx.lineTo(centerX - 4, centerY + 4);
+                ctx.stroke();
+            }
+        }
+
+        // Place bombs randomly (not on snake or food)
+        function placeBombs(count) {
+            for (let i = 0; i < count; i++) {
+                let bomb;
+                let validPosition = false;
+                
+                while (!validPosition) {
+                    bomb = {
+                        x: Math.floor(Math.random() * tileCount),
+                        y: Math.floor(Math.random() * tileCount)
+                    };
+
+                    // Check not on snake
+                    validPosition = true;
+                    for (let part of snake) {
+                        if (part.x === bomb.x && part.y === bomb.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    // Check not on food
+                    if (validPosition && food.x === bomb.x && food.y === bomb.y) {
+                        validPosition = false;
+                    }
+
+                    // Check not on existing bombs
+                    for (let existingBomb of bombs) {
+                        if (existingBomb.x === bomb.x && existingBomb.y === bomb.y) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                }
+                bombs.push(bomb);
+            }
+        }
+
+        // Clear the screen with grid pattern
+        function clearScreen() {
+            // Dark green background
+            ctx.fillStyle = '#0a1f0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= tileCount; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * gridSize, 0);
+                ctx.lineTo(i * gridSize, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * gridSize);
+                ctx.lineTo(canvas.width, i * gridSize);
+                ctx.stroke();
+            }
+        }
+
+        // Move the snake - this is the KEY part!
+        function moveSnake() {
+            // Create a new head position based on direction
+            let newHead = {
+                x: snake[0].x + dx,
+                y: snake[0].y + dy
+            };
+
+            // Check if snake hit the wall
+            if (newHead.x < 0 || newHead.x >= tileCount || newHead.y < 0 || newHead.y >= tileCount) {
+                gameOver();
+                return;
+            }
+
+            // Check if snake hit itself
+            for (let part of snake) {
+                if (part.x === newHead.x && part.y === newHead.y) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Check if snake hit a bomb
+            for (let bomb of bombs) {
+                if (bomb.x === newHead.x && bomb.y === newHead.y) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Add new head to the beginning of the snake
+            snake.unshift(newHead);
+
+            // Check if snake ate the food
+            if (snake[0].x === food.x && snake[0].y === food.y) {
+                // Great! Snake grew - don't remove the tail!
+                score++;
+                scoreElement.textContent = score;
+                // Put food in a new random spot
+                food.x = Math.floor(Math.random() * tileCount);
+                food.y = Math.floor(Math.random() * tileCount);
+                // Add bombs based on difficulty
+                if (bombsPerFood === -1) {
+                    // Buru no Shot mode - create new maze pattern
+                    placeBombsForBuru();
+                } else if (bombsPerFood > 0) {
+                    placeBombs(bombsPerFood);
+                }
+                // Make the snake faster!
+                if (gameSpeed > 50) {
+                    gameSpeed -= 2;
+                    clearInterval(gameInterval);
+                    gameInterval = setInterval(gameLoop, gameSpeed);
+                }
+            } else {
+                // No food eaten - remove the tail (snake stays same length)
+                snake.pop();
+            }
+        }
+
+        // Game over function
+        function gameOver() {
+            clearInterval(gameInterval);
+            restartBtn.style.display = 'block';
+        }
+
+        // Reset the game
+        function resetGame() {
+            snake = [
+                {x: 10, y: 10},
+                {x: 9, y: 10},
+                {x: 8, y: 10}
+            ];
+            food = {x: 15, y: 15};
+            bombs = [];
+            dx = 1;
+            dy = 0;
+            score = 0;
+            scoreElement.textContent = score;
+            gameSpeed = selectedSpeed;
+            restartBtn.style.display = 'none';
+            
+            // Buru no Shot mode - create maze immediately
+            if (bombsPerFood === -1) {
+                placeBombsForBuru();
+            }
+            
+            // Restart immediately without start button
+            gameInterval = setInterval(gameLoop, gameSpeed);
+        }
+
+        // Start the game (only shown first time)
+        function startGame() {
+            startBtn.style.display = 'none';
+            modeSwitcher.style.display = 'block';
+            gameInterval = setInterval(gameLoop, gameSpeed);
+        }
+
+        // Set difficulty mode
+        function setEasy() {
+            selectedSpeed = 230;
+            bombsPerFood = 0; // No bombs on easy
+            modeSelect.style.display = 'none';
+            startBtn.style.display = 'block';
+        }
+
+        function setMedium() {
+            selectedSpeed = 150;
+            bombsPerFood = 1; // 1 bomb per food on medium
+            modeSelect.style.display = 'none';
+            startBtn.style.display = 'block';
+        }
+
+        function setHard() {
+            selectedSpeed = 80;
+            bombsPerFood = 3; // 3 bombs per food on hard
+            modeSelect.style.display = 'none';
+            startBtn.style.display = 'block';
+        }
+
+        function setBuru() {
+            selectedSpeed = 300;
+            bombsPerFood = -1; // Special mode - maze pattern
+            modeSelect.style.display = 'none';
+            startBtn.style.display = 'block';
+        }
+
+        // Place bombs in a maze pattern with one path to food
+        function placeBombsForBuru() {
+            bombs = [];
+            
+            // Create maze-like walls using a pattern
+            // Place horizontal and vertical barriers with gaps
+            for (let row = 2; row < tileCount - 2; row += 3) {
+                for (let col = 2; col < tileCount - 2; col += 3) {
+                    // Create walls with strategic gaps
+                    if (row % 6 === 2) {
+                        // Horizontal wall with gap
+                        for (let i = col; i < col + 2 && i < tileCount - 2; i++) {
+                            if (!(i === food.x && row === food.y)) {
+                                bombs.push({x: i, y: row});
+                            }
+                        }
+                    } else if (col % 6 === 2) {
+                        // Vertical wall with gap
+                        for (let i = row; i < row + 2 && i < tileCount - 2; i++) {
+                            if (!(col === food.x && i === food.y)) {
+                                bombs.push({x: col, y: i});
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Make sure snake start area is clear
+            bombs = bombs.filter(bomb => {
+                return !(bomb.x < 5 && bomb.y < 5);
+            });
+        }
+
+        // Switch mode during gameplay (ends current round)
+        function switchToEasy() {
+            clearInterval(gameInterval);
+            selectedSpeed = 230;
+            bombsPerFood = 0;
+            gameOver();
+        }
+
+        function switchToMedium() {
+            clearInterval(gameInterval);
+            selectedSpeed = 150;
+            bombsPerFood = 1;
+            gameOver();
+        }
+
+        function switchToHard() {
+            clearInterval(gameInterval);
+            selectedSpeed = 80;
+            bombsPerFood = 3;
+            gameOver();
+        }
+
+        // Main game loop - runs over and over
+        function gameLoop() {
+            moveSnake();  // First move the snake
+            clearScreen();
+            drawBombs();
+            drawFood();
+            drawSnake();
+        }
+
+        // Don't start the game loop yet - wait for start button
+
+        // Make the snake move with arrow keys or WASD
+        document.addEventListener('keydown', function(e) {
+            if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') && dy === 0) {
+                dx = 0; dy = -1;
+            }
+            if ((e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') && dy === 0) {
+                dx = 0; dy = 1;
+            }
+            if ((e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') && dx === 0) {
+                dx = -1; dy = 0;
+            }
+            if ((e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') && dx === 0) {
+                dx = 1; dy = 0;
+            }
+        });
+
+        // Restart button click
+        restartBtn.addEventListener('click', resetGame);
+
+        // Start button click
+        startBtn.addEventListener('click', startGame);
+
+        // Difficulty buttons
+        easyBtn.addEventListener('click', setEasy);
+        mediumBtn.addEventListener('click', setMedium);
+        hardBtn.addEventListener('click', setHard);
+        buruBtn.addEventListener('click', setBuru);
+
+        // Mode switcher buttons (during gameplay)
+        switchEasy.addEventListener('click', switchToEasy);
+        switchMedium.addEventListener('click', switchToMedium);
+        switchHard.addEventListener('click', switchToHard);
+    </script>
+</body>
+</html>
