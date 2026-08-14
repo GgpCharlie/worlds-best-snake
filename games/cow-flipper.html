@@ -664,7 +664,6 @@
             }
 
             updateHighScore();
-            saveProgress();
 
             setTimeout(function() {
                 state.isFlipping = false;
@@ -940,6 +939,11 @@
         loadProgress();
         startBoostSpawning();
         startBoostTick();
+
+        // Save on page close
+        window.addEventListener('beforeunload', function() {
+            saveProgress();
+        });
 
         // Event listeners
         cowContainer.addEventListener('click', flipCow);
