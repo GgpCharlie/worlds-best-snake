@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cow Flipper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #2d5016, #4a7c23, #2d5016);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .back-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            text-decoration: none;
+            font-size: 1rem;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+            z-index: 50;
+        }
+
+        .back-link:hover {
+            opacity: 1;
+        }
+
+        .hud {
+            display: flex;
+            gap: 40px;
+            margin-top: 30px;
+            font-size: 1.5rem;
+            color: #fff;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .hud span {
+            background: rgba(0,0,0,0.2);
+            padding: 8px 20px;
+            border-radius: 25px;
+        }
+
+        .game-area {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cow-container {
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .cow-container:active {
+            transform: scale(0.95);
+        }
+
+        .cow {
+            font-size: 8rem;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            filter: drop-shadow(0 10px 30px rgba(0,0,0,0.3));
+        }
+
+        .cow.flipping {
+            animation: flip 0.5s ease-out;
+        }
+
+        @keyframes flip {
+            0% { transform: rotateX(0deg) scale(1); }
+            50% { transform: rotateX(360deg) scale(1.2); }
+            100% { transform: rotateX(720deg) scale(1); }
+        }
+
+        .ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(to top, #1a3a0a, #2d5016);
+        }
+
+        .cloud {
+            position: absolute;
+            font-size: 4rem;
+            opacity: 0.3;
+            animation: cloud-move linear infinite;
+        }
+
+        @keyframes cloud-move {
+            from { transform: translateX(100vw); }
+            to { transform: translateX(-200px); }
+        }
+
+        .combo-text {
+            position: absolute;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ffeb3b;
+            text-shadow: 0 0 20px rgba(255,235,59,0.5);
+            pointer-events: none;
+            animation: float-up 1s ease-out forwards;
+        }
+
+        @keyframes float-up {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-100px) scale(1.5); }
+        }
+
+        .particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: particle-fly 0.6s ease-out forwards;
+        }
+
+        @keyframes particle-fly {
+            0% { opacity: 1; transform: translate(0, 0) scale(1); }
+            100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0); }
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 130px;
+            color: rgba(255,255,255,0.6);
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        .level-up {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: #ffeb3b;
+            text-shadow: 0 0 40px rgba(255,235,59,0.8);
+            animation: level-pop 1s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes level-pop {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            30% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1) translateY(-50px); }
+        }
+
+        .high-score {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.5);
+            font-size: 0.9rem;
+        }
+
+        .milk-display {
+            position: absolute;
+            top: 50px;
+            right: 20px;
+            color: #fff;
+            font-size: 1.1rem;
+            background: rgba(0,0,0,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+
+        .shop-btn {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: #fff;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 10;
+        }
+
+        .shop-btn:hover {
+            background: rgba(255,255,255,0.25);
+            border-color: rgba(255,255,255,0.5);
+        }
+
+        .shop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .shop-overlay.active {
+            display: flex;
+        }
+
+        .shop-panel {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .shop-panel h2 {
+            text-align: center;
+            margin-bottom: 5px;
+            font-size: 2rem;
+        }
+
+        .shop-panel .shop-subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 25px;
+            font-size: 0.9rem;
+        }
+
+        .upgrade-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: background 0.3s;
+        }
+
+        .upgrade-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .upgrade-item.locked {
+            opacity: 0.4;
+        }
+
+        .upgrade-icon {
+            font-size: 2.5rem;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .upgrade-info {
+            flex: 1;
+        }
+
+        .upgrade-info h3 {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .upgrade-info p {
+            font-size: 0.85rem;
+            color: #aaa;
+        }
+
+        .upgrade-level {
+            font-size: 0.75rem;
+            color: #4caf50;
+            margin-top: 3px;
+        }
+
+        .buy-btn {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            border: none;
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+        }
+
+        .buy-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(76,175,80,0.4);
+        }
+
+        .buy-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .close-shop {
+            display: block;
+            margin: 20px auto 0;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: #fff;
+            padding: 10px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .close-shop:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .auto-indicator {
+            position: absolute;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.5);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← Back</a>
+    <div class="high-score">Best: <span id="highScore">0</span></div>
+    <div class="milk-display">🥛 <span id="milk">0</span></div>
+
+    <button class="shop-btn" id="shopBtn">🛒 Shop</button>
+
+    <div class="hud">
+        <span>Flips: <span id="score">0</span></span>
+        <span>Combo: <span id="combo">x1</span></span>
+        <span>Level: <span id="level">1</span></span>
+    </div>
+
+    <div class="game-area" id="gameArea">
+        <div class="cow-container" id="cowContainer">
+            <div class="cow" id="cow">🐄</div>
+        </div>
+        <div class="instructions" id="instructions">Click the cow to flip it!</div>
+        <div class="auto-indicator" id="autoIndicator" style="display:none;">Auto-flipper active</div>
+        <div class="ground"></div>
+    </div>
+
+    <div class="shop-overlay" id="shopOverlay">
+        <div class="shop-panel">
+            <h2>🛒 Cow Shop</h2>
+            <p class="shop-subtitle">Spend your milk to upgrade!</p>
+            <div id="upgradesList"></div>
+            <button class="close-shop" id="closeShop">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Upgrades data
+        const upgrades = [
+            { id: 'combo', icon: '🔥', name: 'Combo Duration', desc: 'Keep your combo alive longer', baseCost: 20, maxLevel: 10, effect: (l) => '+' + (l * 500) + 'ms' },
+            { id: 'auto', icon: '🤖', name: 'Auto Flipper', desc: 'Automatically flips the cow', baseCost: 50, maxLevel: 5, effect: (l) => (Math.max(200, 2500 - l * 500)) + 'ms interval' },
+            { id: 'milk', icon: '🥛', name: 'Milk Multiplier', desc: 'Earn more milk per flip', baseCost: 30, maxLevel: 10, effect: (l) => 'x' + (1 + l * 0.5) },
+            { id: 'magnet', icon: '🧲', name: 'Score Magnet', desc: 'Bonus points at level up', baseCost: 40, maxLevel: 5, effect: (l) => '+' + (l * 5) + ' bonus' },
+            { id: 'lucky', icon: '🍀', name: 'Lucky Flip', desc: 'Chance for 3x points', baseCost: 60, maxLevel: 5, effect: (l) => (l * 5) + '% chance' }
+        ];
+
+        // Upgrade levels and milk
+        let upgradeLevels = {};
+        let milk = 0;
+        upgrades.forEach(function(u) { upgradeLevels[u.id] = 0; });
+
+        // Game state
+        const state = {
+            score: 0,
+            combo: 1,
+            comboTimer: null,
+            level: 1,
+            flipsForLevel: 10,
+            highScore: parseInt(localStorage.getItem('cowFlipperHighScore') || '0'),
+            lastFlipTime: 0,
+            isFlipping: false
+        };
+
+        // DOM elements
+        const cow = document.getElementById('cow');
+        const cowContainer = document.getElementById('cowContainer');
+        const scoreEl = document.getElementById('score');
+        const comboEl = document.getElementById('combo');
+        const levelEl = document.getElementById('level');
+        const highScoreEl = document.getElementById('highScore');
+        const gameArea = document.getElementById('gameArea');
+        const milkEl = document.getElementById('milk');
+        const shopBtn = document.getElementById('shopBtn');
+        const shopOverlay = document.getElementById('shopOverlay');
+        const closeShop = document.getElementById('closeShop');
+        const upgradesList = document.getElementById('upgradesList');
+        const autoIndicator = document.getElementById('autoIndicator');
+        const instructions = document.getElementById('instructions');
+
+        // Initialize
+        highScoreEl.textContent = state.highScore;
+
+        // Create clouds
+        function createClouds() {
+            for (let i = 0; i < 5; i++) {
+                const cloud = document.createElement('div');
+                cloud.className = 'cloud';
+                cloud.textContent = '☁️';
+                cloud.style.top = Math.random() * 40 + '%';
+                cloud.style.animationDuration = (Math.random() * 20 + 15) + 's';
+                cloud.style.animationDelay = -(Math.random() * 20) + 's';
+                cloud.style.fontSize = (Math.random() * 3 + 3) + 'rem';
+                gameArea.appendChild(cloud);
+            }
+        }
+        createClouds();
+
+        // Create particles
+        function spawnParticles(x, y, count) {
+            if (count === undefined) count = 8;
+            const colors = ['#ffeb3b', '#ff9800', '#4caf50', '#fff', '#8bc34a'];
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = x + 'px';
+                particle.style.top = y + 'px';
+                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                const angle = (Math.PI * 2 * i) / count;
+                const distance = Math.random() * 80 + 40;
+                particle.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+                particle.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+                gameArea.appendChild(particle);
+                setTimeout(function() { particle.remove(); }, 600);
+            }
+        }
+
+        // Show combo text
+        function showComboText(x, y, text) {
+            const el = document.createElement('div');
+            el.className = 'combo-text';
+            el.textContent = text;
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            gameArea.appendChild(el);
+            setTimeout(function() { el.remove(); }, 1000);
+        }
+
+        // Show level up
+        function showLevelUp() {
+            const el = document.createElement('div');
+            el.className = 'level-up';
+            el.textContent = 'Level Up!';
+            gameArea.appendChild(el);
+            setTimeout(function() { el.remove(); }, 1000);
+        }
+
+        // Update high score
+        function updateHighScore() {
+            if (state.score > state.highScore) {
+                state.highScore = state.score;
+                localStorage.setItem('cowFlipperHighScore', state.highScore);
+                highScoreEl.textContent = state.highScore;
+            }
+        }
+
+        // Handle flip
+        function flipCow(e) {
+            if (state.isFlipping) return;
+            state.isFlipping = true;
+
+            const now = Date.now();
+            const timeSinceLastFlip = now - state.lastFlipTime;
+            state.lastFlipTime = now;
+
+            // Combo system: quick flips increase combo
+            if (timeSinceLastFlip < 1000) {
+                state.combo = Math.min(state.combo + 1, 10);
+            } else {
+                state.combo = 1;
+                clearTimeout(state.comboTimer);
+                state.comboTimer = setTimeout(function() {
+                    state.combo = 1;
+                    comboEl.textContent = 'x1';
+                }, 2000);
+            }
+
+            // Calculate points
+            let points = state.combo;
+
+            // Lucky flip bonus
+            const luckyLevel = upgradeLevels['lucky'] || 0;
+            if (luckyLevel > 0 && Math.random() < (luckyLevel * 0.05)) {
+                points *= 3;
+            }
+
+            // Update UI
+            scoreEl.textContent = state.score + points;
+            comboEl.textContent = 'x' + state.combo;
+            state.score += points;
+
+            // Earn milk
+            const milkLevel = upgradeLevels['milk'] || 0;
+            const milkMultiplier = 1 + milkLevel * 0.5;
+            milk += Math.floor(points * milkMultiplier);
+            milkEl.textContent = milk;
+
+            // Animate cow
+            cow.classList.remove('flipping');
+            void cow.offsetWidth;
+            cow.classList.add('flipping');
+
+            // Particles & text
+            const rect = cowContainer.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            spawnParticles(cx, cy, 6 + state.combo * 2);
+
+            if (state.combo >= 3) {
+                showComboText(cx - 30, cy - 50, '+' + points + ' 🔥');
+            } else {
+                showComboText(cx - 20, cy - 50, '+' + points);
+            }
+
+            // Check level up
+            if (state.score >= state.level * state.flipsForLevel * 10) {
+                state.level++;
+                levelEl.textContent = state.level;
+                showLevelUp();
+                cow.style.fontSize = (8 + state.level * 0.5) + 'rem';
+
+                // Magnet bonus
+                const magnetLevel = upgradeLevels['magnet'] || 0;
+                if (magnetLevel > 0) {
+                    const bonus = magnetLevel * 5;
+                    milk += bonus;
+                    milkEl.textContent = milk;
+                    showComboText(cx - 40, cy - 90, '+' + bonus + ' 🧲');
+                }
+            }
+
+            updateHighScore();
+            saveProgress();
+
+            setTimeout(function() {
+                state.isFlipping = false;
+            }, 400);
+        }
+
+        // Shop functions
+        function getUpgradeCost(upgrade) {
+            return Math.floor(upgrade.baseCost * Math.pow(1.5, upgradeLevels[upgrade.id]));
+        }
+
+        function renderUpgrades() {
+            upgradesList.innerHTML = '';
+            upgrades.forEach(function(upgrade) {
+                const level = upgradeLevels[upgrade.id];
+                const maxed = level >= upgrade.maxLevel;
+                const cost = getUpgradeCost(upgrade);
+                const canAfford = milk >= cost && !maxed;
+
+                const item = document.createElement('div');
+                item.className = 'upgrade-item' + (maxed ? ' locked' : '');
+
+                item.innerHTML =
+                    '<div class="upgrade-icon">' + upgrade.icon + '</div>' +
+                    '<div class="upgrade-info">' +
+                        '<h3>' + upgrade.name + '</h3>' +
+                        '<p>' + upgrade.desc + '</p>' +
+                        '<div class="upgrade-level">' + (maxed ? 'MAXED' : 'Level ' + level + ' → ' + (level + 1) + ' (' + upgrade.effect(level + 1) + ')') + '</div>' +
+                    '</div>' +
+                    '<button class="buy-btn" ' + (canAfford ? '' : 'disabled') + '>' + (maxed ? 'Max' : cost + ' 🥛') + '</button>';
+
+                const btn = item.querySelector('.buy-btn');
+                if (!maxed) {
+                    btn.addEventListener('click', function() {
+                        const cost = getUpgradeCost(upgrade);
+                        if (milk >= cost && upgradeLevels[upgrade.id] < upgrade.maxLevel) {
+                            milk -= cost;
+                            upgradeLevels[upgrade.id]++;
+                            milkEl.textContent = milk;
+                            renderUpgrades();
+                            updateAutoFlipper();
+                            saveProgress();
+                        }
+                    });
+                }
+
+                upgradesList.appendChild(item);
+            });
+        }
+
+        function openShop() {
+            milkEl.textContent = milk;
+            renderUpgrades();
+            shopOverlay.classList.add('active');
+        }
+
+        function closeShopFn() {
+            shopOverlay.classList.remove('active');
+        }
+
+        shopBtn.addEventListener('click', openShop);
+        closeShop.addEventListener('click', closeShopFn);
+        shopOverlay.addEventListener('click', function(e) {
+            if (e.target === shopOverlay) closeShopFn();
+        });
+
+        // Auto flipper
+        let autoFlipInterval = null;
+
+        function updateAutoFlipper() {
+            if (autoFlipInterval) {
+                clearInterval(autoFlipInterval);
+                autoFlipInterval = null;
+            }
+
+            const autoLevel = upgradeLevels['auto'] || 0;
+            if (autoLevel > 0) {
+                autoIndicator.style.display = 'block';
+                instructions.style.display = 'none';
+                autoFlipInterval = setInterval(function() {
+                    if (!state.isFlipping) {
+                        flipCow();
+                    }
+                }, Math.max(200, 2500 - autoLevel * 500));
+            } else {
+                autoIndicator.style.display = 'none';
+                instructions.style.display = 'block';
+            }
+        }
+
+        // Save/load progress
+        function saveProgress() {
+            const data = {
+                milk: milk,
+                upgradeLevels: upgradeLevels
+            };
+            localStorage.setItem('cowFlipperProgress', JSON.stringify(data));
+        }
+
+        function loadProgress() {
+            const data = localStorage.getItem('cowFlipperProgress');
+            if (data) {
+                const parsed = JSON.parse(data);
+                milk = parsed.milk || 0;
+                if (parsed.upgradeLevels) {
+                    Object.keys(parsed.upgradeLevels).forEach(function(key) {
+                        if (upgradeLevels.hasOwnProperty(key)) {
+                            upgradeLevels[key] = parsed.upgradeLevels[key];
+                        }
+                    });
+                }
+                milkEl.textContent = milk;
+                updateAutoFlipper();
+            }
+        }
+
+        // Load saved progress on start
+        loadProgress();
+
+        // Event listeners
+        cowContainer.addEventListener('click', flipCow);
+        cowContainer.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            flipCow(e);
+        });
+
+        // Keyboard support
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                e.preventDefault();
+                flipCow();
+            }
+        });
+    </script>
+</body>
+</html>
