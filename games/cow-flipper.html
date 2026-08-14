@@ -185,7 +185,7 @@
 
         .shop-btn {
             position: absolute;
-            top: 20px;
+            top: 90px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(255,255,255,0.15);
@@ -342,7 +342,7 @@
     </style>
 </head>
 <body>
-    <a href="index.html" class="back-link">← Back</a>
+    <a href="../index.html" class="back-link">← Back</a>
     <div class="high-score">Best: <span id="highScore">0</span></div>
     <div class="milk-display">🥛 <span id="milk">0</span></div>
 
@@ -379,7 +379,14 @@
             { id: 'auto', icon: '🤖', name: 'Auto Flipper', desc: 'Automatically flips the cow', baseCost: 50, maxLevel: 5, effect: (l) => (Math.max(200, 2500 - l * 500)) + 'ms interval' },
             { id: 'milk', icon: '🥛', name: 'Milk Multiplier', desc: 'Earn more milk per flip', baseCost: 30, maxLevel: 10, effect: (l) => 'x' + (1 + l * 0.5) },
             { id: 'magnet', icon: '🧲', name: 'Score Magnet', desc: 'Bonus points at level up', baseCost: 40, maxLevel: 5, effect: (l) => '+' + (l * 5) + ' bonus' },
-            { id: 'lucky', icon: '🍀', name: 'Lucky Flip', desc: 'Chance for 3x points', baseCost: 60, maxLevel: 5, effect: (l) => (l * 5) + '% chance' }
+            { id: 'lucky', icon: '🍀', name: 'Lucky Flip', desc: 'Chance for 3x points', baseCost: 60, maxLevel: 5, effect: (l) => (l * 5) + '% chance' },
+            { id: 'double', icon: '✌️', name: 'Double Points', desc: 'Base points per flip doubled', baseCost: 100, maxLevel: 5, effect: (l) => 'x' + (1 + l) + ' points' },
+            { id: 'speed', icon: '⚡', name: 'Speed Clicker', desc: 'Combo resets slower', baseCost: 40, maxLevel: 5, effect: (l) => '+' + (l * 400) + 'ms reset' },
+            { id: 'mega', icon: '🐂', name: 'Mega Cow', desc: 'Bigger cow, more points per level', baseCost: 80, maxLevel: 5, effect: (l) => '+' + (l * 2) + ' base' },
+            { id: 'rainbow', icon: '🌈', name: 'Rainbow Cow', desc: 'Random bonus multiplier on flips', baseCost: 70, maxLevel: 3, effect: (l) => (l * 10) + '% chance x2' },
+            { id: 'golden', icon: '✨', name: 'Golden Touch', desc: 'Extra milk per point earned', baseCost: 50, maxLevel: 10, effect: (l) => '+' + (l * 0.2) + ' milk/pt' },
+            { id: 'comboMult', icon: '💥', name: 'Combo Multiplier', desc: 'Each combo level gives more', baseCost: 60, maxLevel: 5, effect: (l) => 'x' + (1 + l * 0.25) + ' combo' },
+            { id: 'fatcow', icon: '🐄', name: 'Fat Cow', desc: 'Chance for bonus milk on every flip', baseCost: 90, maxLevel: 5, effect: (l) => (l * 8) + '% fat milk' }
         ];
 
         // Upgrade levels and milk
@@ -483,7 +490,7 @@
 
         // Handle flip
         function flipCow(e) {
-            if (state.isFlipping) return;
+            const isFirstClick = !state.isFlipping;
             state.isFlipping = true;
 
             const now = Date.now();
@@ -491,6 +498,8 @@
             state.lastFlipTime = now;
 
             // Combo system: quick flips increase combo
+            const speedLevel = upgradeLevels['speed'] || 0;
+            const comboResetTime = 2000 + speedLevel * 400;
             if (timeSinceLastFlip < 1000) {
                 state.combo = Math.min(state.combo + 1, 10);
             } else {
@@ -499,16 +508,27 @@
                 state.comboTimer = setTimeout(function() {
                     state.combo = 1;
                     comboEl.textContent = 'x1';
-                }, 2000);
+                }, comboResetTime);
             }
 
             // Calculate points
-            let points = state.combo;
+            const doubleLevel = upgradeLevels['double'] || 0;
+            const megaLevel = upgradeLevels['mega'] || 0;
+            const comboMultLevel = upgradeLevels['comboMult'] || 0;
+            let basePoints = 1 + megaLevel * 2;
+            let comboMultiplier = state.combo * (1 + comboMultLevel * 0.25);
+            let points = Math.floor(basePoints * comboMultiplier * (1 + doubleLevel));
 
             // Lucky flip bonus
             const luckyLevel = upgradeLevels['lucky'] || 0;
             if (luckyLevel > 0 && Math.random() < (luckyLevel * 0.05)) {
                 points *= 3;
+            }
+
+            // Rainbow cow bonus
+            const rainbowLevel = upgradeLevels['rainbow'] || 0;
+            if (rainbowLevel > 0 && Math.random() < (rainbowLevel * 0.1)) {
+                points *= 2;
             }
 
             // Update UI
@@ -519,13 +539,22 @@
             // Earn milk
             const milkLevel = upgradeLevels['milk'] || 0;
             const milkMultiplier = 1 + milkLevel * 0.5;
-            milk += Math.floor(points * milkMultiplier);
+            const goldenLevel = upgradeLevels['golden'] || 0;
+            const goldenBonus = goldenLevel * 0.2;
+            const fatLevel = upgradeLevels['fatcow'] || 0;
+            let earnedMilk = Math.floor(points * (milkMultiplier + goldenBonus));
+            if (fatLevel > 0 && Math.random() < (fatLevel * 0.08)) {
+                earnedMilk += Math.floor(points * 0.5);
+            }
+            milk += earnedMilk;
             milkEl.textContent = milk;
 
-            // Animate cow
-            cow.classList.remove('flipping');
-            void cow.offsetWidth;
-            cow.classList.add('flipping');
+            // Animate cow (only on first click, animation plays fully)
+            if (isFirstClick) {
+                cow.classList.remove('flipping');
+                void cow.offsetWidth;
+                cow.classList.add('flipping');
+            }
 
             // Particles & text
             const rect = cowContainer.getBoundingClientRect();
