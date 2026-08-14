@@ -339,6 +339,65 @@
             color: rgba(255,255,255,0.5);
             font-size: 0.9rem;
         }
+
+        .boost-indicator {
+            position: absolute;
+            top: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 20;
+        }
+
+        .boost-badge {
+            background: rgba(0,0,0,0.5);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 5px 15px;
+            color: #fff;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .boost-badge .timer {
+            color: #ffeb3b;
+            font-weight: bold;
+        }
+
+        .boost-item {
+            position: absolute;
+            font-size: 3rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+            animation: boost-float 2s ease-in-out infinite;
+            z-index: 15;
+        }
+
+        .boost-item:hover {
+            transform: scale(1.2);
+        }
+
+        @keyframes boost-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes boost-collect {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .boost-collecting {
+            animation: boost-collect 0.3s ease-out forwards !important;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -353,6 +412,8 @@
         <span>Combo: <span id="combo">x1</span></span>
         <span>Level: <span id="level">1</span></span>
     </div>
+
+    <div class="boost-indicator" id="boostIndicator"></div>
 
     <div class="game-area" id="gameArea">
         <div class="cow-container" id="cowContainer">
@@ -386,7 +447,8 @@
             { id: 'rainbow', icon: '🌈', name: 'Rainbow Cow', desc: 'Random bonus multiplier on flips', baseCost: 70, maxLevel: 3, effect: (l) => (l * 10) + '% chance x2' },
             { id: 'golden', icon: '✨', name: 'Golden Touch', desc: 'Extra milk per point earned', baseCost: 50, maxLevel: 10, effect: (l) => '+' + (l * 0.2) + ' milk/pt' },
             { id: 'comboMult', icon: '💥', name: 'Combo Multiplier', desc: 'Each combo level gives more', baseCost: 60, maxLevel: 5, effect: (l) => 'x' + (1 + l * 0.25) + ' combo' },
-            { id: 'fatcow', icon: '🐄', name: 'Fat Cow', desc: 'Chance for bonus milk on every flip', baseCost: 90, maxLevel: 5, effect: (l) => (l * 8) + '% fat milk' }
+            { id: 'fatcow', icon: '🐄', name: 'Fat Cow', desc: 'Chance for bonus milk on every flip', baseCost: 90, maxLevel: 5, effect: (l) => (l * 8) + '% fat milk' },
+            { id: 'boostfreq', icon: '🎁', name: 'Boost Frequency', desc: 'More boosts appear during gameplay', baseCost: 45, maxLevel: 5, effect: (l) => '+' + (l * 15) + '% spawn rate' }
         ];
 
         // Upgrade levels and milk
@@ -519,6 +581,16 @@
             let comboMultiplier = state.combo * (1 + comboMultLevel * 0.25);
             let points = Math.floor(basePoints * comboMultiplier * (1 + doubleLevel));
 
+            // Double boost
+            if (hasActiveBoost('double')) {
+                points *= 2;
+            }
+
+            // Mega combo boost
+            if (hasActiveBoost('megacombo')) {
+                points *= 2;
+            }
+
             // Lucky flip bonus
             const luckyLevel = upgradeLevels['lucky'] || 0;
             if (luckyLevel > 0 && Math.random() < (luckyLevel * 0.05)) {
@@ -543,6 +615,12 @@
             const goldenBonus = goldenLevel * 0.2;
             const fatLevel = upgradeLevels['fatcow'] || 0;
             let earnedMilk = Math.floor(points * (milkMultiplier + goldenBonus));
+
+            // Milk Rush boost
+            if (hasActiveBoost('milkrush')) {
+                earnedMilk *= 3;
+            }
+
             if (fatLevel > 0 && Math.random() < (fatLevel * 0.08)) {
                 earnedMilk += Math.floor(points * 0.5);
             }
@@ -573,7 +651,7 @@
                 state.level++;
                 levelEl.textContent = state.level;
                 showLevelUp();
-                cow.style.fontSize = (8 + state.level * 0.5) + 'rem';
+                cow.style.fontSize = Math.min(12, 8 + state.level * 0.3) + 'rem';
 
                 // Magnet bonus
                 const magnetLevel = upgradeLevels['magnet'] || 0;
@@ -628,6 +706,7 @@
                             milkEl.textContent = milk;
                             renderUpgrades();
                             updateAutoFlipper();
+                            startBoostSpawning();
                             saveProgress();
                         }
                     });
@@ -703,8 +782,164 @@
             }
         }
 
+        // Boost system
+        let activeBoosts = {};
+        let boostSpawnInterval = null;
+        let boostTickInterval = null;
+
+        const boostTypes = [
+            { id: 'double', icon: '✌️', name: 'Double Points', color: '#4caf50', duration: 10000, effect: () => { /* handled in flipCow */ } },
+            { id: 'speed', icon: '⚡', name: 'Speed Boost', color: '#ff9800', duration: 12000, effect: () => {} },
+            { id: 'milkrush', icon: '🥛', name: 'Milk Rush', color: '#2196f3', duration: 10000, effect: () => {} },
+            { id: 'golden', icon: '✨', name: 'Golden Shower', color: '#ffd700', duration: 8000, effect: () => {} },
+            { id: 'megacombo', icon: '💥', name: 'Mega Combo', color: '#e91e63', duration: 10000, effect: () => {} }
+        ];
+
+        function getBoostSpawnRate() {
+            const freqLevel = upgradeLevels['boostfreq'] || 0;
+            return 8000 - freqLevel * 1200;
+        }
+
+        function spawnBoost() {
+            const boostType = boostTypes[Math.floor(Math.random() * boostTypes.length)];
+            const boostEl = document.createElement('div');
+            boostEl.className = 'boost-item';
+            boostEl.textContent = boostType.icon;
+            boostEl.title = boostType.name + ' (' + (boostType.duration / 1000) + 's)';
+
+            const maxX = window.innerWidth - 80;
+            const maxY = window.innerHeight - 200;
+            boostEl.style.left = (Math.random() * maxX + 40) + 'px';
+            boostEl.style.top = (Math.random() * maxY + 150) + 'px';
+
+            boostEl.addEventListener('click', function() {
+                activateBoost(boostType);
+                boostEl.classList.add('boost-collecting');
+                setTimeout(function() { boostEl.remove(); }, 300);
+            });
+
+            gameArea.appendChild(boostEl);
+
+            // Auto-remove after 8 seconds if not collected
+            setTimeout(function() {
+                if (boostEl.parentNode) {
+                    boostEl.style.opacity = '0';
+                    boostEl.style.transition = 'opacity 0.5s';
+                    setTimeout(function() { if (boostEl.parentNode) boostEl.remove(); }, 500);
+                }
+            }, 8000);
+        }
+
+        function activateBoost(boostType) {
+            const existingTime = activeBoosts[boostType.id] || 0;
+            const newEnd = Date.now() + boostType.duration;
+            activeBoosts[boostType.id] = newEnd;
+
+            // Mega combo sets combo to 5 immediately
+            if (boostType.id === 'megacombo') {
+                state.combo = 5;
+                comboEl.textContent = 'x5';
+            }
+
+            updateBoostIndicator();
+            checkGoldenShower();
+
+            // Show collection effect
+            const el = document.createElement('div');
+            el.className = 'level-up';
+            el.textContent = boostType.icon + ' ' + boostType.name + '!';
+            el.style.color = boostType.color;
+            el.style.textShadow = '0 0 40px ' + boostType.color;
+            gameArea.appendChild(el);
+            setTimeout(function() { el.remove(); }, 1000);
+        }
+
+        function updateBoostIndicator() {
+            const indicator = document.getElementById('boostIndicator');
+            indicator.innerHTML = '';
+
+            const now = Date.now();
+            Object.keys(activeBoosts).forEach(function(boostId) {
+                const endTime = activeBoosts[boostId];
+                const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+                const boostType = boostTypes.find(function(b) { return b.id === boostId; });
+
+                if (remaining > 0) {
+                    const badge = document.createElement('div');
+                    badge.className = 'boost-badge';
+                    badge.style.borderColor = boostType.color;
+                    badge.innerHTML = boostType.icon + ' ' + boostType.name + ' <span class="timer">' + remaining + 's</span>';
+                    indicator.appendChild(badge);
+                } else {
+                    delete activeBoosts[boostId];
+                }
+            });
+        }
+
+        function hasActiveBoost(boostId) {
+            return (activeBoosts[boostId] || 0) > Date.now();
+        }
+
+        function getBoostMultiplier(boostId) {
+            if (!hasActiveBoost(boostId)) return 1;
+            if (boostId === 'double') return 2;
+            if (boostId === 'milkrush') return 3;
+            if (boostId === 'megacombo') return 1;
+            return 1;
+        }
+
+        // Check and clean expired boosts
+        function checkBoosts() {
+            const now = Date.now();
+            Object.keys(activeBoosts).forEach(function(key) {
+                if (activeBoosts[key] <= now) {
+                    delete activeBoosts[key];
+                }
+            });
+            updateBoostIndicator();
+        }
+
+        // Spawn boosts periodically
+        function startBoostSpawning() {
+            if (boostSpawnInterval) clearInterval(boostSpawnInterval);
+            const rate = getBoostSpawnRate();
+            boostSpawnInterval = setInterval(function() {
+                spawnBoost();
+            }, rate);
+        }
+
+        // Tick boosts every second
+        function startBoostTick() {
+            if (boostTickInterval) clearInterval(boostTickInterval);
+            boostTickInterval = setInterval(checkBoosts, 1000);
+        }
+
+        // Golden shower boost - extra points every second
+        let goldenShowerInterval = null;
+        function checkGoldenShower() {
+            if (hasActiveBoost('golden') && !goldenShowerInterval) {
+                goldenShowerInterval = setInterval(function() {
+                    if (hasActiveBoost('golden')) {
+                        const bonus = 10 + state.level * 2;
+                        state.score += bonus;
+                        scoreEl.textContent = state.score;
+                        const rect = cowContainer.getBoundingClientRect();
+                        showComboText(rect.left + rect.width / 2 - 20, rect.top - 30, '+' + bonus + ' ✨');
+                    } else {
+                        clearInterval(goldenShowerInterval);
+                        goldenShowerInterval = null;
+                    }
+                }, 1000);
+            } else if (!hasActiveBoost('golden') && goldenShowerInterval) {
+                clearInterval(goldenShowerInterval);
+                goldenShowerInterval = null;
+            }
+        }
+
         // Load saved progress on start
         loadProgress();
+        startBoostSpawning();
+        startBoostTick();
 
         // Event listeners
         cowContainer.addEventListener('click', flipCow);
