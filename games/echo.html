@@ -1,0 +1,1356 @@
+
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+							<style>
+								body {
+									background-color: white; /* Ensure the iframe has a white background */
+								}
+
+								
+							</style>
+                        </head>
+                        <body>
+                            <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ECHO — The Dark Navigator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  canvas {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  #ui-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #hud {
+    position: absolute;
+    top: 15px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+
+  #hud.visible { opacity: 1; }
+
+  .hud-item {
+    color: rgba(100, 220, 255, 0.8);
+    font-size: 14px;
+    text-shadow: 0 0 10px rgba(100, 220, 255, 0.5);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .hud-item span {
+    color: #fff;
+    font-weight: bold;
+  }
+
+  #menu-screen, #level-complete, #game-over, #win-screen {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.92);
+    z-index: 20;
+  }
+
+  .menu-title {
+    font-size: clamp(48px, 12vw, 80px);
+    color: #fff;
+    text-shadow: 0 0 30px rgba(100, 220, 255, 0.8), 0 0 60px rgba(100, 220, 255, 0.4);
+    letter-spacing: 15px;
+    margin-bottom: 10px;
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  .menu-subtitle {
+    font-size: clamp(12px, 3vw, 16px);
+    color: rgba(100, 220, 255, 0.6);
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { text-shadow: 0 0 30px rgba(100, 220, 255, 0.8), 0 0 60px rgba(100, 220, 255, 0.4); }
+    50% { text-shadow: 0 0 50px rgba(100, 220, 255, 1), 0 0 100px rgba(100, 220, 255, 0.6); }
+  }
+
+  .btn {
+    padding: 15px 40px;
+    background: transparent;
+    border: 1px solid rgba(100, 220, 255, 0.4);
+    color: rgba(100, 220, 255, 0.9);
+    font-size: 16px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin: 8px;
+    pointer-events: auto;
+  }
+
+  .btn:hover, .btn:active {
+    background: rgba(100, 220, 255, 0.1);
+    border-color: rgba(100, 220, 255, 0.8);
+    box-shadow: 0 0 20px rgba(100, 220, 255, 0.3);
+  }
+
+  .level-info {
+    color: rgba(100, 220, 255, 0.7);
+    font-size: 14px;
+    letter-spacing: 3px;
+    margin-bottom: 30px;
+  }
+
+  .stars {
+    font-size: 36px;
+    margin: 20px 0;
+    letter-spacing: 10px;
+  }
+
+  .star { color: rgba(100, 220, 255, 0.2); transition: all 0.5s; }
+  .star.active { color: #ffd700; text-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
+
+  .hidden { display: none !important; }
+
+  #instructions {
+    position: absolute;
+    bottom: 30px;
+    left: 0; right: 0;
+    text-align: center;
+    color: rgba(100, 220, 255, 0.4);
+    font-size: 12px;
+    letter-spacing: 2px;
+  }
+
+  /* Mobile Controls */
+  #mobile-controls {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 180px;
+    display: none;
+    pointer-events: none;
+    z-index: 15;
+  }
+
+  .d-pad {
+    position: absolute;
+    left: 20px;
+    bottom: 20px;
+    width: 140px;
+    height: 140px;
+    pointer-events: auto;
+  }
+
+  .d-pad-btn {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 2px solid rgba(100, 220, 255, 0.3);
+    background: rgba(100, 220, 255, 0.06);
+    color: rgba(100, 220, 255, 0.7);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.1s;
+  }
+
+  .d-pad-btn.active {
+    background: rgba(100, 220, 255, 0.2);
+    border-color: rgba(100, 220, 255, 0.7);
+  }
+
+  .d-up { left: 48px; top: 0; }
+  .d-down { left: 48px; bottom: 0; }
+  .d-left { left: 0; top: 48px; }
+  .d-right { right: 0; top: 48px; }
+
+  .echo-buttons {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    pointer-events: auto;
+  }
+
+  .control-btn {
+    width: 65px;
+    height: 65px;
+    border-radius: 50%;
+    border: 2px solid rgba(100, 220, 255, 0.3);
+    background: rgba(100, 220, 255, 0.06);
+    color: rgba(100, 220, 255, 0.8);
+    font-size: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .control-btn.large {
+    width: 80px;
+    height: 80px;
+    font-size: 32px;
+  }
+
+  .control-btn:active, .control-btn.pressed {
+    background: rgba(100, 220, 255, 0.25);
+    border-color: rgba(100, 220, 255, 0.8);
+    transform: scale(0.93);
+  }
+
+  #minimap {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 90px;
+    height: 90px;
+    border: 1px solid rgba(100, 220, 255, 0.2);
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 11;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+
+  #minimap.visible { opacity: 1; }
+
+  .death-flash {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255, 50, 50, 0.3);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 12;
+    transition: opacity 0.1s;
+  }
+
+  .death-flash.active { opacity: 1; }
+
+  #level-transition {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 25;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+
+  #level-transition.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #level-transition .level-num {
+    color: rgba(100, 220, 255, 0.9);
+    font-size: clamp(36px, 8vw, 60px);
+    letter-spacing: 10px;
+    text-shadow: 0 0 30px rgba(100, 220, 255, 0.6);
+  }
+
+  #level-transition .level-name {
+    color: rgba(100, 220, 255, 0.5);
+    font-size: 14px;
+    letter-spacing: 5px;
+    margin-top: 10px;
+  }
+
+  #tutorial-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+    pointer-events: auto;
+  }
+
+  .tutorial-box {
+    background: rgba(10, 20, 35, 0.95);
+    border: 1px solid rgba(100, 220, 255, 0.3);
+    border-radius: 16px;
+    padding: 30px 25px;
+    max-width: 320px;
+    text-align: center;
+  }
+
+  .tutorial-box h3 {
+    color: rgba(100, 220, 255, 0.9);
+    font-size: 18px;
+    letter-spacing: 3px;
+    margin-bottom: 15px;
+  }
+
+  .tutorial-box p {
+    color: rgba(200, 220, 240, 0.7);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 10px;
+  }
+
+  .tutorial-box .key {
+    display: inline-block;
+    background: rgba(100, 220, 255, 0.15);
+    border: 1px solid rgba(100, 220, 255, 0.3);
+    border-radius: 6px;
+    padding: 3px 10px;
+    color: rgba(100, 220, 255, 0.9);
+    font-size: 13px;
+    margin: 2px;
+  }
+
+  .tutorial-box .btn {
+    margin-top: 15px;
+    padding: 12px 30px;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="ui-overlay">
+  <div id="hud">
+    <div class="hud-item">Level <span id="hud-level">1</span></div>
+    <div class="hud-item">Time <span id="hud-time">0:00</span></div>
+  </div>
+
+  <canvas id="minimap"></canvas>
+
+  <div class="death-flash" id="death-flash"></div>
+
+  <!-- Mobile Controls -->
+  <div id="mobile-controls">
+    <div class="d-pad">
+      <button class="d-pad-btn d-up" data-dir="up">▲</button>
+      <button class="d-pad-btn d-down" data-dir="down">▼</button>
+      <button class="d-pad-btn d-left" data-dir="left">◀</button>
+      <button class="d-pad-btn d-right" data-dir="right">▶</button>
+    </div>
+    <div class="echo-buttons">
+      <button class="control-btn large" id="btn-loud">♫</button>
+      <button class="control-btn" id="btn-quiet">♪</button>
+    </div>
+  </div>
+
+  <div id="instructions">WASD / Arrows to move • Space = small echo • F / Ctrl = large echo • Reach the light</div>
+
+  <div id="menu-screen">
+    <div class="menu-title">ECHO</div>
+    <div class="menu-subtitle">The Dark Navigator</div>
+    <button class="btn" id="btn-start">Begin</button>
+    <div style="margin-top:30px; color:rgba(100,220,255,0.3); font-size:11px; letter-spacing:2px;">
+      Space = small echo &nbsp;|&nbsp; F / Ctrl = large echo
+    </div>
+  </div>
+
+  <div id="tutorial-overlay" class="hidden">
+    <div class="tutorial-box">
+      <h3>How to Play</h3>
+      <p>You are lost in the dark. Use <b>sound</b> to see.</p>
+      <p><span class="key">W A S D</span> or <span class="key">↑ ↓ ← →</span> to move</p>
+      <p><span class="key">Space</span> — quick small echo &nbsp;|&nbsp; <span class="key">F</span> or <span class="key">Ctrl</span> — powerful large echo</p>
+      <p>Echoes reveal the world but also alert enemies!</p>
+      <p>Reach the <b style="color:#ffd700;">golden light</b> to escape.</p>
+      <button class="btn" id="btn-tutorial-ok">Got it</button>
+    </div>
+  </div>
+
+  <div id="level-complete" class="hidden">
+    <div class="menu-title" style="font-size:clamp(28px,7vw,42px); letter-spacing:8px;">Level Complete</div>
+    <div class="stars" id="stars"></div>
+    <div class="level-info" id="lc-stats"></div>
+    <button class="btn" id="btn-next">Next Level</button>
+  </div>
+
+  <div id="game-over" class="hidden">
+    <div class="menu-title" style="font-size:clamp(28px,7vw,42px); letter-spacing:8px; color:rgba(255,100,100,0.9);">Lost in the Dark</div>
+    <div class="level-info" id="go-stats"></div>
+    <button class="btn" id="btn-retry">Try Again</button>
+    <button class="btn" id="btn-menu">Menu</button>
+  </div>
+
+  <div id="win-screen" class="hidden">
+    <div class="menu-title" style="font-size:clamp(24px,6vw,36px); letter-spacing:8px;">All Worlds Illuminated</div>
+    <div class="level-info" id="win-stats"></div>
+    <button class="btn" id="btn-win-menu">Main Menu</button>
+  </div>
+
+  <div id="level-transition">
+    <div class="level-num" id="lt-num"></div>
+    <div class="level-name" id="lt-name"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// ECHO — The Dark Navigator (Fixed Mobile Version)
+// ============================================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const minimapCanvas = document.getElementById('minimap');
+const minimapCtx = minimapCanvas.getContext('2d');
+
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playEchoSound(intensity) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(intensity === 'loud' ? 200 : 400, now);
+  osc.frequency.exponentialRampToValueAtTime(intensity === 'loud' ? 60 : 150, now + 0.3);
+  gain.gain.setValueAtTime(intensity === 'loud' ? 0.25 : 0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + (intensity === 'loud' ? 0.4 : 0.25));
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + (intensity === 'loud' ? 0.5 : 0.3));
+
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(intensity === 'loud' ? 600 : 800, now);
+  osc2.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+  gain2.gain.setValueAtTime(intensity === 'loud' ? 0.08 : 0.04, now);
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  osc2.connect(gain2); gain2.connect(audioCtx.destination);
+  osc2.start(now); osc2.stop(now + 0.25);
+}
+
+function playGoalSound() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  [440, 554, 659, 880].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, now + i * 0.12);
+    gain.gain.linearRampToValueAtTime(0.15, now + i * 0.12 + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.7);
+  });
+}
+
+function playDeathSound() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(300, now);
+  osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+  gain.gain.setValueAtTime(0.2, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.6);
+}
+
+function playStepSound() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 800 + Math.random() * 200;
+  gain.gain.setValueAtTime(0.03, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.06);
+}
+
+// --- Resize ---
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  minimapCanvas.width = 90;
+  minimapCanvas.height = 90;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- Detect Mobile ---
+const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+
+// --- Game State ---
+const TILE = 40;
+let gameState = 'menu';
+let currentLevel = 0;
+let gameTime = 0;
+let startTime = 0;
+let ripples = [];
+let particles = [];
+let player = null;
+let enemies = [];
+let goal = null;
+let walls = [];
+let levelData = null;
+let lastTime = 0;
+  let moveTimer = 0;
+  let lastLoudEcho = 0;
+
+// Input state
+const keys = {};
+const mobileDir = { up: false, down: false, left: false, right: false };
+
+// --- Levels ---
+const LEVELS = [
+  { name: "First Sound", w: 21, h: 15, px: 2, py: 7, gx: 18, gy: 7 },
+  { name: "Narrow Passage", w: 23, h: 15, px: 1, py: 7, gx: 21, gy: 7 },
+  { name: "The Maze", w: 25, h: 17, px: 1, py: 1, gx: 23, gy: 15 },
+  { name: "Crossroads", w: 27, h: 19, px: 1, py: 9, gx: 25, gy: 9 },
+  { name: "The Gauntlet", w: 29, h: 19, px: 1, py: 1, gx: 27, gy: 17 },
+  { name: "Labyrinth", w: 31, h: 21, px: 1, py: 10, gx: 29, gy: 10 },
+  { name: "The Void", w: 33, h: 21, px: 1, py: 1, gx: 31, gy: 19 },
+  { name: "Final Darkness", w: 35, h: 23, px: 1, py: 11, gx: 33, gy: 11 }
+];
+
+// --- Maze Generation Helpers ---
+function generateMazeGrid(w, h) {
+  const grid = [];
+  for (let y = 0; y < h; y++) {
+    grid[y] = new Array(w).fill(0);
+  }
+  
+  const visited = new Set();
+  const stack = [];
+  const sx = 1, sy = 1;
+  grid[sy][sx] = 1;
+  visited.add(sx + ',' + sy);
+  stack.push([sx, sy]);
+  
+  const dirs = [[0,-2],[2,0],[0,2],[-2,0]];
+  
+  while (stack.length > 0) {
+    const [cx, cy] = stack[stack.length - 1];
+    const neighbors = [];
+    for (const [dx, dy] of dirs) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx >= 1 && nx < w - 1 && ny >= 1 && ny < h - 1 && !visited.has(nx + ',' + ny)) {
+        neighbors.push([nx, ny, dx, dy]);
+      }
+    }
+    if (neighbors.length > 0) {
+      const [nx, ny, ddx, ddy] = neighbors[Math.floor(Math.random() * neighbors.length)];
+      grid[cy + ddy / 2][cx + ddx / 2] = 1;
+      grid[ny][nx] = 1;
+      visited.add(nx + ',' + ny);
+      stack.push([nx, ny]);
+    } else {
+      stack.pop();
+    }
+  }
+  return grid;
+}
+
+function findNearestPassage(grid, w, h, tx, ty) {
+  let bx = tx, by = ty, bd = Infinity;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      if (grid[y][x] === 1) {
+        const d = Math.abs(x - tx) + Math.abs(y - ty);
+        if (d < bd) { bx = x; by = y; bd = d; }
+      }
+    }
+  }
+  return { x: bx, y: by };
+}
+
+function clearArea(grid, w, h, cx, cy, r) {
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx >= 0 && nx < w && ny >= 0 && ny < h) grid[ny][nx] = 1;
+    }
+  }
+}
+
+function addExtraOpenings(grid, w, h, difficulty) {
+  const count = Math.min(1 + difficulty, 10);
+  let opened = 0;
+  const candidates = [];
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      if (grid[y][x] === 0) {
+        const adj = (
+          (y > 0 && grid[y-1][x] === 1) +
+          (y < h-1 && grid[y+1][x] === 1) +
+          (x > 0 && grid[y][x-1] === 1) +
+          (x < w-1 && grid[y][x+1] === 1)
+        );
+        if (adj >= 2) candidates.push([x, y]);
+      }
+    }
+  }
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  for (const [x, y] of candidates) {
+    if (opened >= count) break;
+    grid[y][x] = 1;
+    opened++;
+  }
+}
+
+function addRooms(grid, w, h, difficulty) {
+  const rc = Math.floor(difficulty / 2);
+  for (let i = 0; i < rc; i++) {
+    const rx = 3 + Math.floor(Math.random() * (w - 8));
+    const ry = 3 + Math.floor(Math.random() * (h - 8));
+    const rw = 2 + Math.floor(Math.random() * 3);
+    const rh = 2 + Math.floor(Math.random() * 3);
+    for (let dy = 0; dy < rh; dy++) {
+      for (let dx = 0; dx < rw; dx++) {
+        const cx = rx + dx, cy = ry + dy;
+        if (cx >= 1 && cx < w - 1 && cy >= 1 && cy < h - 1) grid[cy][cx] = 1;
+      }
+    }
+  }
+}
+
+function ensureOuterWalls(grid, w, h) {
+  for (let x = 0; x < w; x++) { grid[0][x] = 0; grid[h-1][x] = 0; }
+  for (let y = 0; y < h; y++) { grid[y][0] = 0; grid[y][w-1] = 0; }
+}
+
+// --- Generate Level Data ---
+function generateLevel(index) {
+  const L = LEVELS[index];
+  const grid = generateMazeGrid(L.w, L.h);
+  
+  const playerPos = findNearestPassage(grid, L.w, L.h, L.px, L.py);
+  const goalPos = findNearestPassage(grid, L.w, L.h, L.gx, L.gy);
+  
+  clearArea(grid, L.w, L.h, playerPos.x, playerPos.y, 2);
+  clearArea(grid, L.w, L.h, goalPos.x, goalPos.y, 2);
+  
+  addExtraOpenings(grid, L.w, L.h, index);
+  addRooms(grid, L.w, L.h, index);
+  ensureOuterWalls(grid, L.w, L.h);
+  
+  const wallArray = [];
+  for (let y = 0; y < L.h; y++) {
+    for (let x = 0; x < L.w; x++) {
+      if (grid[y][x] === 0) wallArray.push({ x, y });
+    }
+  }
+  
+  const passageCells = [];
+  for (let y = 2; y < L.h - 2; y++) {
+    for (let x = 2; x < L.w - 2; x++) {
+      if (grid[y][x] === 1) {
+        const dp = Math.abs(x - playerPos.x) + Math.abs(y - playerPos.y);
+        const dg = Math.abs(x - goalPos.x) + Math.abs(y - goalPos.y);
+        if (dp > 4 && dg > 4) passageCells.push({ x, y });
+      }
+    }
+  }
+  for (let i = passageCells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [passageCells[i], passageCells[j]] = [passageCells[j], passageCells[i]];
+  }
+  
+  const enemyCount = Math.min(index + 1, 7);
+  const enemyList = [];
+  for (let i = 0; i < enemyCount && i < passageCells.length; i++) {
+    const c = passageCells[i];
+    enemyList.push({
+      x: c.x, y: c.y,
+      patrol: Math.random() > 0.5 ? 'horizontal' : 'vertical',
+      range: 1 + Math.floor(Math.random() * 2),
+      speed: 0.5 + Math.random() * 0.7
+    });
+  }
+  
+  return { ...L, walls: wallArray, enemies: enemyList, playerPos, goalPos };
+}
+
+// --- Init Level ---
+function initLevel(index) {
+  if (index >= LEVELS.length) { showWinScreen(); return; }
+  
+  currentLevel = index;
+  levelData = generateLevel(index);
+  
+  player = {
+    x: levelData.playerPos.x * TILE + TILE / 2,
+    y: levelData.playerPos.y * TILE + TILE / 2,
+    radius: 8,
+    glowPhase: 0
+  };
+  
+  goal = {
+    x: levelData.goalPos.x * TILE + TILE / 2,
+    y: levelData.goalPos.y * TILE + TILE / 2,
+    pulsePhase: 0
+  };
+  
+  enemies = levelData.enemies.map(e => ({
+    x: e.x * TILE + TILE / 2,
+    y: e.y * TILE + TILE / 2,
+    startX: e.x * TILE + TILE / 2,
+    startY: e.y * TILE + TILE / 2,
+    patrolType: e.patrol,
+    range: e.range * TILE,
+    speed: e.speed,
+    direction: 1,
+    radius: 7,
+    alerted: false,
+    alertTimer: 0,
+    glowPhase: Math.random() * Math.PI * 2
+  }));
+  
+  ripples = [];
+  particles = [];
+  gameTime = 0;
+  startTime = Date.now();
+  gameState = 'playing';
+  
+  document.getElementById('hud').classList.add('visible');
+  document.getElementById('minimap').classList.add('visible');
+  updateHUD();
+}
+
+// --- Ripple ---
+function createRipple(x, y, intensity) {
+  const maxRadius = intensity === 'loud' ? 380 : (intensity === 'medium' ? 220 : 200);
+  const duration = intensity === 'loud' ? 2.8 : (intensity === 'medium' ? 1.5 : 0.8);
+  
+  ripples.push({
+    x, y, radius: 0, maxRadius, duration, elapsed: 0, intensity,
+    color: intensity === 'loud' ? '100, 220, 255' : (intensity === 'medium' ? '80, 180, 240' : '60, 140, 200')
+  });
+  
+  const count = intensity === 'loud' ? 20 : (intensity === 'medium' ? 12 : 6);
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.3;
+    const speed = 50 + Math.random() * 80;
+    particles.push({
+      x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      life: 1, decay: 0.8 + Math.random() * 0.5,
+      size: 2 + Math.random() * 3,
+      color: intensity === 'loud' ? [100, 220, 255] : [60, 140, 200]
+    });
+  }
+  
+  playEchoSound(intensity);
+}
+
+// --- Collision ---
+function isWall(x, y) {
+  const tx = Math.floor(x / TILE);
+  const ty = Math.floor(y / TILE);
+  return levelData.walls.some(w => w.x === tx && w.y === ty);
+}
+
+function canMoveTo(x, y, radius) {
+  const checks = [
+    { x: x - radius, y: y - radius }, { x: x + radius, y: y - radius },
+    { x: x - radius, y: y + radius }, { x: x + radius, y: y + radius }
+  ];
+  for (const p of checks) if (isWall(p.x, p.y)) return false;
+  const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+  if (tx < 0 || tx >= levelData.w || ty < 0 || ty >= levelData.h) return false;
+  return true;
+}
+
+// --- Input ---
+document.addEventListener('keydown', e => { keys[e.key] = true; });
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// Space for echo / menu navigation
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (gameState === 'playing' && player) {
+      initAudio();
+      createRipple(player.x, player.y, 'quiet');
+    } else if (gameState === 'menu') {
+      document.getElementById('btn-start').click();
+    } else if (gameState === 'levelComplete') {
+      document.getElementById('btn-next').click();
+    } else if (gameState === 'gameOver') {
+      document.getElementById('btn-retry').click();
+    } else if (gameState === 'win') {
+      document.getElementById('btn-win-menu').click();
+    }
+  }
+});
+
+// F or Ctrl for loud echo
+document.addEventListener('keydown', e => {
+  if ((e.code === 'KeyF' || e.code === 'ControlLeft' || e.code === 'ControlRight') && gameState === 'playing') {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastLoudEcho < 4000) return;
+    lastLoudEcho = now;
+    initAudio();
+    createRipple(player.x, player.y, 'loud');
+  }
+});
+
+// Touch on canvas for echo
+canvas.addEventListener('touchstart', e => {
+  if (gameState !== 'playing') return;
+  // Only handle echo on canvas if not hitting a button
+  if (e.target === canvas) {
+    initAudio();
+    const t = e.touches[0];
+    createRipple(t.clientX + cameraX, t.clientY + cameraY, 'quiet');
+  }
+});
+
+// Mobile D-pad
+document.querySelectorAll('.d-pad-btn').forEach(btn => {
+  const dir = btn.dataset.dir;
+  
+  const activate = (e) => { e.preventDefault(); mobileDir[dir] = true; btn.classList.add('active'); };
+  const deactivate = (e) => { e.preventDefault(); mobileDir[dir] = false; btn.classList.remove('active'); };
+  
+  btn.addEventListener('touchstart', activate);
+  btn.addEventListener('touchend', deactivate);
+  btn.addEventListener('touchcancel', deactivate);
+  btn.addEventListener('mousedown', activate);
+  btn.addEventListener('mouseup', deactivate);
+  btn.addEventListener('mouseleave', deactivate);
+});
+
+// Mobile echo buttons
+document.getElementById('btn-quiet').addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (!player) return;
+  initAudio();
+  createRipple(player.x, player.y, 'quiet');
+  e.currentTarget.classList.add('pressed'); setTimeout(() => e.currentTarget.classList.remove('pressed'), 150);
+});
+document.getElementById('btn-loud').addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (!player) return;
+  const now = Date.now();
+  if (now - lastLoudEcho < 4000) return;
+  lastLoudEcho = now;
+  initAudio();
+  createRipple(player.x, player.y, 'loud');
+  e.currentTarget.classList.add('pressed'); setTimeout(() => e.currentTarget.classList.remove('pressed'), 150);
+});
+
+// Desktop mouse for echo buttons
+document.getElementById('btn-quiet').addEventListener('mousedown', () => { if (gameState === 'playing' && player) { initAudio(); createRipple(player.x, player.y, 'quiet'); } });
+document.getElementById('btn-loud').addEventListener('mousedown', () => {
+  if (gameState === 'playing' && player) {
+    const now = Date.now();
+    if (now - lastLoudEcho < 4000) return;
+    lastLoudEcho = now;
+    initAudio();
+    createRipple(player.x, player.y, 'loud');
+  }
+});
+
+// --- UI Functions ---
+function updateHUD() {
+  document.getElementById('hud-level').textContent = currentLevel + 1;
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  document.getElementById('hud-time').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function showLevelComplete() {
+  gameState = 'levelComplete';
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const mins = Math.floor(elapsed / 60), secs = elapsed % 60;
+  
+  let stars = 1;
+  if (elapsed < 30 + currentLevel * 15) stars = 2;
+  if (elapsed < 15 + currentLevel * 10) stars = 3;
+  
+  document.getElementById('stars').innerHTML = [1, 2, 3].map(i =>
+    `<span class="star ${i <= stars ? 'active' : ''}">★</span>`
+  ).join('');
+  
+  document.getElementById('lc-stats').textContent = `Time: ${mins}:${secs.toString().padStart(2, '0')} | Level ${currentLevel + 1}`;
+  document.getElementById('level-complete').classList.remove('hidden');
+  document.getElementById('hud').classList.remove('visible');
+}
+
+function showGameOver() {
+  gameState = 'gameOver';
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const mins = Math.floor(elapsed / 60), secs = elapsed % 60;
+  document.getElementById('go-stats').textContent = `Reached Level ${currentLevel + 1} | Time: ${mins}:${secs.toString().padStart(2, '0')}`;
+  document.getElementById('game-over').classList.remove('hidden');
+  document.getElementById('hud').classList.remove('visible');
+}
+
+function showWinScreen() {
+  gameState = 'win';
+  document.getElementById('win-stats').textContent = `All ${LEVELS.length} worlds illuminated`;
+  document.getElementById('win-screen').classList.remove('hidden');
+  document.getElementById('hud').classList.remove('visible');
+}
+
+function showLevelTransition(index) {
+  if (index >= LEVELS.length) {
+    showWinScreen();
+    return;
+  }
+  const lt = document.getElementById('level-transition');
+  document.getElementById('lt-num').textContent = `— ${index + 1} —`;
+  document.getElementById('lt-name').textContent = LEVELS[index].name;
+  lt.classList.add('active');
+  setTimeout(() => { lt.classList.remove('active'); initLevel(index); }, 2000);
+}
+
+// --- Buttons ---
+document.getElementById('btn-start').addEventListener('click', () => {
+  initAudio();
+  document.getElementById('menu-screen').classList.add('hidden');
+  
+  if (isMobile) {
+    document.getElementById('mobile-controls').style.display = 'block';
+    document.getElementById('instructions').textContent = 'Use D-pad to move • Buttons for echoes';
+    showLevelTransition(0);
+  } else {
+    document.getElementById('tutorial-overlay').classList.remove('hidden');
+  }
+});
+
+document.getElementById('btn-tutorial-ok').addEventListener('click', () => {
+  document.getElementById('tutorial-overlay').classList.add('hidden');
+  showLevelTransition(0);
+});
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  document.getElementById('level-complete').classList.add('hidden');
+  showLevelTransition(currentLevel + 1);
+});
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  document.getElementById('game-over').classList.add('hidden');
+  showLevelTransition(currentLevel);
+});
+
+document.getElementById('btn-menu').addEventListener('click', () => {
+  document.getElementById('game-over').classList.add('hidden');
+  document.getElementById('menu-screen').classList.remove('hidden');
+  gameState = 'menu';
+});
+
+document.getElementById('btn-win-menu').addEventListener('click', () => {
+  document.getElementById('win-screen').classList.add('hidden');
+  document.getElementById('menu-screen').classList.remove('hidden');
+  gameState = 'menu';
+});
+
+// --- Camera ---
+let cameraX = 0, cameraY = 0;
+
+function updateCamera() {
+  const targetX = player.x - canvas.width / 2;
+  const targetY = player.y - canvas.height / 2;
+  cameraX += (targetX - cameraX) * 0.1;
+  cameraY += (targetY - cameraY) * 0.1;
+}
+
+// --- Update ---
+function update(dt) {
+  if (gameState !== 'playing') return;
+  
+  gameTime += dt;
+  updateHUD();
+  
+  // Player movement
+  const moveSpeed = 150;
+  let dx = 0, dy = 0;
+  
+  if (keys['ArrowUp'] || keys['w'] || keys['W'] || mobileDir.up) dy -= 1;
+  if (keys['ArrowDown'] || keys['s'] || keys['S'] || mobileDir.down) dy += 1;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A'] || mobileDir.left) dx -= 1;
+  if (keys['ArrowRight'] || keys['d'] || keys['D'] || mobileDir.right) dx += 1;
+  
+  if (dx !== 0 || dy !== 0) {
+    const len = Math.sqrt(dx * dx + dy * dy);
+    dx /= len; dy /= len;
+    
+    const newX = player.x + dx * moveSpeed * dt;
+    const newY = player.y + dy * moveSpeed * dt;
+    
+    if (canMoveTo(newX, player.y, player.radius)) player.x = newX;
+    if (canMoveTo(player.x, newY, player.radius)) player.y = newY;
+    
+    moveTimer += dt;
+    if (moveTimer > 0.15) { moveTimer = 0; playStepSound(); }
+  }
+  
+  // Ripples
+  ripples = ripples.filter(r => {
+    r.elapsed += dt;
+    r.radius = (r.elapsed / r.duration) * r.maxRadius;
+    return r.elapsed < r.duration;
+  });
+  
+  // Particles
+  particles = particles.filter(p => {
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= 0.98; p.vy *= 0.98;
+    p.life -= p.decay * dt;
+    return p.life > 0;
+  });
+  
+  // Enemies
+  enemies.forEach(e => {
+    e.glowPhase += dt * 2;
+    
+    if (e.alerted) {
+      e.alertTimer -= dt;
+      if (e.alertTimer <= 0) e.alerted = false;
+    }
+    
+    if (!e.alerted) {
+      if (e.patrolType === 'horizontal') {
+        const cTX = Math.floor(e.x / TILE);
+        const nX = e.x + e.direction * (TILE / 2 + 8);
+        const nTX = Math.floor(nX / TILE);
+        const nTY = Math.floor(e.y / TILE);
+        if (nTX !== cTX && levelData.walls.some(w => w.x === nTX && w.y === nTY)) {
+          e.direction *= -1;
+        } else {
+          e.x += e.speed * e.direction * 60 * dt;
+          if (Math.abs(e.x - e.startX) > e.range) e.direction *= -1;
+        }
+      } else {
+        const cTY = Math.floor(e.y / TILE);
+        const nY = e.y + e.direction * (TILE / 2 + 8);
+        const nTY2 = Math.floor(nY / TILE);
+        const nTX2 = Math.floor(e.x / TILE);
+        if (nTY2 !== cTY && levelData.walls.some(w => w.x === nTX2 && w.y === nTY2)) {
+          e.direction *= -1;
+        } else {
+          e.y += e.speed * e.direction * 60 * dt;
+          if (Math.abs(e.y - e.startY) > e.range) e.direction *= -1;
+        }
+      }
+    } else {
+      const angle = Math.atan2(player.y - e.y, player.x - e.x);
+      e.x += Math.cos(angle) * e.speed * 80 * dt;
+      e.y += Math.sin(angle) * e.speed * 80 * dt;
+    }
+    
+    // Alert on ripple
+    ripples.forEach(r => {
+      const dist = Math.sqrt((e.x - r.x) ** 2 + (e.y - r.y) ** 2);
+      if (dist < r.radius && dist > 0 && !e.alerted) {
+        e.alerted = true;
+        e.alertTimer = 3;
+        for (let i = 0; i < 5; i++) {
+          particles.push({
+            x: e.x, y: e.y - 20,
+            vx: (Math.random() - 0.5) * 30, vy: -30 - Math.random() * 30,
+            life: 1, decay: 2, size: 3, color: [255, 100, 100]
+          });
+        }
+      }
+    });
+    
+    // Collision with player
+    const distToPlayer = Math.sqrt((e.x - player.x) ** 2 + (e.y - player.y) ** 2);
+    if (distToPlayer < e.radius + player.radius) {
+      playDeathSound();
+      showGameOver();
+    }
+  });
+  
+  // Goal check
+  const distToGoal = Math.sqrt((player.x - goal.x) ** 2 + (player.y - goal.y) ** 2);
+  if (distToGoal < 30) { playGoalSound(); showLevelComplete(); }
+  
+  player.glowPhase += dt * 3;
+  updateCamera();
+}
+
+// --- Render ---
+function render() {
+  ctx.fillStyle = '#050508';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  if (gameState === 'menu') return;
+  if (!levelData) return;
+  
+  ctx.save();
+  ctx.translate(-cameraX, -cameraY);
+  
+  // Walls
+  levelData.walls.forEach(w => {
+    const wx = w.x * TILE, wy = w.y * TILE;
+    ctx.fillStyle = '#2a3a50';
+    ctx.fillRect(wx + 1, wy + 1, TILE - 2, TILE - 2);
+    ctx.fillStyle = 'rgba(120, 160, 200, 0.4)';
+    ctx.fillRect(wx + 2, wy + 2, TILE - 4, 2);
+    ctx.strokeStyle = 'rgba(60, 80, 100, 0.3)';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(wx + 1, wy + 1, TILE - 2, TILE - 2);
+  });
+  
+  // Goal
+  goal.pulsePhase += 0.03;
+  const gp = Math.sin(goal.pulsePhase) * 0.3 + 0.7;
+  
+  ctx.save();
+  ctx.shadowColor = `rgba(255, 215, 0, ${gp})`;
+  ctx.shadowBlur = 30;
+  
+  const gGrad = ctx.createRadialGradient(goal.x, goal.y, 0, goal.x, goal.y, 35);
+  gGrad.addColorStop(0, `rgba(255, 215, 0, ${0.6 * gp})`);
+  gGrad.addColorStop(0.5, `rgba(255, 215, 0, ${0.2 * gp})`);
+  gGrad.addColorStop(1, 'rgba(255, 215, 0, 0)');
+  ctx.fillStyle = gGrad;
+  ctx.beginPath(); ctx.arc(goal.x, goal.y, 35, 0, Math.PI * 2); ctx.fill();
+  
+  ctx.fillStyle = `rgba(255, 240, 150, ${gp})`;
+  ctx.beginPath(); ctx.arc(goal.x, goal.y, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  
+  // Ripples
+  ripples.forEach(r => {
+    const progress = r.elapsed / r.duration;
+    const alpha = (1 - progress) * 0.4;
+    
+    ctx.strokeStyle = `rgba(${r.color}, ${alpha})`;
+    ctx.lineWidth = 2 + (1 - progress) * 3;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2); ctx.stroke();
+    
+    if (r.radius > 20) {
+      ctx.strokeStyle = `rgba(${r.color}, ${alpha * 0.5})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(r.x, r.y, r.radius * 0.7, 0, Math.PI * 2); ctx.stroke();
+    }
+    
+    const fGrad = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, r.radius);
+    fGrad.addColorStop(0, `rgba(${r.color}, ${alpha * 0.15})`);
+    fGrad.addColorStop(1, `rgba(${r.color}, 0)`);
+    ctx.fillStyle = fGrad;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2); ctx.fill();
+  });
+  
+  // Non-alerted enemies
+  enemies.forEach(e => {
+    if (!e.alerted) {
+      ctx.fillStyle = '#aa3333';
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill();
+      
+      ctx.fillStyle = '#ff8888';
+      const eyeAngle = Math.atan2(player.y - e.y, player.x - e.x);
+      ctx.beginPath();
+      ctx.arc(e.x + Math.cos(eyeAngle - 0.3) * 3, e.y + Math.sin(eyeAngle - 0.3) * 3, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(e.x + Math.cos(eyeAngle + 0.3) * 3, e.y + Math.sin(eyeAngle + 0.3) * 3, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+  
+  // Player
+  ctx.save();
+  const pGlow = Math.sin(player.glowPhase) * 0.3 + 0.7;
+  ctx.shadowColor = `rgba(100, 220, 255, ${pGlow})`;
+  ctx.shadowBlur = 20;
+  
+  const pGrad = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, 30);
+  pGrad.addColorStop(0, `rgba(100, 220, 255, ${0.4 * pGlow})`);
+  pGrad.addColorStop(0.5, `rgba(100, 220, 255, ${0.1 * pGlow})`);
+  pGrad.addColorStop(1, 'rgba(100, 220, 255, 0)');
+  ctx.fillStyle = pGrad;
+  ctx.beginPath(); ctx.arc(player.x, player.y, 30, 0, Math.PI * 2); ctx.fill();
+  
+  ctx.fillStyle = '#66ddff';
+  ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2); ctx.fill();
+  
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(player.x, player.y, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  
+  // Particles
+  particles.forEach(p => {
+    ctx.fillStyle = `rgba(${p.color[0]}, ${p.color[1]}, ${p.color[2]}, ${p.life})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill();
+  });
+  
+  ctx.restore();
+  
+  // Darkness overlay
+  drawDarkness();
+  
+  // Minimap
+  drawMinimap();
+}
+
+function drawDarkness() {
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = canvas.width;
+  tempCanvas.height = canvas.height;
+  const tempCtx = tempCanvas.getContext('2d');
+  
+  // Dark but not TOO dark - allow some visibility near player
+  tempCtx.fillStyle = 'rgba(5, 5, 10, 1.0)';
+  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  
+  tempCtx.globalCompositeOperation = 'destination-out';
+  
+  // Ripples cut holes in darkness
+  ripples.forEach(r => {
+    const progress = r.elapsed / r.duration;
+    const screenX = r.x - cameraX;
+    const screenY = r.y - cameraY;
+    
+    const alpha = 1 - progress;
+    const revealRadius = r.radius * (r.intensity === 'loud' ? 0.8 : 0.7);
+    const grad = tempCtx.createRadialGradient(screenX, screenY, 0, screenX, screenY, revealRadius);
+    grad.addColorStop(0, `rgba(0, 0, 0, ${alpha})`);
+    grad.addColorStop(0.95, `rgba(0, 0, 0, ${alpha})`);
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    
+    tempCtx.fillStyle = grad;
+    tempCtx.beginPath(); tempCtx.arc(screenX, screenY, r.radius, 0, Math.PI * 2); tempCtx.fill();
+  });
+  
+  // Player always reveals small area around them
+  const px = player.x - cameraX;
+  const py = player.y - cameraY;
+  const pGrad = tempCtx.createRadialGradient(px, py, 0, px, py, 80);
+  pGrad.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+  pGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  tempCtx.fillStyle = pGrad;
+  tempCtx.beginPath(); tempCtx.arc(px, py, 50, 0, Math.PI * 2); tempCtx.fill();
+  
+  // Goal reveals area
+  if (goal) {
+    const gx = goal.x - cameraX;
+    const gy = goal.y - cameraY;
+    const gGrad = tempCtx.createRadialGradient(gx, gy, 0, gx, gy, 60);
+    gGrad.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+    gGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    tempCtx.fillStyle = gGrad;
+    tempCtx.beginPath(); tempCtx.arc(gx, gy, 60, 0, Math.PI * 2); tempCtx.fill();
+  }
+  
+  ctx.drawImage(tempCanvas, 0, 0);
+  
+  // Draw alerted enemies on top of darkness
+  ctx.save();
+  ctx.translate(-cameraX, -cameraY);
+  enemies.forEach(e => {
+    if (e.alerted) {
+      ctx.fillStyle = '#ff4444';
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill();
+      
+      ctx.fillStyle = '#fff';
+      const eyeAngle = Math.atan2(player.y - e.y, player.x - e.x);
+      ctx.beginPath();
+      ctx.arc(e.x + Math.cos(eyeAngle - 0.3) * 3, e.y + Math.sin(eyeAngle - 0.3) * 3, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(e.x + Math.cos(eyeAngle + 0.3) * 3, e.y + Math.sin(eyeAngle + 0.3) * 3, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+  ctx.restore();
+}
+
+function drawMinimap() {
+  if (!levelData || !player) return;
+  
+  minimapCtx.fillStyle = 'rgba(5, 5, 15, 0.9)';
+  minimapCtx.fillRect(0, 0, 90, 90);
+  
+  const scaleX = 90 / (levelData.w * TILE);
+  const scaleY = 90 / (levelData.h * TILE);
+  
+  minimapCtx.fillStyle = 'rgba(40, 60, 80, 0.5)';
+  levelData.walls.forEach(w => {
+    minimapCtx.fillRect(w.x * TILE * scaleX, w.y * TILE * scaleY,
+                         Math.max(1, TILE * scaleX), Math.max(1, TILE * scaleY));
+  });
+  
+  minimapCtx.fillStyle = 'rgba(255, 215, 0, 0.6)';
+  minimapCtx.fillRect(goal.x * scaleX - 2, goal.y * scaleY - 2, 4, 4);
+  
+  enemies.forEach(e => {
+    minimapCtx.fillStyle = e.alerted ? 'rgba(255, 80, 80, 0.8)' : 'rgba(180, 60, 60, 0.5)';
+    minimapCtx.fillRect(e.x * scaleX - 1, e.y * scaleY - 1, 3, 3);
+  });
+  
+  minimapCtx.fillStyle = 'rgba(100, 220, 255, 0.9)';
+  minimapCtx.fillRect(player.x * scaleX - 2, player.y * scaleY - 2, 4, 4);
+  
+  minimapCtx.strokeStyle = 'rgba(100, 220, 255, 0.3)';
+  minimapCtx.lineWidth = 1;
+  minimapCtx.strokeRect(0, 0, 90, 90);
+}
+
+// --- Game Loop ---
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  
+  update(dt);
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
+
+							<script>
+                            	
+							</script>
+                        </body>
+                        </html>
+                    

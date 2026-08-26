@@ -1,0 +1,743 @@
+
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+							<style>
+								body {
+									background-color: white; /* Ensure the iframe has a white background */
+								}
+
+								
+							</style>
+                        </head>
+                        <body>
+                            <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Katamari Clone</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            text-shadow: 2px 2px 0 #333;
+            pointer-events: none; /* Let clicks pass through to canvas */
+        }
+
+        h1 { margin: 0; font-size: 24px; letter-spacing: -1px; }
+        .stat-box { background: rgba(0, 0, 0, 0.5); padding: 15px; border-radius: 12px; margin-top: 10px; display: inline-block;}
+        .stat-value { font-size: 32px; font-weight: bold; color: #FFD700; }
+        .stat-label { font-size: 14px; text-transform: uppercase; opacity: 0.9; }
+
+        /* Start Screen */
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        button {
+            background: #FF4081; color: white; border: none; padding: 15px 40px; 
+            font-size: 24px; border-radius: 50px; cursor: pointer; 
+            box-shadow: 0 6px #C60055; transition: transform 0.1s, box-shadow 0.1s;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 8px #C60055; }
+        button:active { transform: translateY(2px); box-shadow: 0 2px #C60055; }
+
+        .controls-hint { margin-top: 20px; color: #555; font-weight: bold; }
+        
+        /* Floating text animation */
+        .float-text {
+            position: absolute; color: white; font-weight: bold; font-size: 20px;
+            animation: floatUp 1s ease-out forwards; pointer-events: none; text-shadow: 1px 1px 0 #000;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+
+        #level-complete {
+            display: none; position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%); text-align: center; z-index: 9;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui-layer">
+        <h1>KATAMARI CLONE</h1>
+        <div class="stat-box">
+            <div class="stat-value" id="size-display">5 cm</div>
+            <div class="stat-label">Size</div>
+        </div>
+        <br><br>
+        <div class="stat-box">
+            <div class="stat-value" id="score-display">0</div>
+            <div class="stat-label">Collected</div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <h1 style="font-size: 60px; color: #FF4081; text-shadow: 4px 4px 0 #333;">ROLL IT!</h1>
+        <p style="font-size: 20px; margin-bottom: 30px;">Roll up everything smaller than you.</p>
+        <button id="start-btn">START GAME</button>
+        <div class="controls-hint">Use ARROW KEYS or WASD to move</div>
+    </div>
+
+    <div id="level-complete">
+        <h1 style="font-size: 50px; color: #4CAF50;">LEVEL COMPLETE!</h1>
+        <button onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+</div>
+
+<!-- Three.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+    // --- Game Configuration ---
+    const CONFIG = {
+        startRadius: 0.5,
+        maxRadius: 20, // Level completion size (approx)
+        speed: 0.3,
+        turnSpeed: 0.02,
+        colors: [0xFF4081, 0x448AFF, 0x69C9E3, 0x69F0AE], // Katamari pattern colors
+        objectTypes: [
+            { name: "Button", sizeRange: [0.2, 0.3], score: 1 },
+            { name: "Cupcake", sizeRange: [0.4, 0.6], score: 5 },
+            { name: "Toy Car", sizeRange: [0.7, 1.2], score: 15 },
+            { name: "Potted Plant", sizeRange: [1.3, 2.0], score: 40 },
+            { name: "Cat", sizeRange: [2.1, 3.5], score: 100 }, // Just a box for now!
+            { name: "Dog", sizeRange: [3.6, 5.0], score: 250 },
+            { name: "Human", sizeRange: [5.1, 8.0], score: 1000 }
+        ]
+    };
+
+    // --- Global Variables ---
+    let scene, camera, renderer;
+    let katamariMesh, katamariGroup; // The rolling ball
+    let objects = []; // Array to hold collectible meshes and their data
+    let floorMesh;
+    
+    // Game State
+    let radius = CONFIG.startRadius;
+    let score = 0;
+    let isPlaying = false;
+    let moveForward = false;
+    let moveBackward = false;
+    let rotateLeft = false;
+    let rotateRight = false;
+
+    // DOM Elements
+    const sizeDisplay = document.getElementById('size-display');
+    const scoreDisplay = document.getElementById('score-display');
+    const startScreen = document.getElementById('start-screen');
+    
+    // --- Initialization ---
+    function init() {
+        // Scene Setup
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        
+        // Fog for depth and performance culling feel
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 150);
+
+        // Camera (Isometric-ish view)
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('game-container').appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(50, 100, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.left = -50;
+        dirLight.shadow.camera.right = 50;
+        dirLight.shadow.camera.top = 50;
+        dirLight.shadow.camera.bottom = -50;
+        scene.add(dirLight);
+
+        createWorld();
+        
+        // Event Listeners
+        window.addEventListener('resize', onWindowResize, false);
+        document.addEventListener('keydown', onKeyDown, false);
+        document.addEventListener('keyup', onKeyUp, false);
+        
+        document.getElementById('start-btn').addEventListener('click', startGame);
+
+        animate();
+    }
+
+    function createWorld() {
+        // 1. The Floor (Grass)
+        const planeGeometry = new THREE.PlaneGeometry(400, 400);
+        const planeMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x7CFC00, 
+            roughness: 1,
+            side: THREE.DoubleSide
+        });
+        floorMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.receiveShadow = true;
+        scene.add(floorMesh);
+
+        // 2. Create Streets (Grid pattern)
+        const streetWidth = 8;
+        const streetLength = 400;
+        const streetSpacing = 60; // Distance between streets
+        const streetMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x555555, 
+            roughness: 0.8 
+        });
+
+        // Vertical streets
+        for (let x = -180; x <= 180; x += streetSpacing) {
+            const streetGeo = new THREE.PlaneGeometry(streetWidth, streetLength);
+            const street = new THREE.Mesh(streetGeo, streetMaterial);
+            street.rotation.x = -Math.PI / 2;
+            street.position.set(x, 0.05, 0);
+            street.receiveShadow = true;
+            scene.add(street);
+
+            // Street markings (dashed lines)
+            const markingGeo = new THREE.PlaneGeometry(0.5, 4);
+            const markingMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+            for (let z = -190; z < 190; z += 10) {
+                const marking = new THREE.Mesh(markingGeo, markingMat);
+                marking.rotation.x = -Math.PI / 2;
+                marking.position.set(x, 0.06, z);
+                scene.add(marking);
+            }
+        }
+
+        // Horizontal streets
+        for (let z = -180; z <= 180; z += streetSpacing) {
+            const streetGeo = new THREE.PlaneGeometry(streetLength, streetWidth);
+            const street = new THREE.Mesh(streetGeo, streetMaterial);
+            street.rotation.x = -Math.PI / 2;
+            street.position.set(0, 0.05, z);
+            street.receiveShadow = true;
+            scene.add(street);
+
+            // Street markings (dashed lines)
+            const markingGeo = new THREE.PlaneGeometry(0.5, 4);
+            const markingMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+            for (let x = -190; x < 190; x += 10) {
+                const marking = new THREE.Mesh(markingGeo, markingMat);
+                marking.rotation.x = -Math.PI / 2;
+                marking.position.set(x, 0.06, z);
+                scene.add(marking);
+            }
+        }
+
+        // 2. The Katamari (The Ball)
+        katamariGroup = new THREE.Group();
+        
+        // Core sphere geometry for the ball itself (to hold objects)
+        const sphereGeo = new THREE.SphereGeometry(CONFIG.startRadius, 32, 32);
+        const sphereMat = new THREE.MeshStandardMaterial({ color: 0x555555 }); // Dark core
+        
+        katamariMesh = new THREE.Mesh(sphereGeo, sphereMat);
+        katamariMesh.castShadow = true;
+        
+        // Add a pattern texture or simple colored bands to the ball
+        const band1 = new THREE.Mesh(new THREE.TorusGeometry(CONFIG.startRadius * 0.95, 0.1, 8, 50), new THREE.MeshBasicMaterial({color: CONFIG.colors[0]}));
+        band1.rotation.x = Math.PI / 2;
+        katamariMesh.add(band1);
+
+        const band2 = new THREE.Mesh(new THREE.TorusGeometry(CONFIG.startRadius * 0.95, 0.1, 8, 50), new THREE.MeshBasicMaterial({color: CONFIG.colors[1]}));
+        band2.rotation.x = Math.PI / 2;
+        band2.rotation.y = Math.PI / 4;
+        katamariMesh.add(band2);
+
+        const band3 = new THREE.Mesh(new THREE.TorusGeometry(CONFIG.startRadius * 0.95, 0.1, 8, 50), new THREE.MeshBasicMaterial({color: CONFIG.colors[2]}));
+        band3.rotation.x = Math.PI / 2;
+        band3.rotation.y = Math.PI / -4;
+        katamariMesh.add(band3);
+
+        katamariGroup.add(katamariMesh);
+        
+        // Position ball on floor (radius height)
+        katamariGroup.position.set(0, CONFIG.startRadius, 0);
+        scene.add(katamariGroup);
+
+        // 3. Spawn Collectibles
+        spawnObjects();
+    }
+
+    function createHouse(x, z, scale = 1) {
+        const houseGroup = new THREE.Group();
+        
+        // House base
+        const baseSize = 4 * scale;
+        const baseGeo = new THREE.BoxGeometry(baseSize, baseSize * 0.8, baseSize);
+        const baseColors = [0xF5DEB3, 0xDEB887, 0xF4A460, 0xD2691E];
+        const baseMat = new THREE.MeshStandardMaterial({ 
+            color: baseColors[Math.floor(Math.random() * baseColors.length)],
+            roughness: 0.9 
+        });
+        const base = new THREE.Mesh(baseGeo, baseMat);
+        base.position.y = baseSize * 0.4;
+        base.castShadow = true;
+        base.receiveShadow = true;
+        houseGroup.add(base);
+
+        // Door
+        const doorGeo = new THREE.BoxGeometry(baseSize * 0.3, baseSize * 0.5, 0.1);
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.7 });
+        const door = new THREE.Mesh(doorGeo, doorMat);
+        door.position.set(0, baseSize * 0.25, baseSize * 0.51);
+        houseGroup.add(door);
+
+        // Windows
+        const windowSize = baseSize * 0.2;
+        const windowGeo = new THREE.BoxGeometry(windowSize, windowSize, 0.1);
+        const windowMat = new THREE.MeshStandardMaterial({ 
+            color: 0x87CEEB, 
+            emissive: 0x87CEEB,
+            emissiveIntensity: 0.3,
+            roughness: 0.1 
+        });
+        
+        const window1 = new THREE.Mesh(windowGeo, windowMat);
+        window1.position.set(-baseSize * 0.3, baseSize * 0.5, baseSize * 0.51);
+        houseGroup.add(window1);
+
+        const window2 = new THREE.Mesh(windowGeo, windowMat);
+        window2.position.set(baseSize * 0.3, baseSize * 0.5, baseSize * 0.51);
+        houseGroup.add(window2);
+
+        // Roof
+        const roofHeight = baseSize * 0.6;
+        const roofGeo = new THREE.ConeGeometry(baseSize * 0.9, roofHeight, 4);
+        const roofColors = [0xFF6B6B, 0x4ECDC4, 0x45B7D1, 0x96CEB4, 0xFFE066];
+        const roofMat = new THREE.MeshStandardMaterial({ 
+            color: roofColors[Math.floor(Math.random() * roofColors.length)],
+            roughness: 0.6 
+        });
+        const roof = new THREE.Mesh(roofGeo, roofMat);
+        roof.position.y = baseSize * 0.8 + roofHeight * 0.5;
+        roof.rotation.y = Math.PI / 4;
+        roof.castShadow = true;
+        houseGroup.add(roof);
+
+        // Chimney
+        const chimneyGeo = new THREE.BoxGeometry(baseSize * 0.15, baseSize * 0.4, baseSize * 0.15);
+        const chimneyMat = new THREE.MeshStandardMaterial({ color: 0x8B0000, roughness: 0.8 });
+        const chimney = new THREE.Mesh(chimneyGeo, chimneyMat);
+        chimney.position.set(baseSize * 0.3, baseSize * 0.8 + roofHeight * 0.3, -baseSize * 0.2);
+        houseGroup.add(chimney);
+
+        houseGroup.position.set(x, 0, z);
+        houseGroup.rotation.y = Math.random() * Math.PI * 2;
+        
+        scene.add(houseGroup);
+
+        // House counts as larger object
+        objects.push({
+            mesh: houseGroup,
+            size: baseSize * 1.5,
+            type: { name: "House", sizeRange: [baseSize, baseSize * 2], score: 50 },
+            active: true,
+            angleOffset: 0
+        });
+    }
+
+  function spawnObjects() {
+        const streetSpacing = 60;
+        const streetWidth = 8;
+        const halfStreet = streetWidth / 2;
+        
+        // Spawn houses along street sides in grid pattern (sparse - large objects)
+        for (let x = -180; x <= 180; x += streetSpacing) {
+            for (let z = -180; z <= 180; z += streetSpacing) {
+                // Skip center area
+                if (Math.abs(x) < 25 && Math.abs(z) < 25) continue;
+                
+                // Place houses on each corner of the street intersection
+                const corners = [
+                    { x: x - halfStreet - 6, z: z - halfStreet - 6 },
+                    { x: x + halfStreet + 6, z: z - halfStreet - 6 },
+                    { x: x - halfStreet - 6, z: z + halfStreet + 6 },
+                    { x: x + halfStreet + 6, z: z + halfStreet + 6 }
+                ];
+                
+                corners.forEach(corner => {
+                    // Randomly decide if a house spawns here (40% chance - less dense)
+                    if (Math.random() < 0.4) {
+                        const houseScale = 0.7 + Math.random() * 0.5;
+                        createHouse(corner.x, corner.z, houseScale);
+                    }
+                });
+            }
+        }
+        
+        // Spawn many small objects densely packed everywhere
+        const smallObjectCount = 400; // Much higher density for small items
+        
+        for (let i = 0; i < smallObjectCount; i++) {
+            // Only spawn small types (Button, Cupcake, Toy Car)
+            const smallTypes = [0, 1, 2];
+            const typeIdx = smallTypes[Math.floor(Math.random() * smallTypes.length)];
+            const type = CONFIG.objectTypes[typeIdx];
+            
+            // Random size within range
+            const size = type.sizeRange[0] + Math.random() * (type.sizeRange[1] - type.sizeRange[0]);
+            
+            // Create Geometry based on randomness (Box, Cone, Sphere)
+            let geo;
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: Math.random() * 0xffffff, 
+                roughness: 0.5 
+            });
+
+            const shapeType = Math.floor(Math.random() * 3);
+            
+            if (shapeType === 0) {
+                geo = new THREE.BoxGeometry(size, size, size); // Box
+            } else if (shapeType === 1) {
+                geo = new THREE.ConeGeometry(size/2, size*1.5, 16); // Cone/Cupcake shape
+            } else {
+                geo = new THREE.DodecahedronGeometry(size/2); // Fancy ball
+            }
+
+            const mesh = new THREE.Mesh(geo, mat);
+            
+            // Random Position across entire floor (dense packing)
+            let x, z;
+            x = (Math.random() - 0.5) * 380;
+            z = (Math.random() - 0.5) * 380;
+
+            mesh.position.set(x, size/2, z); // Sit on floor
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            // Random rotation
+            mesh.rotation.y = Math.random() * Math.PI * 2;
+
+            scene.add(mesh);
+
+            // Store data for collision logic
+            objects.push({
+                mesh: mesh,
+                size: size, // Approximate radius for collision check
+                type: type,
+                active: true,
+                angleOffset: Math.random() * Math.PI * 2
+            });
+        }
+    }
+
+    function startGame() {
+        startScreen.style.display = 'none';
+        isPlaying = true;
+        
+        // Initial resize to ensure correct aspect ratio immediately
+        onWindowResize(); 
+    }
+
+    // --- Input Handling ---
+    function onKeyDown(event) {
+        switch (event.code) {
+            case 'ArrowUp': case 'KeyW': moveForward = true; break;
+            case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+            case 'ArrowLeft': case 'KeyA': rotateLeft = true; break;
+            case 'ArrowRight': case 'KeyD': rotateRight = true; break;
+        }
+    }
+
+    function onKeyUp(event) {
+        switch (event.code) {
+            case 'ArrowUp': case 'KeyW': moveForward = false; break;
+            case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+            case 'ArrowLeft': case 'KeyA': rotateLeft = false; break;
+            case 'ArrowRight': case 'KeyD': rotateRight = false; break;
+        }
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // --- Game Logic ---
+
+    function updatePhysics() {
+        if (!isPlaying) return;
+
+        // 1. Movement Logic (Arcade style: Rotate around Y axis to turn, move forward/back along local Z)
+        
+        if (rotateLeft) katamariGroup.rotation.y += CONFIG.turnSpeed;
+        if (rotateRight) katamariGroup.rotation.y -= CONFIG.turnSpeed;
+
+        let velocity = 0;
+        if (moveForward) velocity = CONFIG.speed;
+        else if (moveBackward) velocity = -CONFIG.speed * 0.5; // Easier to reverse
+
+        // Calculate potential new position
+        const deltaX = Math.sin(katamariGroup.rotation.y) * -velocity;
+        const deltaZ = Math.cos(katamariGroup.rotation.y) * -velocity;
+        const newX = katamariGroup.position.x + deltaX;
+        const newZ = katamariGroup.position.z + deltaZ;
+
+        // 2. Check collision with larger objects (blocking collision)
+        let canMove = true;
+        for (let obj of objects) {
+            if (!obj.active) continue;
+            
+            // Only block if object is larger than katamari
+            if (obj.size > radius * 1.2) {
+                const dx = newX - obj.mesh.position.x;
+                const dz = newZ - obj.mesh.position.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                
+                // If too close to larger object, block movement
+                if (dist < radius + obj.size * 0.5) {
+                    canMove = false;
+                    break;
+                }
+            }
+        }
+
+        // Apply movement only if not blocked
+        if (canMove) {
+            katamariGroup.position.x = newX;
+            katamariGroup.position.z = newZ;
+
+            // 3. Rolling Animation (Rotate the mesh around its local X axis to simulate rolling)
+            // The rotation amount depends on distance traveled: angle = distance / radius
+            const dist = velocity; 
+            katamariMesh.rotation.x += dist / radius;
+        } else {
+            // Slide along obstacle - try moving perpendicular to the blocking direction
+            // This allows the player to go around obstacles
+            const slideX = -deltaZ;
+            const slideZ = deltaX;
+            
+            let canSlide = true;
+            for (let obj of objects) {
+                if (!obj.active) continue;
+                
+                if (obj.size > radius * 1.2) {
+                    const dx = (katamariGroup.position.x + slideX) - obj.mesh.position.x;
+                    const dz = (katamariGroup.position.z + slideZ) - obj.mesh.position.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (dist < radius + obj.size * 0.5) {
+                        canSlide = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (canSlide) {
+                katamariGroup.position.x += slideX * velocity * 0.5;
+                katamariGroup.position.z += slideZ * velocity * 0.5;
+                katamariMesh.rotation.x += velocity * 0.5 / radius;
+            }
+        }
+
+        // 4. Boundary Check (Keep inside world)
+        const limit = 190;
+        if (katamariGroup.position.x > limit) katamariGroup.position.x = limit;
+        if (katamariGroup.position.x < -limit) katamariGroup.position.x = -limit;
+        if (katamariGroup.position.z > limit) katamariGroup.position.z = limit;
+        if (katamariGroup.position.z < -limit) katamariGroup.position.z = -limit;
+
+        // 5. Camera Follow (dynamic zoom based on ball size, tilted upwards)
+        const minDist = 10;
+        const maxDist = 30;
+        const cameraHeight = minDist + (maxDist - minDist) * (radius * 3 / CONFIG.maxRadius);
+        const cameraBack = minDist + (maxDist - minDist) * (radius * 3 / CONFIG.maxRadius);
+        
+        const relativeCameraOffset = new THREE.Vector3(0, cameraHeight * 0.6, cameraBack);
+        
+        // Calculate camera position based on ball rotation to keep it behind the ball
+        const cameraPos = relativeCameraOffset.applyMatrix4(katamariGroup.matrixWorld);
+        
+        // Smoothly interpolate camera position (Linear Interpolation)
+        camera.position.lerp(cameraPos, 0.1);
+        
+        // Look ahead of the ball to tilt the view up slightly
+        const lookAheadDistance = 15 + radius * 1.2;
+        const lookAtPos = new THREE.Vector3(
+            0,
+            radius * 0.5,
+            -lookAheadDistance
+        ).applyMatrix4(katamariGroup.matrixWorld);
+        camera.lookAt(lookAtPos);
+
+        updateCollisions();
+    }
+
+    function updateCollisions() {
+        // Iterate backwards to allow safe removal if needed (though we just hide them here)
+        for (let i = objects.length - 1; i >= 0; i--) {
+            const obj = objects[i];
+            if (!obj.active) continue;
+
+            // Simple distance check on XZ plane (2D collision)
+            const dx = katamariGroup.position.x - obj.mesh.position.x;
+            const dz = katamariGroup.position.z - obj.mesh.position.z;
+            const dist = Math.sqrt(dx*dx + dz*dz);
+
+            // Collision condition: Distance < Ball Radius + Object Size (approx)
+            // We use a slightly smaller threshold for "snappy" gameplay feel
+            if (dist < radius * 1.5 && radius >= obj.size * 0.8) {
+                collectObject(obj, i);
+            }
+        }
+
+        // Update UI text position (floating above ball) - Not implemented to keep code simple, 
+        // but UI updates happen here.
+    }
+
+    function collectObject(obj, index) {
+        obj.active = false;
+        
+        // Visuals: Attach object to the ball surface? 
+        // For this single-file version, we will simply hide it and scale up the ball.
+        // To make it look like it's stuck on, we can parent it to the mesh, but scaling gets messy.
+        // We'll use a simple "Hide and Scale" approach for stability.
+        
+        obj.mesh.visible = false; 
+        scene.remove(obj.mesh);
+
+        // Logic: Grow ball (slower progression)
+        const growth = 0.05 + (obj.size * 0.02); // Grow much slower now
+        radius += growth;
+
+        // Update Score
+        score += obj.type.score;
+
+        // UI Updates
+        updateUI();
+
+        // Level Check
+        if (radius >= CONFIG.maxRadius) {
+            gameWin();
+        } else {
+            updateBallGeometry(); // Rebuild the ball mesh with new radius and add attached objects visually? 
+            // Note: Full "sticking" logic is complex. We will just scale the main sphere.
+        }
+
+        // Spawn more objects to keep game going? Or just let them collect existing ones.
+        // Let's spawn a few larger ones if we are getting big.
+    }
+
+    function updateBallGeometry() {
+        // Update the core sphere size
+        katamariMesh.geometry.dispose();
+        katamariMesh.geometry = new THREE.SphereGeometry(radius, 32, 32);
+
+        // Scale the bands to match new radius
+        const bands = katamariMesh.children;
+        for(let child of bands) {
+            if(child.geometry.type === 'TorusGeometry') {
+                // Torus radius needs to scale. 
+                // Note: Scaling a mesh with children can be tricky in Three.js, 
+                // but here we just adjust the geometry radius or scale the object.
+                child.scale.setScalar(radius / CONFIG.startRadius);
+            }
+        }
+
+        // IMPORTANT: If we want objects to stick to the ball, this is where we would:
+        // 1. Calculate local position relative to ball center at moment of capture.
+        // 2. Add obj.mesh as a child of katamariMesh (not katamariGroup).
+        // 3. Apply scale transformation based on new radius vs old radius.
+        
+        // For this demo, we will just add a random "debris" object to the surface to simulate sticking
+        const debrisGeo = new THREE.BoxGeometry(radius * 0.2, radius * 0.2, radius * 0.2);
+        const debrisMat = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+        const debris = new THREE.Mesh(debrisGeo, debrisMat);
+        
+        // Random position on surface
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        
+        debris.position.setFromSphericalCoords(radius, phi, theta);
+        katamariMesh.add(debris);
+
+        // Limit debris to prevent memory leak if game goes on forever (though level ends at maxRadius)
+        if(katamariMesh.children.length > 50) {
+            katamariMesh.remove(katamariMesh.children[3]); // Remove a band or old debris
+        }
+    }
+
+    function updateUI() {
+        // Format size text (cm, m, km...)
+        let sizeText = "";
+        if (radius < 1) sizeText = Math.round(radius * 100) + " cm";
+        else if (radius < 100) sizeText = radius.toFixed(2) + " m";
+        else sizeText = (radius/10).toFixed(2) + " km";
+
+        sizeDisplay.innerText = sizeText;
+        
+        // Format score with commas
+        scoreDisplay.innerText = score.toLocaleString();
+
+        // Show floating text effect on DOM (simplified)
+        const floatEl = document.createElement('div');
+        floatEl.className = 'float-text';
+        floatEl.innerText = "+" + (score % 100); // Just a dummy value for visual flair
+        floatEl.style.left = (window.innerWidth/2 + (Math.random()*100 - 50)) + "px";
+        floatEl.style.top = (window.innerHeight/2 - 100) + "px";
+        document.body.appendChild(floatEl);
+        
+        setTimeout(() => { if(floatEl.parentNode) floatEl.parentNode.removeChild(floatEl); }, 1000);
+    }
+
+    function gameWin() {
+        isPlaying = false;
+        document.getElementById('level-complete').style.display = 'block';
+        
+        // Big celebratory spin?
+        katamariGroup.rotation.y += Math.PI * 4; 
+    }
+
+    // --- Main Loop ---
+    function animate() {
+        requestAnimationFrame(animate);
+
+        updatePhysics();
+
+        renderer.render(scene, camera);
+    }
+
+    // Start initialization
+    init();
+
+</script>
+</body>
+</html>
+
+							<script>
+                            	
+							</script>
+                        </body>
+                        </html>
+                    
