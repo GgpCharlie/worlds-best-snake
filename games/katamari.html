@@ -18,7 +18,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Katamari Clone</title>
+    <title>Catamiri Clone</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
@@ -116,7 +116,7 @@
         maxRadius: 20, // Level completion size (approx)
         speed: 0.3,
         turnSpeed: 0.02,
-        colors: [0xFF4081, 0x448AFF, 0x69C9E3, 0x69F0AE], // Katamari pattern colors
+        colors: [0xFF4081, 0x448AFF, 0x69C9E3, 0x69F0AE], // Catamiri pattern colors
         objectTypes: [
             { name: "Button", sizeRange: [0.2, 0.3], score: 1 },
             { name: "Cupcake", sizeRange: [0.4, 0.6], score: 5 },
@@ -253,7 +253,7 @@
             }
         }
 
-        // 2. The Katamari (The Ball)
+        // 2. The Catamiri (The Ball)
         katamariGroup = new THREE.Group();
         
         // Core sphere geometry for the ball itself (to hold objects)
@@ -509,7 +509,7 @@
         for (let obj of objects) {
             if (!obj.active) continue;
             
-            // Only block if object is larger than katamari
+            // Only block if object is larger than catamiri
             if (obj.size > radius * 1.2) {
                 const dx = newX - obj.mesh.position.x;
                 const dz = newZ - obj.mesh.position.z;
