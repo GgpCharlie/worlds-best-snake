@@ -1348,6 +1348,7 @@
 
     let mouseDown = false;
     function onMouseClick(e) {
+        if (e.target.id === 'startBtn' || e.target.id === 'restartBtn') return;
         if (!isLocked) {
             renderer.domElement.requestPointerLock();
             return;
