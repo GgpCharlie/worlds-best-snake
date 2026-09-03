@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura Clicker</title>
+    <style>
+        :root {
+            --bg-color: #0a0a1a;
+            --panel-color: #111128;
+            --aura-color: #00d4ff;
+            --aura-glow: #00d4ff80;
+            --gold-color: #ffd700;
+            --text-color: #ffffff;
+            --btn-bg: #1a1a3e;
+            --btn-hover: #2a2a5e;
+            --btn-disabled: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: var(--panel-color);
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 212, 255, 0.3);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+            color: var(--aura-color);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px var(--aura-glow);
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        .stat-item span {
+            color: var(--aura-color);
+        }
+
+        .game-container {
+            display: flex;
+            flex: 1;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .click-zone {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: radial-gradient(circle at center, #1a1a4e 0%, var(--bg-color) 70%);
+        }
+
+        .aura-container {
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .aura-container:active {
+            transform: scale(0.95);
+        }
+
+        .aura-orb {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #4dc9f6, #00d4ff, #0066aa);
+            box-shadow: 0 0 60px var(--aura-glow), 0 0 100px var(--aura-glow), inset 0 0 30px rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: orbPulse 2s infinite;
+            transition: all 0.5s ease;
+        }
+
+        .aura-orb.tier-1 {
+            border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+            background: linear-gradient(135deg, #ff6b6b, #ffd93d, #c44dff);
+            box-shadow: 0 0 80px rgba(255, 107, 107, 0.6), 0 0 120px rgba(255, 217, 61, 0.4), inset 0 0 40px rgba(255, 255, 255, 0.4);
+            animation: orbPulseTier1 2s infinite ease-in-out;
+        }
+
+        @keyframes orbPulseTier1 {
+            0%, 100% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; box-shadow: 0 0 80px rgba(255, 107, 107, 0.6), 0 0 120px rgba(255, 217, 61, 0.4), inset 0 0 40px rgba(255, 255, 255, 0.4); }
+            25% { border-radius: 50% 50% 30% 70% / 60% 40% 60% 40%; }
+            50% { border-radius: 70% 30% 50% 50% / 30% 50% 50% 70%; box-shadow: 0 0 100px rgba(255, 107, 107, 0.8), 0 0 150px rgba(196, 77, 255, 0.6), inset 0 0 50px rgba(255, 255, 255, 0.5); }
+            75% { border-radius: 30% 70% 70% 30% / 70% 30% 30% 70%; }
+        }
+
+        .aura-orb.tier-2 {
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #fff 0%, #00ff87 30%, #00d4ff 60%, #0066aa 100%);
+            box-shadow: 0 0 100px rgba(0, 255, 135, 0.7), 0 0 140px rgba(0, 212, 255, 0.5), inset 0 0 50px rgba(255, 255, 255, 0.6);
+            animation: orbPulseTier2 1.5s infinite;
+            position: relative;
+        }
+
+        .aura-orb.tier-2::before {
+            content: '';
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            border: 4px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            animation: innerSpin 3s linear infinite;
+        }
+
+        @keyframes innerSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes orbPulseTier2 {
+            0%, 100% { box-shadow: 0 0 100px rgba(0, 255, 135, 0.7), 0 0 140px rgba(0, 212, 255, 0.5), inset 0 0 50px rgba(255, 255, 255, 0.6); }
+            50% { box-shadow: 0 0 140px rgba(0, 255, 135, 0.9), 0 0 180px rgba(0, 212, 255, 0.7), inset 0 0 70px rgba(255, 255, 255, 0.7); }
+        }
+
+        .aura-orb.tier-3 {
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, #ff0080, #ff8c00, #40e0d0, #ee82ee, #ff0080);
+            box-shadow: 0 0 120px rgba(255, 0, 128, 0.8), 0 0 160px rgba(255, 140, 0, 0.6), inset 0 0 60px rgba(255, 255, 255, 0.5);
+            animation: orbSpin 4s linear infinite, orbPulseTier3 1.5s infinite;
+        }
+
+        .aura-orb.tier-3::before {
+            content: '';
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border: 5px dashed rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: innerSpin 2s linear infinite reverse;
+        }
+
+        @keyframes orbSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes orbPulseTier3 {
+            0%, 100% { box-shadow: 0 0 120px rgba(255, 0, 128, 0.8), 0 0 160px rgba(255, 140, 0, 0.6), inset 0 0 60px rgba(255, 255, 255, 0.5); }
+            50% { box-shadow: 0 0 160px rgba(255, 0, 128, 1), 0 0 200px rgba(64, 224, 208, 0.8), inset 0 0 80px rgba(255, 255, 255, 0.6); }
+        }
+
+        .aura-orb.tier-4 {
+            border-radius: 50% 20% 50% 20%;
+            background: linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff);
+            background-size: 300% 300%;
+            box-shadow: 0 0 150px rgba(255, 255, 255, 0.9), 0 0 200px rgba(255, 0, 255, 0.6), inset 0 0 70px rgba(255, 255, 255, 0.7);
+            animation: orbPulseTier4 1s infinite, gradientShift 3s ease infinite;
+        }
+
+        .aura-orb.tier-4::before {
+            content: '';
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: innerPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes innerPulse {
+            0%, 100% { transform: scale(0.8); opacity: 0.6; }
+            50% { transform: scale(1.2); opacity: 1; }
+        }
+
+        @keyframes orbPulseTier4 {
+            0%, 100% { box-shadow: 0 0 150px rgba(255, 255, 255, 0.9), 0 0 200px rgba(255, 0, 255, 0.6), inset 0 0 70px rgba(255, 255, 255, 0.7); }
+            50% { box-shadow: 0 0 200px rgba(255, 255, 255, 1), 0 0 280px rgba(0, 255, 0, 0.8), 0 0 350px rgba(0, 0, 255, 0.6), inset 0 0 90px rgba(255, 255, 255, 0.8); }
+        }
+
+        .aura-orb.tier-5 {
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0088ff, #8800ff, #ff00ff, #ff0000);
+            box-shadow: 0 0 180px rgba(255, 255, 255, 1), 0 0 240px rgba(255, 0, 255, 0.8), 0 0 300px rgba(0, 255, 255, 0.7), inset 0 0 80px rgba(255, 255, 255, 0.9);
+            animation: orbPulseTier5 0.8s infinite;
+        }
+
+        .aura-orb.tier-5::before {
+            content: '';
+            position: absolute;
+            width: 220px;
+            height: 220px;
+            border: 6px solid rgba(255, 255, 255, 0.7);
+            border-top-color: transparent;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            animation: innerSpin 1.5s linear infinite;
+        }
+
+        .aura-orb.tier-5::after {
+            content: '';
+            position: absolute;
+            width: 240px;
+            height: 240px;
+            border: 4px solid rgba(0, 255, 255, 0.5);
+            border-left-color: transparent;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: innerSpin 2s linear infinite reverse;
+        }
+
+        @keyframes orbPulseTier5 {
+            0%, 100% { box-shadow: 0 0 180px rgba(255, 255, 255, 1), 0 0 240px rgba(255, 0, 255, 0.8), 0 0 300px rgba(0, 255, 255, 0.7), inset 0 0 80px rgba(255, 255, 255, 0.9); }
+            50% { box-shadow: 0 0 240px rgba(255, 255, 255, 1), 0 0 320px rgba(255, 0, 255, 0.9), 0 0 400px rgba(0, 255, 255, 0.8), 0 0 480px rgba(255, 255, 0, 0.7), inset 0 0 100px rgba(255, 255, 255, 1); }
+        }
+
+        .aura-text {
+            font-size: 3rem;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+            pointer-events: none;
+        }
+
+        .aura-ring {
+            position: absolute;
+            width: 280px;
+            height: 280px;
+            border: 3px solid var(--aura-color);
+            border-radius: 50%;
+            opacity: 0;
+            transition: all 0.5s ease;
+            pointer-events: none;
+        }
+
+        .aura-ring.active {
+            opacity: 1;
+            animation: ringRotate 4s linear infinite;
+            border-color: #ffd93d;
+            box-shadow: 0 0 20px rgba(255, 217, 61, 0.5);
+        }
+
+        .aura-ring.ring-circle {
+            border-radius: 50%;
+            border-color: #ffd93d;
+        }
+
+        .aura-ring.ring-square {
+            border-radius: 10%;
+            border-color: #c44dff;
+            animation-duration: 6s;
+        }
+
+        .aura-ring.ring-pentagon {
+            border-radius: 20%;
+            border-color: #00ff87;
+            animation-direction: reverse;
+            animation-duration: 8s;
+        }
+
+        .aura-ring.ring-hexagon {
+            border-radius: 25%;
+            border-color: #ff0080;
+            animation-duration: 10s;
+        }
+
+        .aura-ring.ring-octagon {
+            border-radius: 30%;
+            border-color: #00d4ff;
+            animation-direction: reverse;
+            animation-duration: 12s;
+        }
+
+        @keyframes ringRotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .click-instruction {
+            margin-top: 30px;
+            font-size: 1.2rem;
+            opacity: 0.8;
+            animation: pulse 2s infinite;
+        }
+
+        .aura-level {
+            margin-top: 15px;
+            font-size: 1rem;
+            color: var(--gold-color);
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .store-zone {
+            flex: 0 0 450px;
+            background-color: var(--panel-color);
+            border-left: 2px solid #00d4ff40;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -5px 0 15px rgba(0, 212, 255, 0.2);
+        }
+
+        .store-header {
+            padding: 20px;
+            background-color: #0f3460;
+            text-align: center;
+            border-bottom: 1px solid #1a4b85;
+        }
+
+        .store-title {
+            font-size: 1.5rem;
+            color: var(--aura-color);
+        }
+
+        .upgrades-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .upgrade-category {
+            margin-bottom: 30px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: rgba(0, 0, 0, 0.3);
+        }
+
+        .category-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--aura-color);
+            color: var(--aura-color);
+        }
+
+        .upgrade-item {
+            background-color: var(--btn-bg);
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .upgrade-item:hover {
+            background-color: var(--btn-hover);
+            transform: translateX(-5px);
+            border-color: var(--aura-color);
+        }
+
+        .upgrade-item.disabled {
+            background-color: var(--btn-disabled);
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none;
+        }
+
+        .upgrade-info {
+            flex: 1;
+        }
+
+        .upgrade-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .upgrade-cost {
+            color: var(--gold-color);
+            font-weight: bold;
+        }
+
+        .upgrade-count {
+            font-size: 2rem;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.2);
+            margin-left: 15px;
+        }
+
+        .upgrade-desc {
+            font-size: 0.85rem;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .floating-text {
+            position: absolute;
+            color: var(--aura-color);
+            font-weight: bold;
+            font-size: 1.5rem;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            text-shadow: 0 0 10px var(--aura-glow);
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-100px) scale(1.5); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        .footer-controls {
+            padding: 15px;
+            background-color: var(--panel-color);
+            border-top: 1px solid #0f3460;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .control-btn {
+            background-color: var(--btn-bg);
+            color: white;
+            border: 1px solid var(--aura-color);
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background-color: var(--aura-color);
+            color: #000;
+        }
+
+        .bulk-buy-bar {
+            padding: 10px 15px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid #0f3460;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .bulk-btn {
+            background-color: var(--btn-bg);
+            color: white;
+            border: 1px solid #0f3460;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .bulk-btn:hover {
+            background-color: var(--aura-color);
+            color: #000;
+            border-color: var(--aura-color);
+        }
+
+        .bulk-btn.active {
+            background-color: var(--aura-color);
+            color: #000;
+            border-color: var(--aura-color);
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+            }
+            
+            .store-zone {
+                flex: 1;
+                border-left: none;
+                border-top: 2px solid #0f3460;
+            }
+            
+            .aura-orb {
+                width: 200px;
+                height: 200px;
+            }
+        }
+
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .toast {
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 5px;
+            border-left: 5px solid var(--aura-color);
+            animation: slideIn 0.3s ease-out, fadeOut 0.5s ease-in 2.5s forwards;
+            box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; transform: translateY(-20px); }
+        }
+
+        .particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: var(--aura-color);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: particleFade 1s ease-out forwards;
+        }
+
+        @keyframes particleFade {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Aura Clicker</h1>
+        <div class="stats-bar">
+            <div class="stat-item">Aura: <span id="aura-count">0</span></div>
+            <div class="stat-item">Per Click: <span id="per-click">1</span></div>
+            <div class="stat-item">Per Second: <span id="per-second">0</span></div>
+        </div>
+    </header>
+
+    <div class="game-container">
+        <div class="click-zone">
+            <div class="aura-container" id="aura-btn">
+                <div class="aura-ring" id="ring1"></div>
+                <div class="aura-ring second" id="ring2"></div>
+                <div class="aura-ring third" id="ring3"></div>
+                <div class="aura-ring fourth" id="ring4"></div>
+                <div class="aura-ring fifth" id="ring5"></div>
+                <div class="aura-orb" id="orb-element">
+                    <div class="aura-text" id="orb-text"></div>
+                </div>
+            </div>
+            <div class="click-instruction">Click the orb to gain aura!</div>
+            <div class="aura-level" id="aura-level">Level 1 - Noob</div>
+        </div>
+
+        <div class="store-zone">
+            <div class="store-header">
+                <div class="store-title">Aura Shop</div>
+            </div>
+            <div class="bulk-buy-bar" id="bulk-buy-bar">
+                <button class="bulk-btn active" data-amount="1">x1</button>
+                <button class="bulk-btn" data-amount="5">x5</button>
+                <button class="bulk-btn" data-amount="10">x10</button>
+                <button class="bulk-btn" data-amount="100">x100</button>
+                <button class="bulk-btn" data-amount="max">Max</button>
+            </div>
+            <div class="upgrades-container" id="store-container">
+            </div>
+            <div class="footer-controls">
+                <button class="control-btn" id="save-btn">Save Game</button>
+                <button class="control-btn" id="reset-btn">Reset Progress</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        const GAME_CONFIG = {
+            fps: 30,
+            autoSaveInterval: 30000,
+            baseAuraValue: 1
+        };
+
+        const CLICK_UPGRADES = [
+            {
+                id: 'better_clicks',
+                name: 'Better Clicks',
+                baseCost: 25,
+                baseBonus: 1,
+                description: 'Increases aura per click by +1.',
+                icon: '👆'
+            },
+            {
+                id: 'aura_fingers',
+                name: 'Aura Fingers',
+                baseCost: 200,
+                baseBonus: 5,
+                description: 'Your fingers glow with aura power. +5 per click.',
+                icon: '💫'
+            },
+            {
+                id: 'golden_touch',
+                name: 'Golden Touch',
+                baseCost: 2000,
+                baseBonus: 25,
+                description: 'Everything you touch gains aura. +25 per click.',
+                icon: '🌟'
+            },
+            {
+                id: 'cosmic_click',
+                name: 'Cosmic Click',
+                baseCost: 20000,
+                baseBonus: 100,
+                description: 'Channel the universe. +100 per click.',
+                icon: '🌌'
+            },
+            {
+                id: 'quantum_click',
+                name: 'Quantum Click',
+                baseCost: 100000,
+                baseBonus: 500,
+                description: 'Click across dimensions. +500 per click.',
+                icon: '⚛️'
+            },
+            {
+                id: 'infinity_click',
+                name: 'Infinity Click',
+                baseCost: 1000000,
+                baseBonus: 2500,
+                description: 'Click with infinite power. +2500 per click.',
+                icon: '♾️'
+            }
+        ];
+
+        const AUTO_UPGRADES = [
+            {
+                id: 'mini_orb',
+                name: 'Mini Orb',
+                baseCost: 15,
+                baseProduction: 0.5,
+                description: 'A small orb that generates aura.',
+                icon: '🔮'
+            },
+            {
+                id: 'aura_garden',
+                name: 'Aura Garden',
+                baseCost: 100,
+                baseProduction: 3,
+                description: 'Grow aura in a magical garden.',
+                icon: '🌱'
+            },
+            {
+                id: 'crystal_cave',
+                name: 'Crystal Cave',
+                baseCost: 800,
+                baseProduction: 12,
+                description: 'Mystical crystals generate aura.',
+                icon: '💎'
+            },
+            {
+                id: 'star_factory',
+                name: 'Star Factory',
+                baseCost: 5000,
+                baseProduction: 50,
+                description: 'Build stars to produce aura.',
+                icon: '⭐'
+            },
+            {
+                id: 'nebula_engine',
+                name: 'Nebula Engine',
+                baseCost: 30000,
+                baseProduction: 200,
+                description: 'Harness nebula energy for aura.',
+                icon: '🌀'
+            },
+            {
+                id: 'void_machine',
+                name: 'Void Machine',
+                baseCost: 200000,
+                baseProduction: 800,
+                description: 'Tap into the void for massive aura.',
+                icon: '🕳️'
+            }
+        ];
+
+        const SPECIAL_UPGRADES = [
+            {
+                id: 'aura_mult',
+                name: 'Aura Multiplier',
+                baseCost: 500,
+                baseMultiplier: 1.5,
+                description: 'All aura production increased by 50%.',
+                icon: '🔥'
+            },
+            {
+                id: 'double_click',
+                name: 'Double Click',
+                baseCost: 1000,
+                baseMultiplier: 2,
+                duration: 30,
+                description: 'Clicks are 2x for 30 seconds!',
+                icon: '⚡'
+            },
+            {
+                id: 'mega_aura',
+                name: 'Mega Aura',
+                baseCost: 5000,
+                baseMultiplier: 3,
+                duration: 15,
+                description: 'Everything is 3x for 15 seconds!',
+                icon: '💥'
+            }
+        ];
+
+        const ALL_UPGRADES = [...CLICK_UPGRADES, ...AUTO_UPGRADES, ...SPECIAL_UPGRADES];
+
+        const AURA_LEVELS = [
+            { level: 1, name: 'Noob', threshold: 0 },
+            { level: 2, name: 'Common', threshold: 500 },
+            { level: 3, name: 'Uncommon', threshold: 2000 },
+            { level: 4, name: 'Rare', threshold: 10000 },
+            { level: 5, name: 'Epic', threshold: 50000 },
+            { level: 6, name: 'Legendary', threshold: 200000 },
+            { level: 7, name: 'Mythic', threshold: 1000000 },
+            { level: 8, name: 'Divine', threshold: 5000000 },
+            { level: 9, name: 'Cosmic', threshold: 20000000 },
+            { level: 10, name: 'Godlike', threshold: 100000000 }
+        ];
+
+        let gameState = {
+            aura: 0,
+            totalAura: 0,
+            clickCount: 0,
+            upgrades: {},
+            activeEffects: {}
+        };
+
+        ALL_UPGRADES.forEach(upgrade => {
+            if (!gameState.upgrades[upgrade.id]) {
+                gameState.upgrades[upgrade.id] = 0;
+            }
+        });
+
+        const auraBtn = document.getElementById('aura-btn');
+        const orbElement = document.getElementById('orb-element');
+        const orbText = document.getElementById('orb-text');
+        const ring1 = document.getElementById('ring1');
+        const ring2 = document.getElementById('ring2');
+        const ring3 = document.getElementById('ring3');
+        const ring4 = document.getElementById('ring4');
+        const ring5 = document.getElementById('ring5');
+        const auraCountDisplay = document.getElementById('aura-count');
+        const perClickDisplay = document.getElementById('per-click');
+        const perSecondDisplay = document.getElementById('per-second');
+        const storeContainer = document.getElementById('store-container');
+        const saveBtn = document.getElementById('save-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const toastContainer = document.getElementById('toast-container');
+        const auraLevelDisplay = document.getElementById('aura-level');
+        const bulkBuyBar = document.getElementById('bulk-buy-bar');
+        
+        let bulkAmount = 1;
+
+        function calculateProduction() {
+            let perSecond = 0;
+            let perClick = 1;
+            let clickMultiplier = 1;
+            let autoMultiplier = 1;
+
+            CLICK_UPGRADES.forEach(upgrade => {
+                const count = gameState.upgrades[upgrade.id] || 0;
+                perClick += count * upgrade.baseBonus;
+            });
+
+            AUTO_UPGRADES.forEach(upgrade => {
+                const count = gameState.upgrades[upgrade.id] || 0;
+                perSecond += count * upgrade.baseProduction;
+            });
+
+            const now = Date.now();
+            
+            SPECIAL_UPGRADES.forEach(upgrade => {
+                if (upgrade.id === 'aura_mult') {
+                    const count = gameState.upgrades[upgrade.id] || 0;
+                    autoMultiplier *= Math.pow(upgrade.baseMultiplier, count);
+                    clickMultiplier *= Math.pow(upgrade.baseMultiplier, count);
+                }
+            });
+
+            for (const [key, effect] of Object.entries(gameState.activeEffects)) {
+                if (now < effect.expires) {
+                    if (effect.type === 'click') {
+                        clickMultiplier *= effect.multiplier;
+                    } else if (effect.type === 'auto') {
+                        autoMultiplier *= effect.multiplier;
+                    } else if (effect.type === 'all') {
+                        clickMultiplier *= effect.multiplier;
+                        autoMultiplier *= effect.multiplier;
+                    }
+                } else {
+                    delete gameState.activeEffects[key];
+                }
+            }
+
+            perClick *= clickMultiplier;
+            perSecond *= autoMultiplier;
+
+            return { perSecond, perClick };
+        }
+
+        function getUpgradeCost(upgradeId) {
+            const upgrade = ALL_UPGRADES.find(u => u.id === upgradeId);
+            const count = gameState.upgrades[upgradeId] || 0;
+            
+            if (upgrade.baseMultiplier && !upgrade.duration) {
+                return Math.floor(upgrade.baseCost * Math.pow(2, count));
+            }
+            
+            return Math.floor(upgrade.baseCost * Math.pow(1.15, count));
+        }
+
+        function getAuraLevel() {
+            let currentLevel = AURA_LEVELS[0];
+            for (let i = AURA_LEVELS.length - 1; i >= 0; i--) {
+                if (gameState.totalAura >= AURA_LEVELS[i].threshold) {
+                    currentLevel = AURA_LEVELS[i];
+                    break;
+                }
+            }
+            return currentLevel;
+        }
+
+        function updateOrbAppearance() {
+            const total = gameState.totalAura;
+            
+            orbElement.className = 'aura-orb';
+            
+            const ringShapes = ['ring-circle', 'ring-square', 'ring-pentagon', 'ring-hexagon', 'ring-octagon'];
+            
+            [ring1, ring2, ring3, ring4, ring5].forEach((ring, index) => {
+                ring.className = 'aura-ring';
+            });
+            
+            if (total >= 500000) {
+                orbElement.classList.add('tier-5');
+                ring1.classList.add('active', 'ring-circle');
+                ring2.classList.add('active', 'ring-square');
+                ring3.classList.add('active', 'ring-pentagon');
+                ring4.classList.add('active', 'ring-hexagon');
+                ring5.classList.add('active', 'ring-octagon');
+            } else if (total >= 10000) {
+                orbElement.classList.add('tier-4');
+                ring1.classList.add('active', 'ring-circle');
+                ring2.classList.add('active', 'ring-square');
+                ring3.classList.add('active', 'ring-pentagon');
+                ring4.classList.add('active', 'ring-hexagon');
+            } else if (total >= 5000) {
+                orbElement.classList.add('tier-3');
+                ring1.classList.add('active', 'ring-circle');
+                ring2.classList.add('active', 'ring-square');
+                ring3.classList.add('active', 'ring-pentagon');
+            } else if (total >= 1000) {
+                orbElement.classList.add('tier-3');
+                ring1.classList.add('active', 'ring-circle');
+                ring2.classList.add('active', 'ring-square');
+                ring3.classList.add('active', 'ring-pentagon');
+            } else if (total >= 500) {
+                orbElement.classList.add('tier-2');
+                ring1.classList.add('active', 'ring-circle');
+                ring2.classList.add('active', 'ring-square');
+            } else if (total >= 100) {
+                orbElement.classList.add('tier-1');
+                ring1.classList.add('active', 'ring-circle');
+                ring2.classList.add('active', 'ring-square');
+            } else {
+                ring1.classList.remove('active');
+                ring2.classList.remove('active');
+                ring3.classList.remove('active');
+                ring4.classList.remove('active');
+                ring5.classList.remove('active');
+            }
+            
+            orbText.textContent = '';
+        }
+
+        function updateUI() {
+            const production = calculateProduction();
+            
+            auraCountDisplay.textContent = Math.floor(gameState.aura).toLocaleString();
+            perClickDisplay.textContent = Math.floor(production.perClick).toLocaleString();
+            perSecondDisplay.textContent = production.perSecond.toLocaleString();
+            
+            const level = getAuraLevel();
+            auraLevelDisplay.textContent = `Level ${level.level} - ${level.name}`;
+            
+            updateOrbAppearance();
+            
+            ALL_UPGRADES.forEach(upgrade => {
+                const cost = getUpgradeCost(upgrade.id);
+                const count = gameState.upgrades[upgrade.id] || 0;
+                const element = document.getElementById(`upgrade-${upgrade.id}`);
+                
+                if (element) {
+                    const costElement = element.querySelector('.upgrade-cost');
+                    const countElement = element.querySelector('.upgrade-count');
+                    
+                    costElement.textContent = cost.toLocaleString() + ' ✨';
+                    countElement.textContent = count;
+                    
+                    if (gameState.aura >= cost) {
+                        element.classList.remove('disabled');
+                    } else {
+                        element.classList.add('disabled');
+                    }
+                }
+            });
+        }
+
+        function createStoreUI() {
+            storeContainer.innerHTML = '';
+
+            const upgradesSection = document.createElement('div');
+            upgradesSection.className = 'upgrade-category';
+            upgradesSection.innerHTML = '<div class="category-title">Upgrades</div>';
+            const allRegularUpgrades = [...CLICK_UPGRADES, ...AUTO_UPGRADES].sort((a, b) => a.baseCost - b.baseCost);
+            allRegularUpgrades.forEach(upgrade => {
+                const element = document.createElement('div');
+                element.className = 'upgrade-item disabled';
+                element.id = `upgrade-${upgrade.id}`;
+                element.innerHTML = `
+                    <div class="upgrade-info">
+                        <div class="upgrade-name">${upgrade.icon} ${upgrade.name}</div>
+                        <div class="upgrade-cost">0 ✨</div>
+                        <div class="upgrade-desc">${upgrade.description}</div>
+                    </div>
+                    <div class="upgrade-count">0</div>
+                `;
+                element.addEventListener('click', () => buyUpgrade(upgrade.id));
+                upgradesSection.appendChild(element);
+            });
+            storeContainer.appendChild(upgradesSection);
+
+            const specialSection = document.createElement('div');
+            specialSection.className = 'upgrade-category';
+            specialSection.innerHTML = '<div class="category-title">Special Power-ups</div>';
+            const sortedSpecials = [...SPECIAL_UPGRADES].sort((a, b) => a.baseCost - b.baseCost);
+            sortedSpecials.forEach(upgrade => {
+                const element = document.createElement('div');
+                element.className = 'upgrade-item disabled';
+                element.id = `upgrade-${upgrade.id}`;
+                element.innerHTML = `
+                    <div class="upgrade-info">
+                        <div class="upgrade-name">${upgrade.icon} ${upgrade.name}</div>
+                        <div class="upgrade-cost">0 ✨</div>
+                        <div class="upgrade-desc">${upgrade.description}</div>
+                    </div>
+                    <div class="upgrade-count">0</div>
+                `;
+                element.addEventListener('click', () => buyUpgrade(upgrade.id));
+                specialSection.appendChild(element);
+            });
+            storeContainer.appendChild(specialSection);
+        }
+
+        function calculateBulkCost(upgradeId, amount) {
+            let totalCost = 0;
+            for (let i = 0; i < amount; i++) {
+                const tempCount = (gameState.upgrades[upgradeId] || 0) + i;
+                const upgrade = ALL_UPGRADES.find(u => u.id === upgradeId);
+                if (upgrade.baseMultiplier && !upgrade.duration) {
+                    totalCost += Math.floor(upgrade.baseCost * Math.pow(2, tempCount));
+                } else {
+                    totalCost += Math.floor(upgrade.baseCost * Math.pow(1.15, tempCount));
+                }
+            }
+            return totalCost;
+        }
+
+        function getMaxAffordable(upgradeId) {
+            const upgrade = ALL_UPGRADES.find(u => u.id === upgradeId);
+            let count = 0;
+            let totalCost = 0;
+            
+            while (count < 1000000) {
+                const nextCost = upgrade.baseMultiplier && !upgrade.duration 
+                    ? Math.floor(upgrade.baseCost * Math.pow(2, count))
+                    : Math.floor(upgrade.baseCost * Math.pow(1.15, count));
+                
+                if (nextCost <= 0 || totalCost + nextCost > gameState.aura) {
+                    break;
+                }
+                totalCost += nextCost;
+                count++;
+            }
+            
+            return count;
+        }
+
+        function buyUpgrade(upgradeId, amount = null) {
+            if (amount === null) amount = bulkAmount;
+            
+            const upgrade = ALL_UPGRADES.find(u => u.id === upgradeId);
+            
+            if (upgrade.duration) {
+                const cost = getUpgradeCost(upgradeId);
+                if (gameState.aura >= cost) {
+                    gameState.aura -= cost;
+                    gameState.upgrades[upgradeId] = (gameState.upgrades[upgradeId] || 0) + 1;
+                    
+                    const effectId = `effect-${upgradeId}-${Date.now()}`;
+                    const effectType = upgrade.id === 'double_click' ? 'click' : 'all';
+                    gameState.activeEffects[effectId] = {
+                        type: effectType,
+                        multiplier: upgrade.baseMultiplier,
+                        expires: Date.now() + (upgrade.duration * 1000)
+                    };
+                    showToast(`Activated ${upgrade.name}! (${upgrade.duration}s)`);
+                }
+                updateUI();
+                return;
+            }
+            
+            if (amount === 'max') {
+                amount = getMaxAffordable(upgradeId);
+                if (amount <= 0) {
+                    showToast(`Can't afford ${upgrade.name}!`);
+                    updateUI();
+                    return;
+                }
+            }
+            
+            if (amount <= 0) {
+                updateUI();
+                return;
+            }
+            
+            const totalCost = calculateBulkCost(upgradeId, amount);
+            
+            if (gameState.aura >= totalCost) {
+                gameState.aura -= totalCost;
+                gameState.upgrades[upgradeId] = (gameState.upgrades[upgradeId] || 0) + amount;
+                showToast(`Purchased ${upgrade.name} x${amount}!`);
+                updateUI();
+            } else {
+                showToast(`Not enough aura for x${amount}!`);
+                updateUI();
+            }
+        }
+
+        function createFloatingText(x, y, text) {
+            const element = document.createElement('div');
+            element.className = 'floating-text';
+            element.textContent = `+${text}`;
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
+            
+            document.body.appendChild(element);
+            
+            setTimeout(() => {
+                element.remove();
+            }, 1000);
+        }
+
+        function createParticles(x, y) {
+            for (let i = 0; i < 8; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                const angle = (Math.PI * 2 * i) / 8;
+                const distance = 50 + Math.random() * 50;
+                const px = x + Math.cos(angle) * distance;
+                const py = y + Math.sin(angle) * distance;
+                particle.style.left = `${px}px`;
+                particle.style.top = `${py}px`;
+                document.body.appendChild(particle);
+                
+                setTimeout(() => {
+                    particle.remove();
+                }, 1000);
+            }
+        }
+
+        function performClick(x, y) {
+            const production = calculateProduction();
+            const clickValue = production.perClick;
+            
+            gameState.aura += clickValue;
+            gameState.totalAura += clickValue;
+            gameState.clickCount++;
+            
+            createFloatingText(x, y, Math.floor(clickValue).toLocaleString());
+            createParticles(x, y);
+            
+            auraBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                auraBtn.style.transform = 'scale(1)';
+            }, 100);
+            
+            updateUI();
+        }
+
+        auraBtn.addEventListener('click', (e) => {
+            performClick(e.clientX, e.clientY);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                const rect = orbElement.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+                performClick(x, y);
+            }
+        });
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        function saveGame() {
+            localStorage.setItem('auraClickerSave', JSON.stringify(gameState));
+            showToast('Game saved!');
+        }
+
+        function loadGame() {
+            const savedData = localStorage.getItem('auraClickerSave');
+            if (savedData) {
+                try {
+                    const parsedData = JSON.parse(savedData);
+                    gameState = { ...gameState, ...parsedData };
+                    showToast('Welcome back!');
+                } catch (e) {
+                    console.error('Failed to load save:', e);
+                }
+            }
+        }
+
+        function resetGame() {
+            if (confirm('Are you sure you want to reset all progress?')) {
+                localStorage.removeItem('auraClickerSave');
+                location.reload();
+            }
+        }
+
+        setInterval(saveGame, GAME_CONFIG.autoSaveInterval);
+
+        setInterval(() => {
+            const production = calculateProduction();
+            if (production.perSecond > 0) {
+                gameState.aura += production.perSecond / 10;
+                gameState.totalAura += production.perSecond / 10;
+                updateUI();
+            }
+        }, 100);
+
+        function initGame() {
+            createStoreUI();
+            loadGame();
+            updateUI();
+            
+            saveBtn.addEventListener('click', saveGame);
+            resetBtn.addEventListener('click', resetGame);
+            
+            bulkBuyBar.addEventListener('click', (e) => {
+                if (e.target.classList.contains('bulk-btn')) {
+                    bulkBuyBar.querySelectorAll('.bulk-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    bulkAmount = e.target.dataset.amount === 'max' ? 'max' : parseInt(e.target.dataset.amount);
+                }
+            });
+            
+            showToast('Welcome to Aura Clicker! Click the orb!');
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
