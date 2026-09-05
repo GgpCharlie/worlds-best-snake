@@ -6,9 +6,7 @@
 <meta name="theme-color" content="#04060d">
 <title>NEON STRIKE — Arena FPS</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="./vendor/fonts/orbitron.css">
 <style>
 :root{ --cyan:#2ee6ff; --mag:#ff3df0; --red:#ff3b5c; --lime:#b8f04a; --bg:#04060d; }
 *{ margin:0; padding:0; box-sizing:border-box; }
@@ -254,10 +252,14 @@ const $ = id => document.getElementById(id);
 function showFatal(msg){ const el=$('boot-error'); $('boot-msg').textContent=msg; el.classList.add('show'); }
 
 let THREE;
-try { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'); }
+/* Self-hosted: load the bundled Three.js r160 first; fall back to CDN only if the local copy is missing. */
+try { THREE = await import('./vendor/three/three.module.js'); }
 catch(e){
-  try { THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js'); }
-  catch(e2){ showFatal('Could not load the 3D engine (Three.js) from CDN. Check your internet connection and reload.'); throw e2; }
+  try { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'); }
+  catch(e2){
+    try { THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js'); }
+    catch(e3){ showFatal('Could not load the 3D engine (Three.js). Local copy (vendor/three/three.module.js) is missing and the CDN is unreachable. Serve over HTTP (not file://) and ensure the vendor folder is present.'); throw e3; }
+  }
 }
 window.__booted = true;
 
