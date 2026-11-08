@@ -9,6 +9,8 @@
   .hud { position: absolute; color: #fff; user-select: none; z-index: 5; }
   #crosshair { left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 26px; text-shadow: 0 0 4px #000; }
   #hitmark { left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 22px; color: #ff5; text-shadow: 0 0 4px #000; opacity: 0; }
+  .dmgnum { position: absolute; font: bold 20px 'Trebuchet MS', sans-serif; color: #fff; text-shadow: 1px 1px 0 #000, 0 0 8px #000; pointer-events: none; transform: translate(-50%,-50%); z-index: 5; }
+  .dmgnum.crit { color: #ffb347; font-size: 27px; }
   #alive { top: 12px; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: bold; text-shadow: 2px 2px 0 #000; }
   #stormbar { top: 44px; left: 50%; transform: translateX(-50%); font-size: 16px; color: #d9a6ff; text-shadow: 1px 1px 0 #000; }
   #stats { bottom: 18px; left: 20px; width: 300px; }
@@ -833,6 +835,8 @@ function initGame() {
   gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++;
   clearTimeout(buildFlash.t);
   orgerBoss = null; bossBalls = []; playerBalls = []; fx = []; throwPending = false; bossSeen = false;
+  for (const f of dmgNums) f.el.remove();
+  dmgNums.length = 0;
   $('bossbar').style.display = 'none';
   $('feed').innerHTML = '';
   $('healui').style.display = 'none';
@@ -886,6 +890,31 @@ function addTracer(from, to) {
   tracers.push({ line, t: .07 });
 }
 
+// floating damage numbers — white for body, big orange for headshots
+const dmgNums = [];
+const _dv = new THREE.Vector3();
+function popDmg(pos, amt, crit) {
+  const el = document.createElement('div');
+  el.className = 'dmgnum' + (crit ? ' crit' : '');
+  el.textContent = Math.round(amt);
+  document.body.appendChild(el);
+  dmgNums.push({ el, x: pos.x, y: pos.y, z: pos.z, t: 0 });
+  while (dmgNums.length > 24) { dmgNums[0].el.remove(); dmgNums.shift(); }
+}
+function updateDmgNums(dt) {
+  for (let i = dmgNums.length - 1; i >= 0; i--) {
+    const f = dmgNums[i];
+    f.t += dt;
+    if (f.t > .8) { f.el.remove(); dmgNums.splice(i, 1); continue; }
+    _dv.set(f.x, f.y + f.t * 1.6, f.z).project(camera);
+    if (_dv.z > 1) { f.el.style.display = 'none'; continue; }
+    f.el.style.display = '';
+    f.el.style.left = ((_dv.x * .5 + .5) * innerWidth) + 'px';
+    f.el.style.top = ((-_dv.y * .5 + .5) * innerHeight - 24) + 'px';
+    f.el.style.opacity = Math.max(0, 1 - f.t * f.t * 1.4);
+  }
+}
+
 function playerFire() {
   if (!player.weapon) return;
   const w = WEAPONS[player.weapon];
@@ -918,8 +947,10 @@ function playerFire() {
       end = hits[0].point;
       const bot = hits[0].object.userData.bot;
       if (bot && bot.alive) {
-        const dmg = hits[0].object.userData.part === 'head' ? w.dmg * 2 : w.dmg;
+        const headshot = hits[0].object.userData.part === 'head';
+        const dmg = headshot ? w.dmg * 2 : w.dmg;
         damageFighter(bot, dmg, player);
+        popDmg(hits[0].point, dmg, headshot);
         $('hitmark').style.opacity = 1;
         setTimeout(() => $('hitmark').style.opacity = 0, 90);
         sfx(880, .06, 'sine', .12);
@@ -1589,6 +1620,7 @@ function loop() {
     updatePreview();
     if (buildMode && mouseDown) tryPlace();
     updateBoss(dt);
+    updateDmgNums(dt);
     updateBossBalls(dt);
     updatePlayerBalls(dt);
     for (let i = fx.length - 1; i >= 0; i--) {
