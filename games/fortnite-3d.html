@@ -40,12 +40,47 @@
   #overlay h1 { font-size: 54px; margin: 0 0 10px; color: #ffd76e; text-shadow: 3px 3px 0 #6a3fbf; }
   #overlay p { max-width: 520px; line-height: 1.7; }
   #overlay button { margin-top: 18px; font-size: 24px; padding: 14px 44px; border: none; border-radius: 8px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; }
-  #overlay .diffrow { display: flex; gap: 10px; margin: 6px 0 0; }
-  #overlay .diffbtn { margin: 0; font-size: 17px; padding: 9px 22px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
-  #overlay .diffbtn:hover { color: #fff; border-color: #8a5cff; }
-  #overlay .diffbtn.sel { background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; border-color: #ffd76e; }
+  #overlay #quitBtn { font-size: 15px; padding: 9px 22px; background: #4a4a6a; }
+  #overlay #quitBtn:hover { background: #5a5a7d; }
+  .diffrow { display: flex; gap: 10px; margin: 6px 0 0; justify-content: center; }
+  .diffbtn { margin: 0; font-size: 17px; padding: 9px 22px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
+  .diffbtn:hover { color: #fff; border-color: #8a5cff; }
+  .diffbtn.sel { background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; border-color: #ffd76e; }
   #diffdesc { margin: 10px 0 0; font-size: 14px; color: #9fb0ff; min-height: 18px; }
-  #overlay .diffbtn.dim { opacity: .4; cursor: not-allowed; }
+  .diffbtn.dim { opacity: .4; cursor: not-allowed; }
+
+  /* ---- the 2D lobby: coins, the shop, and the drop button ---- */
+  #lobby { position: absolute; inset: 0; z-index: 11; color: #fff; overflow: hidden auto; }
+  #lobbyart { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #lobbyUI { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 12px; box-sizing: border-box; }
+  #lobby h1 { font-size: 44px; margin: 0; color: #ffd76e; text-shadow: 3px 3px 0 #4a2a91, 0 0 22px #000; }
+  #lobResult { font-size: 17px; min-height: 22px; text-shadow: 1px 1px 0 #000; }
+  #purse { font-size: 21px; font-weight: bold; text-shadow: 2px 2px 0 #000; background: rgba(0,0,0,.55); display: inline-block; padding: 4px 18px; border-radius: 20px; border: 2px solid rgba(255,215,110,.5); }
+  #purse.bump { animation: bump .3s ease-out; }
+  @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.16); } 100% { transform: scale(1); } }
+  #lobBody { display: flex; gap: 14px; align-items: stretch; flex-wrap: wrap; justify-content: center; margin-top: 4px; width: 100%; max-width: 880px; }
+  .lpanel { flex: 1 1 300px; min-width: 0; box-sizing: border-box; background: rgba(10,8,32,.88); border: 2px solid #5a2ecb; border-radius: 12px; padding: 13px 16px; text-align: center; max-width: 430px; box-shadow: 0 6px 26px rgba(0,0,0,.5); overflow-wrap: break-word; }
+  .lpanel h3 { margin: 0 0 8px; font-size: 16px; color: #ffd76e; letter-spacing: 1.5px; }
+  .lhelp { font-size: 12.5px; line-height: 1.6; color: #a8b3ff; }
+  .lpay { font-size: 13px; margin: 4px 0 12px; color: #9fe8a0; }
+  .lshop { max-width: 430px; }
+  .ltip { font-size: 12px; color: #9fb0ff; margin: 0 0 10px; line-height: 1.5; }
+  .card { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; text-align: left; }
+  .card .ci { font-size: 25px; width: 30px; text-align: center; }
+  .card .cn { flex: 1 1 110px; min-width: 96px; }
+  .card .cn b { display: block; font-size: 15px; }
+  .card .cn span { font-size: 12px; color: #9fb0ff; }
+  .pips { display: flex; gap: 3px; min-width: 60px; }
+  .pip { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); }
+  .pip.on { background: #ffd76e; border-color: #fff; box-shadow: 0 0 6px #ffd76e; }
+  .buy { border: none; border-radius: 8px; padding: 8px 10px; font-weight: bold; font-size: 14px; cursor: pointer; background: linear-gradient(#43c96a,#1f8f3f); color: #fff; min-width: 82px; }
+  .buy:hover { filter: brightness(1.15); }
+  .buy:disabled { background: #2c2c39; color: #7d7d90; cursor: not-allowed; }
+  #permCard { border-color: rgba(255,215,110,.6); background: rgba(255,215,110,.09); }
+  #permCard .buy { background: linear-gradient(#ffd76e,#d59a1c); color: #3a2600; }
+  #shopnote { font-size: 13px; min-height: 17px; color: #ffb0b0; margin: 2px 0 8px; }
+  #dropBtn { font-size: 25px; padding: 13px 46px; border: none; border-radius: 9px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; margin-top: 4px; }
+  #dropBtn:hover { filter: brightness(1.12); }
   .hidden { display: none !important; }
 </style>
 </head>
@@ -76,21 +111,62 @@
 <div class="hud" id="prompt"></div>
 <div id="flash"></div>
 <div id="stormvignette"></div>
-<div id="overlay">
-  <h1>BATTLE MINI 3D</h1>
-  <p id="msg"><span id="fcount">51</span> fighters on the battle bus. Jump out, crack 🧰 chests, last one standing wins.<br><br>
-  <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
-  <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪 · <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause (game never freezes — click to grab the mouse back)<br>
-  Shoot trees &amp; rocks for wood — spend 20 wood per build<br>
-  🤢 1 chest in 10 hides a wriggling <b>ORGER</b> — throw it and face what comes out…<br>
-  💣 <b>TNT</b> wipes out everyone nearby when thrown — and the rare <b>TNT Launcher</b> fires it for 100 damage</p>
-  <div class="diffrow">
-    <button class="diffbtn" data-diff="easy">🌱 EASY</button>
-    <button class="diffbtn" data-diff="normal">⚔️ NORMAL</button>
-    <button class="diffbtn" data-diff="hard">💀 HARD</button>
+<div id="overlay" class="hidden">
+  <h1>PAUSED</h1>
+  <p id="msg">Take a breather — the world is holding still.</p>
+  <button id="playBtn">RESUME</button>
+  <button id="quitBtn">🏠 BACK TO LOBBY</button>
+</div>
+
+<div id="lobby">
+  <canvas id="lobbyart"></canvas>
+  <div id="lobbyUI">
+    <h1>BATTLE MINI 3D</h1>
+    <div id="lobResult"></div>
+    <div id="purse">🪙 <span id="coinCount">0</span></div>
+    <div id="lobBody">
+      <div class="lpanel">
+        <h3>PICK YOUR FIGHT</h3>
+        <div class="diffrow">
+          <button class="diffbtn" data-diff="easy">🌱 EASY</button>
+          <button class="diffbtn" data-diff="normal">⚔️ NORMAL</button>
+          <button class="diffbtn" data-diff="hard">💀 HARD</button>
+        </div>
+        <p id="diffdesc"></p>
+        <div class="lpay">Win a match to earn 🪙 — EASY 100 · NORMAL 150 · HARD 200</div>
+        <div class="lpay">🪂 <span id="fcount">51</span> fighters on the bus</div>
+        <button id="dropBtn">DROP IN</button>
+        <div class="lhelp" style="margin-top:12px">
+          <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
+          <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪<br>
+          <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause<br>
+          Shoot trees &amp; rocks for wood — 20 wood per build
+        </div>
+      </div>
+      <div class="lpanel lshop">
+        <h3>🛒 THE SHOP</h3>
+        <p class="ltip">Upgrades are for <b>one match only</b>. When the match ends they are gone and the prices drop back down — so stack up before you drop.</p>
+        <div class="card" id="cardHp">
+          <div class="ci">❤️</div>
+          <div class="cn"><b>EXTRA HP</b><span>+25 max health each</span></div>
+          <div class="pips" id="pipsHp"></div>
+          <button class="buy" id="buyHp">🪙 40</button>
+        </div>
+        <div class="card" id="cardDmg">
+          <div class="ci">⚔️</div>
+          <div class="cn"><b>EXTRA DAMAGE</b><span>+15% damage each</span></div>
+          <div class="pips" id="pipsDmg"></div>
+          <button class="buy" id="buyDmg">🪙 60</button>
+        </div>
+        <div class="card" id="permCard">
+          <div class="ci">🔓</div>
+          <div class="cn"><b>ENDLESS POWER</b><span>Upgrades never expire and stack past 5 — forever</span></div>
+          <button class="buy" id="buyPerm">🪙 50000</button>
+        </div>
+        <div id="shopnote"></div>
+      </div>
+    </div>
   </div>
-  <p id="diffdesc"></p>
-  <button id="playBtn">DROP IN</button>
 </div>
 <script src="vendor/three/three.global.js"></script>
 <script src="crates.js"></script>
@@ -115,16 +191,17 @@ const BUILD_COST = 20;
 
 // difficulty — picked on the start screen, remembered for next time
 const DIFFS = {
-  easy:   { name: 'EASY', icon: '🌱', bots: 24, aim: .55, slow: 1.9, see: 45, take: .65, storm: 1.6, stormDmg: 1, shield: .15, loot: 1.35,
+  easy:   { name: 'EASY', icon: '🌱', coins: 100, bots: 24, aim: .55, slow: 1.9, see: 45, take: .65, storm: 1.6, stormDmg: 1, shield: .15, loot: 1.35,
             desc: '25 fighters, bots miss loads and shoot slowly, lazy storm, extra loot, you soak up damage' },
-  normal: { name: 'NORMAL', icon: '⚔️', bots: 50, aim: 1, slow: 1, see: 65, take: 1, storm: 1, stormDmg: 2, shield: .4, loot: 1,
+  normal: { name: 'NORMAL', icon: '⚔️', coins: 150, bots: 50, aim: 1, slow: 1, see: 65, take: 1, storm: 1, stormDmg: 2, shield: .4, loot: 1,
             desc: 'The proper battle — 51 fighters, fair bots, ordinary storm' },
-  hard:   { name: 'HARD', icon: '💀', bots: 50, aim: 1.6, slow: .7, see: 85, take: 1.45, storm: .7, stormDmg: 3, shield: .9, loot: .75,
+  hard:   { name: 'HARD', icon: '💀', coins: 200, bots: 50, aim: 1.6, slow: .7, see: 85, take: 1.45, storm: .7, stormDmg: 3, shield: .9, loot: .75,
             desc: '51 fighters that hardly ever miss and fire fast, most start shielded, quick storm, every hit stings' },
 };
 let diffKey = 'normal';
 try { const k = localStorage.getItem('bm3d-diff'); if (DIFFS[k]) diffKey = k; } catch (e) {}
 let DIFF = DIFFS[diffKey];
+let worldDiff = null;   // which difficulty the island currently sitting there was built for
 const NAME_BASE = ['Ninja_Cheese','xX_Sweat_Xx','LlamaLord','NoScopeNancy','BuildFast','CrankedKid','BushCamper','ToastStealer','DefaultDan','GingyGus','PeelyFan01','RaptorRalph','DriftKing','ShellShy','SkyFire','TightRope','ZoneWarrior','LootLlama','Fishstick_Fan','RavenMike'];
 const NAMES = [];
 for (let i = 0; i < 50; i++) NAMES.push(NAME_BASE[i % NAME_BASE.length] + (i >= NAME_BASE.length ? ' ' + ((i / NAME_BASE.length | 0) + 1) : ''));
@@ -842,8 +919,8 @@ function explodeTnt(pos, dmg, attacker) {
     if (!b.alive) continue;
     const dy = Math.abs((b === orgerBoss ? 1.8 : 1.2) - pos.y);
     if (Math.hypot(b.x - pos.x, b.z - pos.z) < R && dy < 6) {
-      popDmg(new THREE.Vector3(b.x, groundHeight(b.x, b.z) + 2.3, b.z), dmg > 999 ? 999 : dmg, true);
-      damageFighter(b, dmg, attacker);
+      const dealt = damageFighter(b, dmg, attacker);
+      popDmg(new THREE.Vector3(b.x, groundHeight(b.x, b.z) + 2.3, b.z), dealt > 999 ? 999 : dealt, true);
     }
   }
   if (player.alive && Math.hypot(player.x - pos.x, player.z - pos.z) < R) {
@@ -1091,7 +1168,7 @@ function initGame() {
     scene.add(preview[part]);
   }
   const sp = freeSpot(1);
-  player = { isPlayer: true, name: 'You', x: sp.x, z: sp.z, hp: 200, maxHp: 200, shield: 0, alive: true, kills: 0, state: 'bus',
+  player = { isPlayer: true, name: 'You', x: sp.x, z: sp.z, hp: 200 + hpBonus(), maxHp: 200 + hpBonus(), shield: 0, alive: true, kills: 0, state: 'bus',
     weapon: 'pistol', ammo: WEAPONS.pistol.mag, cur: 0,
     slots: [{ type: 'weapon', id: 'pistol', ammo: WEAPONS.pistol.mag }, null, null, null, null],
     healing: null,
@@ -1119,6 +1196,7 @@ function initGame() {
   stormCyl.position.y = 60;
   scene.add(stormCyl);
   gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++; paused = false;
+  worldDiff = diffKey;   // remember which fight this island was built for
   clearTimeout(buildFlash.t);
   orgerBoss = null; bossBalls = []; playerBalls = []; fx = []; throwPending = false; bossSeen = false;
   tntBalls = []; grenadeBalls = []; tntPending = false;
@@ -1143,8 +1221,10 @@ function feed(text) {
 }
 
 function damageFighter(v, amt, attacker) {
-  if (!v.alive) return;
+  if (!v.alive) return 0;
+  if (attacker === player && v !== player) amt = Math.round(amt * dmgUp());   // shop upgrades
   if (v === player) amt *= DIFF.take;
+  const shown = amt;   // what the floating number should say (before shield soak)
   if (v.shield > 0) { const s = Math.min(v.shield, amt); v.shield -= s; amt -= s; }
   v.hp -= amt;
   if (v === player) {
@@ -1169,6 +1249,7 @@ function damageFighter(v, amt, attacker) {
       }
     }
   }
+  return shown;
 }
 
 function addTracer(from, to) {
@@ -1239,8 +1320,8 @@ function playerFire() {
       if (bot && bot.alive) {
         const headshot = hits[0].object.userData.part === 'head';
         const dmg = headshot ? w.dmg * 2 : w.dmg;
-        damageFighter(bot, dmg, player);
-        popDmg(hits[0].point, dmg, headshot);
+        const dealt = damageFighter(bot, dmg, player);
+        if (dealt > 0) popDmg(hits[0].point, dealt, headshot);
         $('hitmark').style.opacity = 1;
         setTimeout(() => $('hitmark').style.opacity = 0, 90);
         sfx(880, .06, 'sine', .12);
@@ -1768,18 +1849,29 @@ function damageStructure(s, amt) {
   }
 }
 
-function endGame(won, place) {
+function endGame(won, place, gaveUp) {
   if (!playing) return;
   playing = false;
   document.exitPointerLock();
-  $('overlay').classList.remove('hidden');
-  $('overlay h1').textContent = won ? 'VICTORY!' : 'DEFEATED';
-  $('overlay h1').style.color = won ? '#ffd76e' : '#ff5555';
-  $('msg').innerHTML = won
-    ? `${bossSeen ? '🏆 <b>#1 — ORGER SLAYER!</b>' : '🏆 <b>#1 — BIG WIN!</b>'}<br>${player.kills} elimination${player.kills === 1 ? '' : 's'} · survived ${Math.floor(gameTime)}s`
-    : `Placement #${place || aliveCount} · ${player.kills} elimination${player.kills === 1 ? '' : 's'}${orgerBoss ? ' · the ORGER got you 👹' : ''}`;
-  $('playBtn').textContent = 'PLAY AGAIN';
-  $('msg').innerHTML += `<br><br>${DIFF.icon} <b>${DIFF.name}</b> mode`;
+  // pay out: a win pays the mode's coins, a good placement pays a little
+  let reward = 0;
+  if (won) reward = DIFF.coins;
+  else {
+    const frac = place <= 5 ? .25 : place <= 15 ? .15 : .05;
+    reward = Math.round(DIFF.coins * frac / 5) * 5;
+  }
+  coins += reward;
+  savePurse();
+  const el = player.kills + ' elimination' + (player.kills === 1 ? '' : 's') + ' · survived ' + Math.floor(gameTime) + 's';
+  let html = won
+    ? `<b style="color:#ffd76e;font-size:24px">${bossSeen ? '🏆 #1 — ORGER SLAYER!' : '🏆 #1 — BIG WIN!'}</b><br>${el}`
+    : gaveUp
+      ? `<b style="color:#9fb0ff;font-size:22px">🏠 Back to the lobby</b><br>${el}`
+      : `<b style="color:#ff6b6b;font-size:22px">Placement #${place || aliveCount}</b><br>${el}${orgerBoss ? ' · the ORGER got you 👹' : ''}`;
+  html += `<br><span style="color:#ffd76e;font-size:20px">+${reward.toLocaleString()} 🪙</span> <span style="color:#9fb0ff;font-size:14px">on ${DIFF.icon} ${DIFF.name}</span>`;
+  // the match is over — so are the upgrades you bought for it (unless endless)
+  if (!endless) { up.hp = 0; up.dmg = 0; }
+  showLobby(html);
   paintDiff();
 }
 
@@ -1801,7 +1893,7 @@ function drawHud() {
   else if (held && held.type !== 'weapon') setHtml($('wpn'), (held.type === 'medkit' ? '⛑ Medkit' : '🧪 Big Pot') + '<br>right-click to use');
   else if (player.weapon) { const w = WEAPONS[player.weapon]; setHtml($('wpn'), `${w.name}<br>${player.reloading ? 'RELOADING…' : player.ammo + ' / ∞'}`); }
   else setHtml($('wpn'), '');
-  setTxt($('alive'), 'ALIVE: ' + aliveCount + ' · ' + DIFF.icon + ' ' + DIFF.name);
+  setTxt($('alive'), 'ALIVE: ' + aliveCount + ' · ' + DIFF.icon + ' ' + DIFF.name + buffTxt());
   setTxt($('wood'), '🪵 ' + wood + (buildMode ? ' — BUILD: ' + PARTS[buildPart].toUpperCase() + ' [Q]' : ''));
   setTxt($('crosshair'), buildMode ? '⌖' : '+');
   syncSlot();
@@ -1897,8 +1989,8 @@ function showPause() {
   $('overlay').classList.remove('hidden');
   $('overlay h1').textContent = 'PAUSED';
   $('overlay h1').style.color = '#ffd76e';
+  $('msg').innerHTML = 'The world is holding still.<br>Click the game or press <b>Esc</b> to grab the mouse back and get fighting.';
   $('playBtn').textContent = 'RESUME';
-  paintDiff();   // grey out the difficulty buttons — no swapping mid-match
 }
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement !== renderer.domElement) {
@@ -1910,6 +2002,202 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 let freshWorld = true;
+// ============================================================
+//  THE LOBBY — coins, the shop, and dropping in
+//  Coins come from winning (EASY 100 / NORMAL 150 / HARD 200).
+//  In the shop you stack ❤️ extra HP and ⚔️ extra damage for ONE match.
+//  Each buy during the same prep costs more, and when the match ends
+//  both the stacks and the prices go back to square one.
+//  Spend 50,000 once on ENDLESS POWER and nothing ever resets again.
+// ============================================================
+const MAX_STACK = 5;
+const PERM_COST = 50000;
+const SHOP = {
+  hp: { base: 25, step: 25, label: '+25 max HP' },
+  dmg: { base: 35, step: .15, label: '+15% damage' },
+};
+let coins = 0, endless = false, up = { hp: 0, dmg: 0 };
+try {
+  coins = Math.max(0, Math.round(+localStorage.getItem('bm3d-coins')) || 0);
+  endless = localStorage.getItem('bm3d-endless') === '1';
+  // endless power means the stacks are yours for good — even after a reload
+  if (endless) {
+    up.hp = Math.max(0, +localStorage.getItem('bm3d-up-hp') | 0);
+    up.dmg = Math.max(0, +localStorage.getItem('bm3d-up-dmg') | 0);
+  }
+} catch (e) {}
+function savePurse() {
+  try {
+    localStorage.setItem('bm3d-coins', coins);
+    localStorage.setItem('bm3d-endless', endless ? '1' : '0');
+    localStorage.setItem('bm3d-up-hp', endless ? up.hp : 0);
+    localStorage.setItem('bm3d-up-dmg', endless ? up.dmg : 0);
+  } catch (e) {}
+}
+function stackCap() { return endless ? Infinity : MAX_STACK; }
+// per-match prices climb 1.7x a stack; endless mode climbs slowly but never stops
+function upCost(k) {
+  const b = SHOP[k].base;
+  return endless ? Math.round(b * (up[k] + 1) * 3) : Math.round(b * Math.pow(1.7, up[k]));
+}
+function hpBonus() { return SHOP.hp.step * up.hp; }
+function dmgUp() { return 1 + SHOP.dmg.step * up.dmg; }
+function buffTxt() {
+  const bits = [];
+  if (up.hp) bits.push('❤️+' + hpBonus());
+  if (up.dmg) bits.push('⚔️+' + Math.round(SHOP.dmg.step * up.dmg * 100) + '%');
+  return bits.length ? ' · ' + bits.join(' ') : '';
+}
+function shopNote(msg, good) {
+  const n = $('shopnote');
+  n.textContent = msg || '';
+  n.style.color = good ? '#9fe8a0' : '#ffb0b0';
+}
+function buyUp(k) {
+  // the shop only works while you are standing in the lobby — never mid-fight
+  if ($('lobby').classList.contains('hidden')) return;
+  if (playing && player && player.alive) return;
+  if (up[k] >= stackCap()) { shopNote('That is as tall as it goes — grab 🔓 ENDLESS POWER to keep stacking'); return; }
+  const c = upCost(k);
+  if (coins < c) { shopNote(`Not enough coins yet — ${(c - coins).toLocaleString()} more to go`); sfx(150, .12, 'square', .06); return; }
+  coins -= c; up[k]++;
+  savePurse(); paintShop(true);
+  shopNote(`${SHOP[k].label} ×${up[k]} — ready for your next drop`, true);
+  sfx(880, .07, 'sine', .1); setTimeout(() => sfx(1320, .08, 'sine', .1), 60);
+}
+function buyEndless() {
+  if (endless) return;
+  if (coins < PERM_COST) { shopNote(`Not yet — ${(PERM_COST - coins).toLocaleString()} coins to go`); sfx(150, .12, 'square', .06); return; }
+  coins -= PERM_COST; endless = true;
+  savePurse(); paintShop(true);
+  shopNote('🔓 ENDLESS POWER! Your upgrades stay forever now', true);
+  sfx(660, .1, 'sine', .12);
+  setTimeout(() => sfx(880, .1, 'sine', .12), 90);
+  setTimeout(() => sfx(1320, .22, 'sine', .12), 180);
+}
+function pips(el, n) {
+  el.innerHTML = '';
+  for (let i = 0; i < Math.min(n, 8); i++) el.appendChild(Object.assign(document.createElement('div'), { className: 'pip on' }));
+  if (!endless) for (let i = Math.min(n, MAX_STACK); i < MAX_STACK; i++) el.appendChild(Object.assign(document.createElement('div'), { className: 'pip' }));
+  if (n > 8) {
+    const s = document.createElement('b');
+    s.textContent = ' ×' + n;
+    s.style.cssText = 'font-size:13px;color:#ffd76e;margin-left:4px';
+    el.appendChild(s);
+  }
+}
+function paintShop(bump) {
+  $('coinCount').textContent = coins.toLocaleString();
+  if (bump) { const p = $('purse'); p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
+  pips($('pipsHp'), up.hp);
+  pips($('pipsDmg'), up.dmg);
+  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg']]) {
+    const b = $(id);
+    b.textContent = '🪙 ' + upCost(k);
+    b.disabled = coins < upCost(k) || up[k] >= stackCap();
+  }
+  const bp = $('buyPerm'), card = $('permCard'), sub = card.querySelector('.cn span');
+  if (endless) {
+    bp.textContent = 'OWNED ✔'; bp.disabled = true; card.style.opacity = .6;
+    sub.textContent = 'Locked in forever — your upgrades never expire';
+  } else {
+    bp.textContent = '🪙 ' + PERM_COST.toLocaleString();
+    bp.disabled = coins < PERM_COST;
+    sub.textContent = 'Upgrades never expire and stack past 5 — forever';
+  }
+}
+$('buyHp').addEventListener('click', () => buyUp('hp'));
+$('buyDmg').addEventListener('click', () => buyUp('dmg'));
+$('buyPerm').addEventListener('click', buyEndless);
+
+function showLobby(html) {
+  $('lobResult').innerHTML = html || '';
+  $('lobby').classList.remove('hidden');
+  $('overlay').classList.add('hidden');
+  shopNote('');
+  paintShop();
+}
+function startMatch() {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  // the world already sitting out there gets reused — but only if it was built for
+  // the fight you just picked. New difficulty (or a finished match) means a new world.
+  if (freshWorld) { freshWorld = false; if (worldDiff !== diffKey) initGame(); }
+  else if (!playing || !player.alive || worldDiff !== diffKey) initGame();
+  // make sure whatever HP you bought in the shop is on the fighter you drop as
+  player.maxHp = 200 + hpBonus();
+  if (player.state === 'bus') player.hp = player.maxHp;
+  $('lobby').classList.add('hidden');
+  $('overlay').classList.add('hidden');
+  playing = true;
+  mouseDown = false;
+  paused = false;
+  const lock = renderer.domElement.requestPointerLock();
+  if (lock && lock.catch) lock.catch(() => {});
+}
+$('quitBtn').addEventListener('click', () => {
+  // walking out of a match counts as a loss, but you still get the consolation coins
+  paused = false;
+  $('quitBtn').blur();
+  endGame(false, aliveCount, true);
+});
+$('dropBtn').addEventListener('click', startMatch);
+paintShop();
+
+// ---- the 2D backdrop: a drawn bit of the island, the bus, and a fighter ----
+const art = $('lobbyart'), actx = art.getContext('2d');
+function drawLobby(t) {
+  const w = art.clientWidth, h = art.clientHeight;
+  if (!w || !h) return;
+  if (art.width !== w || art.height !== h) { art.width = w; art.height = h; }
+  const sky = actx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#241457'); sky.addColorStop(.55, '#6a3fbf'); sky.addColorStop(1, '#f0a35e');
+  actx.fillStyle = sky; actx.fillRect(0, 0, w, h);
+  actx.fillStyle = '#ffd76e';
+  actx.beginPath(); actx.arc(w * .82, h * .6, Math.min(w, h) * .1, 0, 7); actx.fill();
+  actx.fillStyle = 'rgba(255,255,255,.15)';
+  for (let i = 0; i < 5; i++) {
+    const cx = ((i * 317 + t * 14) % (w + 300)) - 150, cy = h * (.08 + (i % 3) * .12);
+    actx.beginPath();
+    actx.ellipse(cx, cy, 62, 20, 0, 0, 7);
+    actx.ellipse(cx + 40, cy + 6, 44, 16, 0, 0, 7);
+    actx.fill();
+  }
+  for (const [col, base, amp] of [['#3b2a6b', .66, 26], ['#2f5d3a', .78, 34], ['#1f7a3c', .9, 44]]) {
+    actx.fillStyle = col;
+    actx.beginPath();
+    actx.moveTo(0, h);
+    for (let x = 0; x <= w; x += 12) actx.lineTo(x, h * base + Math.sin(x * .006 + amp) * amp * .5);
+    actx.lineTo(w, h); actx.closePath(); actx.fill();
+  }
+  // the battle bus drifting by
+  const bx = w * .5 + Math.sin(t * .35) * w * .16, by = h * .24 + Math.sin(t * 1.1) * 6;
+  actx.fillStyle = '#b04fd4';
+  actx.beginPath(); actx.ellipse(bx, by, 44, 33, 0, 0, 7); actx.fill();
+  actx.strokeStyle = '#7c7ca8'; actx.lineWidth = 2;
+  actx.beginPath();
+  actx.moveTo(bx - 14, by + 31); actx.lineTo(bx - 10, by + 60);
+  actx.moveTo(bx + 14, by + 31); actx.lineTo(bx + 10, by + 60); actx.stroke();
+  actx.fillStyle = '#3f66d4'; actx.fillRect(bx - 26, by + 60, 52, 29);
+  actx.fillStyle = '#222'; actx.fillRect(bx - 18, by + 66, 12, 10); actx.fillRect(bx + 6, by + 66, 12, 10);
+  // a little fighter waving from the hill
+  const px = w * .14, py = h * .74 + Math.sin(t * 2) * 2;
+  actx.fillStyle = '#12102a';
+  actx.fillRect(px - 9, py, 18, 30);
+  actx.fillRect(px - 11, py + 30, 8, 20); actx.fillRect(px + 3, py + 30, 8, 20);
+  actx.beginPath(); actx.arc(px, py - 12, 12, 0, 7); actx.fill();
+  actx.fillStyle = '#3af'; actx.fillRect(px - 9, py - 16, 18, 6);
+  actx.strokeStyle = '#12102a'; actx.lineWidth = 7; actx.lineCap = 'round';
+  actx.beginPath(); actx.moveTo(px + 9, py + 6); actx.lineTo(px + 24, py - 14 + Math.sin(t * 5) * 9); actx.stroke();
+  // coins spinning over the shop side
+  for (let i = 0; i < 6; i++) {
+    const cx = w * (.7 + (i % 3) * .08), cy = h * (.4 + Math.sin(t * 1.6 + i) * .02) + (i > 2 ? 44 : 0);
+    actx.fillStyle = '#ffd76e';
+    actx.beginPath(); actx.ellipse(cx, cy, 11, 13 * Math.abs(Math.cos(t * 1.4 + i)) + 1, 0, 0, 7); actx.fill();
+    actx.fillStyle = 'rgba(255,255,255,.45)';
+    actx.beginPath(); actx.ellipse(cx - 3, cy - 4, 2.5, 4, 0, 0, 7); actx.fill();
+  }
+}
+
 // difficulty picker on the start screen
 function setDiff(k) {
   if (!DIFFS[k]) return;
@@ -1940,14 +2228,13 @@ for (const b of document.querySelectorAll('.diffbtn')) {
 paintDiff();
 
 $('playBtn').addEventListener('click', () => {
+  // this button only lives on the PAUSE screen now — it just un-pauses
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  if (freshWorld) freshWorld = false;
-  else if (!playing || !player.alive) initGame();
   $('overlay').classList.add('hidden');
+  paused = false;
   playing = true;
   mouseDown = false;
   $('playBtn').blur();
-  paused = false;
   const lock = renderer.domElement.requestPointerLock();
   if (lock && lock.catch) lock.catch(() => {});
 });
@@ -1960,6 +2247,8 @@ playing = false;
 clock = new THREE.Clock();
 function loop() {
   requestAnimationFrame(loop);
+  // the lobby backdrop keeps moving even while the match world is on hold
+  if (!$('lobby').classList.contains('hidden')) drawLobby(performance.now() / 1000);
   const dt = Math.min(.05, clock.getDelta());
   if (playing && player.alive && !paused) {
     gameTime += dt;
