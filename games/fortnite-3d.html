@@ -696,6 +696,61 @@ function updatePlayerBalls(dt) {
   }
 }
 
+// muzzle flash -------------------------------------------------------
+let flashTex = null, muzzleFlash = null, muzzleLight = null, flashUntil = 0;
+function getFlashTex() {
+  if (!flashTex) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const rad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+    rad.addColorStop(0, 'rgba(255,255,235,1)');
+    rad.addColorStop(.4, 'rgba(255,214,110,.9)');
+    rad.addColorStop(1, 'rgba(255,140,40,0)');
+    g.fillStyle = rad;
+    g.fillRect(0, 0, 64, 64);
+    g.strokeStyle = 'rgba(255,240,190,.9)';
+    g.lineWidth = 5;
+    for (let i = 0; i < 4; i++) {
+      g.save(); g.translate(32, 32); g.rotate(i * Math.PI / 2 + .4);
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(30, 0); g.stroke(); g.restore();
+    }
+    flashTex = new THREE.CanvasTexture(c);
+  }
+  return flashTex;
+}
+function makeMuzzleFlash() {
+  muzzleFlash = new THREE.Sprite(new THREE.SpriteMaterial({ map: getFlashTex(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  muzzleFlash.scale.setScalar(.28);
+  muzzleFlash.visible = false;
+  muzzleLight = new THREE.PointLight(0xffcc77, 0, 6);
+  camera.add(muzzleFlash, muzzleLight);
+}
+// barrel tip sits at a different depth for each gun (viewmodel space)
+const MUZZLE_Z = { pistol: -.9, smg: -.97, shotgun: -1.14, rifle: -1.15 };
+function positionMuzzle(id) {
+  if (!muzzleFlash) return;
+  const z = MUZZLE_Z[id] || -1;
+  muzzleFlash.position.set(.3, -.2, z);
+  muzzleLight.position.set(.3, -.2, z - .1);
+}
+function flashMuzzle(big) {
+  if (!muzzleFlash) return;
+  muzzleFlash.visible = true;
+  muzzleFlash.material.rotation = Math.random() * 6.28;
+  muzzleFlash.scale.setScalar((big ? .42 : .26) + Math.random() * .08);
+  muzzleLight.intensity = 2.6;
+  flashUntil = gameTime + .05;
+}
+// quick flash for bot guns (and anything else that shoots in the world)
+function popFlash(pos, size) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: getFlashTex(), color: 0xffd27a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  sp.position.copy(pos);
+  sp.scale.setScalar(size);
+  scene.add(sp);
+  fx.push({ m: sp, t: .07, max: .07, grow: 1.6, o0: .95 });
+}
+
 function updateViewmodel() {
   if (!viewmodel) return;
   while (viewmodel.children.length) viewmodel.remove(viewmodel.children[0]);
@@ -707,6 +762,7 @@ function updateViewmodel() {
     m.rotation.set(0, Math.PI / 2, 0);
     m.scale.setScalar(1.2);
     m.position.set(.3, -.26, -.55);
+    positionMuzzle(s.id);
   } else if (s.type === 'medkit') {
     m = buildMedkit();
     m.rotation.set(-.35, -.8, .15);
@@ -792,6 +848,8 @@ function initGame() {
   viewmodel = new THREE.Group();
   scene.add(camera);
   camera.add(viewmodel);
+  if (!muzzleFlash) makeMuzzleFlash();
+  muzzleFlash.visible = false; muzzleLight.intensity = 0;
 
   loot = []; tracers = []; killfeed = []; chests = [];
   structures = []; buildMode = false; wood = 60; stamina = 100;
@@ -922,6 +980,7 @@ function playerFire() {
   if (gameTime - player.lastShot < w.rate) return;
   player.lastShot = gameTime; player.ammo--;
   shotSound(player.weapon);
+  flashMuzzle(player.weapon === 'shotgun');
   if (player.ammo === 0) startReload();
   const origin = new THREE.Vector3();
   camera.getWorldPosition(origin);
@@ -980,6 +1039,7 @@ function botFire(bot, target, dist) {
   const ax = bot.x, az = bot.z, ay = 1.5;
   const bx = target.isPlayer ? player.x : target.x;
   const bz = target.isPlayer ? player.z : target.z;
+  popFlash(new THREE.Vector3(ax + (bx - ax) / dist * .7, ay + .15, az + (bz - az) / dist * .7), 1.1);
   if (losBlocked(ax, ay, az, bx, 1.3, bz)) {
     const walls = structures.map(s => s.mesh);
     if (walls.length) {
@@ -1621,6 +1681,7 @@ function loop() {
     if (buildMode && mouseDown) tryPlace();
     updateBoss(dt);
     updateDmgNums(dt);
+    if (muzzleFlash.visible && gameTime > flashUntil) { muzzleFlash.visible = false; muzzleLight.intensity = 0; }
     updateBossBalls(dt);
     updatePlayerBalls(dt);
     for (let i = fx.length - 1; i >= 0; i--) {
