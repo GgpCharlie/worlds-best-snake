@@ -30,6 +30,9 @@
   #prompt { bottom: 30%; left: 50%; transform: translateX(-50%); font-size: 20px; background: #000a; padding: 6px 16px; border-radius: 6px; display: none; }
   #flash { position: absolute; inset: 0; background: #f00; opacity: 0; pointer-events: none; z-index: 4; transition: opacity .4s; }
   #stormvignette { position: absolute; inset: 0; box-shadow: inset 0 0 180px 60px rgba(140,40,220,.7); opacity: 0; pointer-events: none; z-index: 4; }
+  #bossbar { top: 64px; left: 50%; transform: translateX(-50%); width: 430px; display: none; text-align: center; }
+  #bosstxt { font-size: 15px; font-weight: bold; color: #b8ff8a; text-shadow: 1px 1px 0 #000; }
+  #bossfill { background: #58d858; width: 100%; }
   #overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(8,8,26,.9); color: #fff; z-index: 10; text-align: center; }
   #overlay h1 { font-size: 54px; margin: 0 0 10px; color: #ffd76e; text-shadow: 3px 3px 0 #6a3fbf; }
   #overlay p { max-width: 520px; line-height: 1.7; }
@@ -43,6 +46,7 @@
 <div class="hud" id="hitmark">✕</div>
 <div class="hud" id="alive"></div>
 <div class="hud" id="stormbar"></div>
+<div class="hud" id="bossbar"><span id="bosstxt">👹 THE ORGER</span><div class="bar"><div id="bossfill"></div></div></div>
 <div class="hud" id="stats">
   <span id="stamnum"></span>
   <div class="bar"><div id="stamfill"></div></div>
@@ -67,7 +71,8 @@
   <p id="msg">51 fighters on the battle bus. Jump out, crack 🧰 chests, last one standing wins.<br><br>
   <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
   <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>Right-click</b> use held ⛑/🧪 · <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause<br>
-  Shoot trees &amp; rocks for wood — spend 20 wood per build</p>
+  Shoot trees &amp; rocks for wood — spend 20 wood per build<br>
+  🤢 1 chest in 10 hides a wriggling <b>ORGER</b> — throw it and face what comes out…</p>
   <button id="playBtn">DROP IN</button>
 </div>
 <script src="vendor/three/three.global.js"></script>
@@ -92,13 +97,14 @@ const NAME_BASE = ['Ninja_Cheese','xX_Sweat_Xx','LlamaLord','NoScopeNancy','Buil
 const NAMES = [];
 for (let i = 0; i < 50; i++) NAMES.push(NAME_BASE[i % NAME_BASE.length] + (i >= NAME_BASE.length ? ' ' + ((i / NAME_BASE.length | 0) + 1) : ''));
 
-const $ = id => id.includes(' ') ? document.querySelector(id) : document.getElementById(id);
+const $ = id => id.includes(' ') ? document.querySelector('#' + id) : document.getElementById(id);
 const mmCtx = $('mm').getContext('2d');
 
 let scene, camera, renderer, clock;
 let player, bots, loot, tracers, colliders, obstacleMeshes, killfeed, storm, playing = false, aliveCount, gameTime;
 let wood = 0, buildMode = false, buildPart = 0, preview = {}, structures = [], lastPlace = 0, stamina = 100, gameGen = 0;
 let chests = [], bus = null, busDir = null, viewmodel = null;
+let orgerBoss = null, bossBalls = [], playerBalls = [], fx = [], throwPending = false, bossSeen = false;
 let yaw = 0, pitch = 0, velY = 0, grounded = true, walkT = 0;
 const keys = {};
 let mouseDown = false;
@@ -288,6 +294,10 @@ function openChest() {
       const roll = Math.random();
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, roll < .6 ? 'weapon' : roll < .8 ? 'shield' : 'medkit');
     }
+    if (Math.random() < .1) {
+      spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'orger');
+      feed('🤢 Something STINKY is in this chest... throw it!');
+    }
     sfx(880, .15, 'sine', .15);
     setTimeout(() => sfx(1175, .25, 'sine', .12), 90);
     return true;
@@ -472,6 +482,205 @@ function buildShield() {
   return g;
 }
 
+function buildOrgerItem(withGlow) {
+  const g = new THREE.Group();
+  const skin = new THREE.MeshLambertMaterial({ color: 0x7ec850, emissive: 0x2a5a10, emissiveIntensity: .6 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.45, 12, 10), skin);
+  body.scale.set(1, .82, .9);
+  const white = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const black = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  const e1 = new THREE.Mesh(new THREE.SphereGeometry(.11, 8, 6), white); e1.position.set(-.16, .14, .36);
+  const e2 = e1.clone(); e2.position.x = .16;
+  const p1 = new THREE.Mesh(new THREE.SphereGeometry(.05, 6, 5), black); p1.position.set(-.16, .14, .45);
+  const p2 = p1.clone(); p2.position.x = .16;
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(.24, .07, .05), black); mouth.position.set(0, -.1, .4);
+  const stink = new THREE.Mesh(new THREE.SphereGeometry(.7, 8, 6), new THREE.MeshBasicMaterial({ color: 0x9fff6a, transparent: true, opacity: .16, depthWrite: false }));
+  stink.position.y = .55;
+  if (withGlow !== false) {
+    const glow = new THREE.PointLight(0x9fff6a, .8, 5);
+    glow.position.y = .6;
+    g.add(glow);
+  }
+  g.add(body, e1, e2, p1, p2, mouth, stink);
+  return g;
+}
+
+function buildOrgerBoss() {
+  const g = new THREE.Group();
+  const skinMat = new THREE.MeshLambertMaterial({ color: 0x69b34c });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x4a7a33 });
+  const white = new THREE.MeshLambertMaterial({ color: 0xf5f5e8 });
+  const black = new THREE.MeshLambertMaterial({ color: 0x111111 });
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(.9, 1.1, 2.2, 10), dark); legL.position.set(-1.2, 1.1, 0);
+  const legR = legL.clone(); legR.position.x = 1.2;
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(3, 16, 12), skinMat); belly.scale.set(1.15, 1, .9); belly.position.y = 4.2;
+  const tummy = new THREE.Mesh(new THREE.SphereGeometry(2.2, 14, 10), new THREE.MeshLambertMaterial({ color: 0x8fd06a }));
+  tummy.scale.set(1, .9, .55); tummy.position.set(0, 3.6, 1.6);
+  const armPiv = [], armMeshes = [];
+  for (const sgn of [-1, 1]) {
+    const piv = new THREE.Object3D();
+    piv.position.set(sgn * 3.1, 5.4, 0);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(.62, .75, 3.6, 10), skinMat); arm.position.y = -1.8;
+    const fist = new THREE.Mesh(new THREE.SphereGeometry(.95, 10, 8), dark); fist.position.y = -3.7;
+    piv.add(arm, fist);
+    g.add(piv);
+    armPiv.push(piv); armMeshes.push(arm, fist);
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(1.7, 14, 12), skinMat); head.position.y = 7.3;
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(2.4, .3, .5), dark); brow.position.set(0, 8.05, 1.35); brow.rotation.x = .35;
+  const eye1 = new THREE.Mesh(new THREE.SphereGeometry(.42, 8, 6), white); eye1.position.set(-.6, 7.75, 1.45);
+  const eye2 = eye1.clone(); eye2.position.x = .6;
+  const pup1 = new THREE.Mesh(new THREE.SphereGeometry(.17, 6, 5), black); pup1.position.set(-.6, 7.7, 1.78);
+  const pup2 = pup1.clone(); pup2.position.x = .6;
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(1.6, .45, .4), black); mouth.position.set(0, 6.7, 1.45);
+  const tooth1 = new THREE.Mesh(new THREE.BoxGeometry(.28, .3, .12), white); tooth1.position.set(-.3, 6.72, 1.62);
+  const tooth2 = tooth1.clone(); tooth2.position.x = .3;
+  const stink = new THREE.Mesh(new THREE.SphereGeometry(2.4, 10, 8), new THREE.MeshBasicMaterial({ color: 0x9fff6a, transparent: true, opacity: .13, depthWrite: false }));
+  stink.position.y = 8.6;
+  g.add(legL, legR, belly, tummy, head, brow, eye1, eye2, pup1, pup2, mouth, tooth1, tooth2, stink);
+  const meshes = [legL, legR, belly, tummy, head, ...armMeshes];
+  return { group: g, meshes, head, skinMat, armL: armPiv[0], armR: armPiv[1], stink };
+}
+
+function awakenOrger(x, z) {
+  if (orgerBoss) return;
+  const pd = Math.hypot(x - player.x, z - player.z);
+  if (pd < 14) {
+    const a = Math.atan2(z - player.z, x - player.x);
+    x = clamp(player.x + Math.cos(a) * 14, -HALF + 6, HALF - 6);
+    z = clamp(player.z + Math.sin(a) * 14, -HALF + 6, HALF - 6);
+  }
+  if (pointBlocked(x, z, 3)) {
+    for (let t = 0; t < 25; t++) {
+      const nx = clamp(x + rand(-9, 9), -HALF + 6, HALF - 6), nz = clamp(z + rand(-9, 9), -HALF + 6, HALF - 6);
+      if (!pointBlocked(nx, nz, 3)) { x = nx; z = nz; break; }
+    }
+  }
+  let devoured = 0;
+  for (const b of bots) if (b.alive) { b.alive = false; b.group.visible = false; devoured++; }
+  const model = buildOrgerBoss();
+  model.group.position.set(x, groundHeight(x, z), z);
+  model.group.scale.setScalar(.01);
+  scene.add(model.group);
+  const boss = Object.assign({ name: 'The ORGER', x, z, hp: 1200, maxHp: 1200, shield: 300, alive: true, kills: 0,
+    nextMelee: gameTime + 2.2, nextBarf: gameTime + 3.5, born: gameTime, hitT: 0, hitOn: false, walk: 0, swipeT: -9 }, model);
+  for (const m of boss.meshes) { m.userData.bot = boss; m.userData.part = m === boss.head ? 'head' : 'body'; }
+  orgerBoss = boss;
+  aliveCount = 2;
+  bossSeen = true;
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.5, 2.5, 60, 14, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x9fff6a, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+  beam.position.set(x, 30, z);
+  scene.add(beam);
+  fx.push({ m: beam, t: 2.2, max: 2.2, grow: 0, o0: .3 });
+  feed(`👹 The ORGER gobbled up ${devoured} fighters and rises before you!!`);
+  feed('🤢 KILL THE ORGER TO WIN!');
+  sfx(70, .6, 'sawtooth', .25);
+  setTimeout(() => sfx(90, .5, 'sawtooth', .22), 200);
+  setTimeout(() => sfx(55, .8, 'square', .2), 450);
+}
+
+function updateBoss(dt) {
+  const b = orgerBoss;
+  if (!b || !b.alive) return;
+  const grow = Math.min(1, (gameTime - b.born) / 1.2);
+  b.group.scale.setScalar(grow);
+  b.stink.rotation.y += dt * .7;
+  if (!player.alive || player.state !== 'fight') return;
+  const dx = player.x - b.x, dz = player.z - b.z, dist = Math.hypot(dx, dz) || 1;
+  b.group.rotation.y = Math.atan2(dx, dz);
+  const reach = 8 * grow;
+  if (grow >= 1 && dist > reach - 1.5) {
+    b.x += dx / dist * 2.7 * dt; b.z += dz / dist * 2.7 * dt; b.walk += dt * 3;
+  }
+  b.group.position.set(b.x, groundHeight(b.x, b.z) + Math.abs(Math.sin(b.walk)) * .4, b.z);
+  const idle = Math.sin(gameTime * 2.2) * .2;
+  b.armL.rotation.x = idle; b.armR.rotation.x = -idle;
+  if (gameTime - b.swipeT < .45) b.armR.rotation.x = -2.2 * (1 - (gameTime - b.swipeT) / .45);
+  if (grow >= 1 && dist < reach && gameTime > b.nextMelee && !losBlocked(b.x, 4, b.z, player.x, 1.2, player.z)) {
+    b.nextMelee = gameTime + 2.1; b.swipeT = gameTime;
+    damageFighter(player, 30, b);
+    sfx(70, .3, 'sawtooth', .25);
+  }
+  if (grow >= 1 && dist > 13 && dist < 70 && gameTime > b.nextBarf && !losBlocked(b.x, 7.3, b.z, player.x, 1.4, player.z)) {
+    b.nextBarf = gameTime + 3.4;
+    const t = clamp(dist / 18, .7, 3.5);
+    const ball = buildOrgerItem(false);
+    ball.scale.setScalar(1.6);
+    const y0 = b.group.position.y + 6.5;
+    ball.position.set(b.x, y0, b.z);
+    scene.add(ball);
+    bossBalls.push({ mesh: ball, vx: (player.x - b.x) / t, vy: (1.5 - y0) / t + 8 * t, vz: (player.z - b.z) / t, t: 8, owner: b });
+    sfx(160, .25, 'sawtooth', .16);
+  }
+  if (b.hitT > 0) { b.hitT -= dt; if (!b.hitOn) { b.hitOn = true; b.skinMat.emissive.setHex(0x992200); } }
+  else if (b.hitOn) { b.hitOn = false; b.skinMat.emissive.setHex(0); }
+}
+
+function splash(pos) {
+  const s = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0x9fff6a, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false }));
+  s.position.copy(pos);
+  scene.add(s);
+  fx.push({ m: s, t: .5, max: .5, grow: 6, o0: .5 });
+  sfx(120, .15, 'triangle', .12);
+}
+
+function updateBossBalls(dt) {
+  for (let i = bossBalls.length - 1; i >= 0; i--) {
+    const p = bossBalls[i];
+    p.t -= dt; p.vy -= 16 * dt;
+    p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
+    p.mesh.rotation.x += dt * 5; p.mesh.rotation.y += dt * 3;
+    let boom = p.t <= 0;
+    if (player.alive && player.state === 'fight') {
+      if (p.mesh.position.distanceTo(camera.position) < 2.6) { boom = true; damageFighter(player, 20, p.owner); sfx(140, .2, 'square', .18); }
+      else if (p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + .5) {
+        boom = true;
+        if (Math.hypot(p.mesh.position.x - player.x, p.mesh.position.z - player.z) < 3) damageFighter(player, 14, p.owner);
+      }
+    } else if (p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + .5) boom = true;
+    if (boom) { splash(p.mesh.position); scene.remove(p.mesh); bossBalls.splice(i, 1); }
+  }
+}
+
+function throwOrger() {
+  if (orgerBoss) { buildFlash('One ORGER is already enough!!'); return; }
+  const s = player.slots[player.cur];
+  if (!s || s.type !== 'orger') return;
+  cancelHeal();
+  s.count--;
+  if (s.count <= 0) player.slots[player.cur] = null;
+  const ball = buildOrgerItem(false);
+  ball.scale.setScalar(1.3);
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  ball.position.copy(camera.position).add(dir.clone().multiplyScalar(1.4));
+  ball.position.y -= .2;
+  scene.add(ball);
+  playerBalls.push({ mesh: ball, vx: dir.x * 22, vy: dir.y * 22 + 3, vz: dir.z * 22, t: 8 });
+  sfx(260, .18, 'sine', .15);
+  setTimeout(() => sfx(200, .2, 'sine', .12), 80);
+}
+
+function updatePlayerBalls(dt) {
+  for (let i = playerBalls.length - 1; i >= 0; i--) {
+    const p = playerBalls[i];
+    p.t -= dt; p.vy -= 18 * dt;
+    p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
+    p.mesh.rotation.z += dt * 8; p.mesh.rotation.y += dt * 4;
+    const off = Math.abs(p.mesh.position.x) > HALF - 4 || Math.abs(p.mesh.position.z) > HALF - 4;
+    if (p.t <= 0 || off || p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + .3) {
+      const x = clamp(p.mesh.position.x, -HALF + 6, HALF - 6), z = clamp(p.mesh.position.z, -HALF + 6, HALF - 6);
+      splash(p.mesh.position);
+      scene.remove(p.mesh);
+      playerBalls.splice(i, 1);
+      awakenOrger(x, z);
+    }
+  }
+}
+
 function updateViewmodel() {
   if (!viewmodel) return;
   while (viewmodel.children.length) viewmodel.remove(viewmodel.children[0]);
@@ -488,6 +697,11 @@ function updateViewmodel() {
     m.rotation.set(-.35, -.8, .15);
     m.scale.setScalar(.9);
     m.position.set(.3, -.34, -.6);
+  } else if (s.type === 'orger') {
+    m = buildOrgerItem(false);
+    m.rotation.set(.15, 2.6, .1);
+    m.scale.setScalar(1.1);
+    m.position.set(.3, -.3, -.55);
   } else {
     m = buildShield();
     m.rotation.set(.15, -.4, .1);
@@ -510,6 +724,10 @@ function spawnLoot(near, kind, weaponId) {
   } else if (type === 'medkit') {
     m = buildMedkit();
     m.position.set(p.x, .85, p.z);
+  } else if (type === 'orger') {
+    m = buildOrgerItem();
+    m.scale.setScalar(1.4);
+    m.position.set(p.x, 1, p.z);
   } else {
     m = buildShield();
     m.position.set(p.x, .6, p.z);
@@ -601,6 +819,8 @@ function initGame() {
   scene.add(stormCyl);
   gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++;
   clearTimeout(buildFlash.t);
+  orgerBoss = null; bossBalls = []; playerBalls = []; fx = []; throwPending = false; bossSeen = false;
+  $('bossbar').style.display = 'none';
   $('feed').innerHTML = '';
   $('healui').style.display = 'none';
   $('stormvignette').style.opacity = 0;
@@ -636,7 +856,8 @@ function damageFighter(v, amt, attacker) {
     } else {
       feed(`${attacker ? attacker.name : 'Storm'} eliminated ${v.name}`);
       v.group.visible = false;
-      if (Math.random() < .5) spawnLoot({ x: v.x, z: v.z }, 'weapon');
+      if (v === orgerBoss) { orgerBoss = null; splash(v.group.position); feed('🎉 THE ORGER IS DOWN!!!'); }
+      else if (Math.random() < .5) spawnLoot({ x: v.x, z: v.z }, 'weapon');
       if (player.alive && aliveCount === 1) {
         const gen = gameGen;
         setTimeout(() => { if (gen === gameGen) endGame(true); }, 800);
@@ -672,6 +893,7 @@ function playerFire() {
     if (dx > 210 || dx < -210 || dz > 210 || dz < -210) continue;
     targets.push(...b.meshes);
   }
+  if (player.alive && orgerBoss && orgerBoss.alive) targets.push(...orgerBoss.meshes);
   for (let p = 0; p < w.pellets; p++) {
     const d = dir.clone();
     if (w.pellets > 1) { d.x += rand(-w.spread, w.spread); d.y += rand(-w.spread, w.spread); d.normalize(); }
@@ -845,7 +1067,7 @@ function updateStorm(dt) {
   storm.tick += dt;
   if (storm.tick >= 1) {
     storm.tick = 0;
-    const all = [player, ...bots];
+    const all = orgerBoss && orgerBoss.alive ? [player, ...bots, orgerBoss] : [player, ...bots];
     for (const f of all) {
       if (!f.alive || (f.isPlayer && player.state !== 'fight')) continue;
       if (Math.hypot(f.x - storm.x, f.z - storm.z) > storm.r) damageFighter(f, storm.dmg, null);
@@ -925,11 +1147,11 @@ function updatePlayer(dt) {
     pr0.textContent = '🪂 WASD to steer';
     return;
   }
-  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  const fwdX = -Math.sin(yaw), fz = -Math.cos(yaw);
   const rx = Math.cos(yaw), rz = -Math.sin(yaw);
   let mx = 0, mz = 0;
-  if (keys['w']) { mx += fx; mz += fz; }
-  if (keys['s']) { mx -= fx; mz -= fz; }
+  if (keys['w']) { mx += fwdX; mz += fz; }
+  if (keys['s']) { mx -= fwdX; mz -= fz; }
   if (keys['a']) { mx -= rx; mz -= rz; }
   if (keys['d']) { mx += rx; mz += rz; }
   const l = Math.hypot(mx, mz);
@@ -962,7 +1184,12 @@ function updatePlayer(dt) {
   camera.rotation.set(0, 0, 0);
   camera.rotateY(yaw);
   camera.rotateX(pitch);
-  if (mouseDown && !buildMode) playerFire();
+  const heldNow = player.slots[player.cur];
+  if (mouseDown && !buildMode) {
+    if (heldNow && heldNow.type === 'orger') { if (!throwPending) { throwPending = true; throwOrger(); } }
+    else playerFire();
+  }
+  if (!mouseDown) throwPending = false;
   if (player.reloading) {
     player.reloadT -= dt;
     if (player.reloadT <= 0) { player.reloading = false; player.ammo = player.weapon ? WEAPONS[player.weapon].mag : 0; }
@@ -971,7 +1198,7 @@ function updatePlayer(dt) {
   for (const l2 of loot) {
     const d = Math.hypot(player.x - l2.mesh.position.x, player.z - l2.mesh.position.z);
     l2.mesh.rotation.y += dt * 2;
-    l2.mesh.position.y = ({ weapon: 1.1, medkit: .85, shield: .6, ammo: .8 }[l2.type]) + Math.sin(gameTime * 3 + l2.mesh.position.x) * .12;
+    l2.mesh.position.y = ({ weapon: 1.1, medkit: .85, shield: .6, ammo: .8, orger: 1 }[l2.type]) + Math.sin(gameTime * 3 + l2.mesh.position.x) * .12;
     if (d > 2.2 || l2.type === 'ammo') continue;
     nearPickup = l2;
   }
@@ -979,7 +1206,7 @@ function updatePlayer(dt) {
   const nearChest = chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3);
   if (nearChest) { pr.style.display = 'block'; pr.textContent = 'Press E to open chest 🧰'; }
   else if (nearPickup) {
-    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : 'Big Pot 🧪';
+    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery ORGER 🤢' : 'Big Pot 🧪';
     pr.style.display = 'block';
     pr.textContent = `Press E to pick up ${tname}`;
   }
@@ -1030,7 +1257,7 @@ function pickupNearest() {
     if (d < bd) { bd = d; best = l; }
   }
   if (!best) return;
-  if (best.type === 'medkit' || best.type === 'shield') {
+  if (best.type === 'medkit' || best.type === 'shield' || best.type === 'orger') {
     let idx = player.slots.findIndex(s => s && s.type === best.type && s.count < 2);
     if (idx >= 0) player.slots[idx].count++;
     else {
@@ -1081,7 +1308,7 @@ function cancelHeal() {
 }
 
 function computePlacement() {
-  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  const fwdX = -Math.sin(yaw), fz = -Math.cos(yaw);
   const part = PARTS[buildPart];
   const k = 4;
   const cell = v => Math.floor(v / k);
@@ -1090,9 +1317,9 @@ function computePlacement() {
   if (part === 'floor') {
     pos = new THREE.Vector3((cell(player.x) + .5) * k, level * 3 + .12, (cell(player.z) + .5) * k);
   } else {
-    const alongZ = Math.abs(fz) >= Math.abs(fx);
+    const alongZ = Math.abs(fz) >= Math.abs(fwdX);
     axis = alongZ ? 'z' : 'x';
-    const fa = alongZ ? fz : fx;
+    const fa = alongZ ? fz : fwdX;
     riseSign = fa > 0 ? 1 : -1;
     rotY = alongZ ? 0 : Math.PI / 2;
     const pa = alongZ ? cell(player.z) : cell(player.x);
@@ -1187,8 +1414,8 @@ function endGame(won, place) {
   $('overlay h1').textContent = won ? 'VICTORY!' : 'DEFEATED';
   $('overlay h1').style.color = won ? '#ffd76e' : '#ff5555';
   $('msg').innerHTML = won
-    ? `🏆 <b>#1 — BIG WIN!</b><br>${player.kills} elimination${player.kills === 1 ? '' : 's'} · survived ${Math.floor(gameTime)}s`
-    : `Placement #${place || aliveCount} · ${player.kills} elimination${player.kills === 1 ? '' : 's'}`;
+    ? `${bossSeen ? '🏆 <b>#1 — ORGER SLAYER!</b>' : '🏆 <b>#1 — BIG WIN!</b>'}<br>${player.kills} elimination${player.kills === 1 ? '' : 's'} · survived ${Math.floor(gameTime)}s`
+    : `Placement #${place || aliveCount} · ${player.kills} elimination${player.kills === 1 ? '' : 's'}${orgerBoss ? ' · the ORGER got you 👹' : ''}`;
   $('playBtn').textContent = 'PLAY AGAIN';
 }
 
@@ -1205,7 +1432,8 @@ function drawHud() {
   const held = player.slots[player.cur];
   const vmKey = player.cur + ':' + (held ? (held.type === 'weapon' ? held.id : held.type) : '-');
   if (viewmodel && viewmodel._key !== vmKey) { viewmodel._key = vmKey; updateViewmodel(); }
-  if (held && held.type !== 'weapon') setHtml($('wpn'), (held.type === 'medkit' ? '⛑ Medkit' : '🧪 Big Pot') + '<br>right-click to use');
+  if (held && held.type === 'orger') setHtml($('wpn'), '🤢 ORGER<br>left-click: THROW!');
+  else if (held && held.type !== 'weapon') setHtml($('wpn'), (held.type === 'medkit' ? '⛑ Medkit' : '🧪 Big Pot') + '<br>right-click to use');
   else if (player.weapon) { const w = WEAPONS[player.weapon]; setHtml($('wpn'), `${w.name}<br>${player.reloading ? 'RELOADING…' : player.ammo + ' / ∞'}`); }
   else setHtml($('wpn'), '');
   setTxt($('alive'), 'ALIVE: ' + aliveCount);
@@ -1216,11 +1444,18 @@ function drawHud() {
     const el = $('slot' + i), s = player.slots[i];
     setTxt(el, !s ? (i + 1) + '· —'
       : s.type === 'weapon' ? (i + 1) + '· ' + WEAPONS[s.id].name + ' · ' + s.ammo
-      : (i + 1) + '· ' + (s.type === 'medkit' ? '⛑' : '🧪') + ' ×' + s.count);
+      : (i + 1) + '· ' + (s.type === 'medkit' ? '⛑' : s.type === 'orger' ? '🤢' : '🧪') + ' ×' + s.count);
     const cn = 'slot' + (i === player.cur ? ' active' : '');
     if (el.className !== cn) el.className = cn;
   }
   setTxt($('stormbar'), storm.shrinking ? '⚠ STORM CLOSING' : `Storm in ${Math.ceil(storm.nextShrink)}s`);
+  const bb = $('bossbar');
+  if (orgerBoss && orgerBoss.alive) {
+    if (bb.style.display !== 'block') bb.style.display = 'block';
+    $('bossfill').style.width = clamp((orgerBoss.hp + orgerBoss.shield) / (orgerBoss.maxHp + 300) * 100, 0, 100) + '%';
+    setTxt($('bosstxt'), '👹 THE ORGER — ' + Math.ceil(Math.max(0, orgerBoss.hp)) + ' HP' + (orgerBoss.shield > 0 ? ' +' + Math.ceil(orgerBoss.shield) + ' 🛡' : ''));
+  }
+  else if (bb.style.display !== 'none') bb.style.display = 'none';
   const mm = 150, s = mm / (HALF * 2);
   mmCtx.clearRect(0, 0, mm, mm);
   mmCtx.fillStyle = 'rgba(0,0,0,.55)';
@@ -1235,6 +1470,12 @@ function drawHud() {
     if (!b.alive) continue;
     mmCtx.fillStyle = '#f55';
     mmCtx.fillRect((b.x + HALF) * s - 2, (b.z + HALF) * s - 2, 4, 4);
+  }
+  if (orgerBoss && orgerBoss.alive) {
+    mmCtx.fillStyle = '#ff9d2e';
+    mmCtx.beginPath();
+    mmCtx.arc((orgerBoss.x + HALF) * s, (orgerBoss.z + HALF) * s, 7, 0, 7);
+    mmCtx.fill();
   }
   mmCtx.fillStyle = '#fff';
   mmCtx.beginPath();
@@ -1334,6 +1575,16 @@ function loop() {
     }
     updatePreview();
     if (buildMode && mouseDown) tryPlace();
+    updateBoss(dt);
+    updateBossBalls(dt);
+    updatePlayerBalls(dt);
+    for (let i = fx.length - 1; i >= 0; i--) {
+      const f = fx[i];
+      f.t -= dt;
+      if (f.grow) f.m.scale.setScalar(1 + (1 - f.t / f.max) * f.grow);
+      f.m.material.opacity = Math.max(0, f.o0 * f.t / f.max);
+      if (f.t <= 0) { scene.remove(f.m); fx.splice(i, 1); }
+    }
     for (let i = tracers.length - 1; i >= 0; i--) {
       tracers[i].t -= dt;
       if (tracers[i].t <= 0) { scene.remove(tracers[i].line); tracers.splice(i, 1); }
