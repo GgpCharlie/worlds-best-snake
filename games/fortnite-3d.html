@@ -98,7 +98,7 @@ const mmCtx = $('mm').getContext('2d');
 
 let scene, camera, renderer, clock;
 let player, bots, loot, tracers, colliders, obstacleMeshes, killfeed, storm, playing = false, aliveCount, gameTime;
-let wood = 0, buildMode = false, buildPart = 0, preview = {}, structures = [], lastPlace = 0, stamina = 100;
+let wood = 0, buildMode = false, buildPart = 0, preview = {}, structures = [], lastPlace = 0, stamina = 100, gameGen = 0;
 let chests = [], bus = null, busDir = null, viewmodel = null;
 let yaw = 0, pitch = 0, velY = 0, grounded = true, walkT = 0;
 const keys = {};
@@ -396,20 +396,6 @@ function losBlocked(ax, ay, az, bx, by, bz) {
   return raycaster.intersectObjects(obstacleMeshes).length > 0;
 }
 
-function makeIcon(text) {
-  const cv = document.createElement('canvas');
-  cv.width = 128; cv.height = 128;
-  const c = cv.getContext('2d');
-  c.font = '96px serif';
-  c.textAlign = 'center';
-  c.textBaseline = 'middle';
-  c.fillText(text, 64, 70);
-  const tex = new THREE.CanvasTexture(cv);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-  sp.scale.set(1.15, 1.15, 1);
-  return sp;
-}
-
 function buildGunModel(id) {
   const g = new THREE.Group();
   const dark = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
@@ -514,7 +500,7 @@ function updateViewmodel() {
 
 function spawnLoot(near, kind, weaponId) {
   const roll = Math.random();
-  const type = kind || (roll < .45 ? 'weapon' : roll < .7 ? 'medkit' : roll < .9 ? 'shield' : 'ammo');
+  const type = kind || (roll < .45 ? 'weapon' : roll < .7 ? 'medkit' : 'shield');
   const weapon = weaponId || (type === 'weapon' ? WKEYS[1 + (Math.random() * 3 | 0)] : null);
   const p = near || freeSpot(1);
   let m;
@@ -525,16 +511,9 @@ function spawnLoot(near, kind, weaponId) {
   } else if (type === 'medkit') {
     m = buildMedkit();
     m.position.set(p.x, .85, p.z);
-  } else if (type === 'shield') {
+  } else {
     m = buildShield();
     m.position.set(p.x, .6, p.z);
-  } else {
-    const ammoMat = new THREE.MeshLambertMaterial({ color: 0xcccccc, emissive: 0xcccccc, emissiveIntensity: .3 });
-    m = new THREE.Mesh(new THREE.BoxGeometry(.7, .7, .7), ammoMat);
-    const icon = makeIcon('📦');
-    icon.position.y = 1.1;
-    m.add(icon);
-    m.position.set(p.x, .8, p.z);
   }
   scene.add(m);
   const item = { mesh: m, type, weapon };
@@ -577,6 +556,7 @@ function initGame() {
   const grid = new THREE.GridHelper(HALF * 2, 30, 0x3c7a30, 0x3c7a30);
   grid.position.y = .02;
   scene.add(grid);
+  while (camera.children.length) camera.remove(camera.children[0]);
   viewmodel = new THREE.Group();
   scene.add(camera);
   camera.add(viewmodel);
@@ -620,8 +600,14 @@ function initGame() {
     new THREE.MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: .35, side: THREE.BackSide }));
   stormCyl.position.y = 60;
   scene.add(stormCyl);
-  gameTime = 0; aliveCount = bots.length + 1; playing = true;
+  gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++;
+  clearTimeout(buildFlash.t);
   $('feed').innerHTML = '';
+  $('healui').style.display = 'none';
+  $('stormvignette').style.opacity = 0;
+  $('flash').style.opacity = 0;
+  $('hitmark').style.opacity = 0;
+  $('prompt').style.display = 'none';
   feed('🚌 The battle bus has departed!');
 }
 
@@ -646,12 +632,16 @@ function damageFighter(v, amt, attacker) {
     if (attacker && attacker !== v) attacker.kills++;
     if (v === player) {
       feed(`You were eliminated by ${attacker ? attacker.name : 'the storm'}`);
-      setTimeout(() => endGame(false), 1600);
+      const place = aliveCount, gen = gameGen;
+      setTimeout(() => { if (gen === gameGen) endGame(false, place); }, 1600);
     } else {
       feed(`${attacker ? attacker.name : 'Storm'} eliminated ${v.name}`);
       v.group.visible = false;
       if (Math.random() < .5) spawnLoot({ x: v.x, z: v.z }, 'weapon');
-      if (player.alive && aliveCount === 1) setTimeout(() => endGame(true), 800);
+      if (player.alive && aliveCount === 1) {
+        const gen = gameGen;
+        setTimeout(() => { if (gen === gameGen) endGame(true); }, 800);
+      }
     }
   }
 }
@@ -714,7 +704,7 @@ function playerFire() {
 }
 
 function startReload() {
-  if (!player.weapon || player.reloading) return;
+  if (!player.weapon || player.reloading || player.state !== 'fight') return;
   player.reloading = true; player.reloadT = 1.3;
 }
 
@@ -1060,8 +1050,11 @@ function pickupNearest() {
     player.slots[empty] = { type: 'weapon', id: best.weapon, ammo: WEAPONS[best.weapon].mag };
     player.cur = empty;
   } else {
-    spawnLoot({ x: player.x + rand(-1, 1), z: player.z + rand(-1, 1) }, 'weapon', player.weapon);
-    player.slots[player.cur] = { type: 'weapon', id: best.weapon, ammo: WEAPONS[best.weapon].mag };
+    let idx = player.slots[player.cur] && player.slots[player.cur].type === 'weapon' ? player.cur : player.slots.findIndex(s => s && s.type === 'weapon');
+    if (idx < 0) { buildFlash('Inventory full'); return; }
+    spawnLoot({ x: player.x + rand(-1, 1), z: player.z + rand(-1, 1) }, 'weapon', player.slots[idx].id);
+    player.slots[idx] = { type: 'weapon', id: best.weapon, ammo: WEAPONS[best.weapon].mag };
+    player.cur = idx;
   }
   player.weapon = best.weapon;
   player.ammo = WEAPONS[best.weapon].mag;
@@ -1187,7 +1180,7 @@ function damageStructure(s, amt) {
   }
 }
 
-function endGame(won) {
+function endGame(won, place) {
   if (!playing) return;
   playing = false;
   document.exitPointerLock();
@@ -1196,7 +1189,7 @@ function endGame(won) {
   $('overlay h1').style.color = won ? '#ffd76e' : '#ff5555';
   $('msg').innerHTML = won
     ? `🏆 <b>#1 — BIG WIN!</b><br>${player.kills} elimination${player.kills === 1 ? '' : 's'} · survived ${Math.floor(gameTime)}s`
-    : `Placement #${aliveCount} · ${player.kills} elimination${player.kills === 1 ? '' : 's'}`;
+    : `Placement #${place || aliveCount} · ${player.kills} elimination${player.kills === 1 ? '' : 's'}`;
   $('playBtn').textContent = 'PLAY AGAIN';
 }
 
@@ -1278,7 +1271,7 @@ addEventListener('wheel', e => {
   }
 });
 addEventListener('mousedown', e => {
-  if (e.button === 0) { mouseDown = true; if (playing) jumpFromBus(); }
+  if (e.button === 0) { mouseDown = true; if (playing && document.pointerLockElement === renderer.domElement) jumpFromBus(); }
   if (e.button === 2 && playing && player) {
     const s = player.slots[player.cur];
     if (s && (s.type === 'medkit' || s.type === 'shield')) useHeal(s.type);
@@ -1286,24 +1279,35 @@ addEventListener('mousedown', e => {
 });
 document.addEventListener('contextmenu', e => { if (document.pointerLockElement === renderer.domElement) e.preventDefault(); });
 addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; });
+function showPause() {
+  $('overlay').classList.remove('hidden');
+  $('overlay h1').textContent = 'PAUSED';
+  $('overlay h1').style.color = '#ffd76e';
+  $('playBtn').textContent = 'RESUME';
+}
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement !== renderer.domElement && playing) {
     mouseDown = false;
     for (const k of Object.keys(keys)) delete keys[k];
-    $('overlay').classList.remove('hidden');
-    $('overlay h1').textContent = 'PAUSED';
-    $('overlay h1').style.color = '#ffd76e';
-    $('playBtn').textContent = 'RESUME';
+    showPause();
   }
 });
 
+let freshWorld = true;
 $('playBtn').addEventListener('click', () => {
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  if (!playing || !player.alive) initGame();
+  if (freshWorld) freshWorld = false;
+  else if (!playing || !player.alive) initGame();
   $('overlay').classList.add('hidden');
   playing = true;
-  renderer.domElement.requestPointerLock();
+  mouseDown = false;
+  $('playBtn').blur();
+  const lock = renderer.domElement.requestPointerLock();
+  if (lock && lock.catch) lock.catch(() => {});
 });
+// if the browser refuses the mouse capture (e.g. clicked RESUME right after Esc),
+// don't leave the player stuck in a frozen world — bring the menu back
+document.addEventListener('pointerlockerror', () => { if (playing) showPause(); });
 
 initScene();
 initGame();
