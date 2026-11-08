@@ -532,7 +532,7 @@ function buildMedkit() {
   return g;
 }
 
-function buildShield() {
+function buildShield(withGlow) {
   const g = new THREE.Group();
   const glass = new THREE.MeshLambertMaterial({ color: 0x9b59ff, emissive: 0x5a1fae, emissiveIntensity: .6, transparent: true, opacity: .9 });
   const cork = new THREE.MeshLambertMaterial({ color: 0x8a5a36 });
@@ -554,7 +554,9 @@ function buildShield() {
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.scale.set(2, 2, 1);
   glow.position.y = .5;
-  g.add(body, neck, stopper, glow);
+  g.add(body, neck, stopper);
+  // the big glow is for items lying on the ground — in your hands it would fog the screen
+  if (withGlow !== false) g.add(glow);
   return g;
 }
 
@@ -762,21 +764,24 @@ function updatePlayerBalls(dt) {
 // EVERYTHING in a big blast radius. The grenade launcher fires the same
 // crate, but it only does 100 damage instead of an instant wipe.
 let tntBalls = [], grenadeBalls = [], tntPending = false;
-function buildTntItem() {
+function buildTntItem(withLabel) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(.8, .72, .8), new THREE.MeshLambertMaterial({ color: 0xc0342b }));
   body.position.y = .36;
   const band = new THREE.Mesh(new THREE.BoxGeometry(.86, .18, .86), new THREE.MeshLambertMaterial({ color: 0x8f1f18 }));
   band.position.y = .5;
-  const lab = makeTag('TNT', '#ffd76e');
-  lab.position.y = .95;
-  lab.scale.setScalar(.85);
   const fuse = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, .3, 6), new THREE.MeshLambertMaterial({ color: 0xd8c9a0 }));
   fuse.position.set(.2, .82, 0);
   const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: getFlashTex(), color: 0xffe28a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   spark.position.set(.2, 1.02, 0);
   spark.scale.setScalar(.2 + Math.random() * .1);
-  g.add(body, band, lab, fuse, spark);
+  g.add(body, band, fuse, spark);
+  if (withLabel !== false) {
+    const lab = makeTag('TNT', '#ffd76e');
+    lab.position.y = .95;
+    lab.scale.setScalar(.85);
+    g.add(lab);
+  }
   g.userData.spark = spark;
   return g;
 }
@@ -955,23 +960,23 @@ function updateViewmodel() {
   } else if (s.type === 'medkit') {
     m = buildMedkit();
     m.rotation.set(-.35, -.8, .15);
-    m.scale.setScalar(.9);
-    m.position.set(.3, -.34, -.6);
+    m.scale.setScalar(.55);
+    m.position.set(.44, -.58, -.5);
   } else if (s.type === 'orger') {
     m = buildOrgerItem(false);
     m.rotation.set(.15, 2.6, .1);
-    m.scale.setScalar(1.1);
-    m.position.set(.3, -.3, -.55);
+    m.scale.setScalar(.4);
+    m.position.set(.46, -.52, -.62);
   } else if (s.type === 'tnt') {
-    m = buildTntItem();
+    m = buildTntItem(false);
     m.rotation.set(0, 1.2, 0);
-    m.scale.setScalar(.85);
-    m.position.set(.3, -.34, -.55);
+    m.scale.setScalar(.4);
+    m.position.set(.46, -.62, -.5);
   } else {
-    m = buildShield();
+    m = buildShield(false);
     m.rotation.set(.15, -.4, .1);
-    m.scale.setScalar(.9);
-    m.position.set(.3, -.42, -.6);
+    m.scale.setScalar(.42);
+    m.position.set(.46, -.66, -.5);
   }
   viewmodel.add(m);
 }
