@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nina's Seaside Day 🐚</title>
+<style>
+  html,body{margin:0;min-height:100%;background:#0e2a47;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,'Segoe UI',sans-serif}
+  #wrap{position:relative;width:min(96vw,960px);margin-top:12px}
+  canvas{width:100%;display:block;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  #hint{color:#cfe8ff;text-align:center;font-size:14px;padding:10px 8px 16px}
+  #touch{display:none;position:absolute;left:0;right:0;bottom:12px;justify-content:space-between;align-items:end;padding:0 14px;pointer-events:none}
+  #touch button{pointer-events:auto;border:none;border-radius:50%;background:rgba(255,255,255,.4);color:#123;font-size:22px;font-weight:700;-webkit-user-select:none;user-select:none;touch-action:none}
+  .dpad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:6px}
+  .dpad button{width:56px;height:56px}
+  .u{grid-area:1/2}.l{grid-area:2/1}.dwn{grid-area:2/2}.r{grid-area:2/3}
+  #act{width:72px;height:72px;font-size:26px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="960" height="600"></canvas>
+  <div id="touch">
+    <div class="dpad">
+      <button class="u" data-k="up">▲</button>
+      <button class="l" data-k="left">◀</button>
+      <button class="dwn" data-k="down">▼</button>
+      <button class="r" data-k="right">▶</button>
+    </div>
+    <button id="act">✋</button>
+  </div>
+</div>
+<div id="hint">Move: WASD / arrows · <b>E</b>: collect, trade shells at the crab's Shell Shop 🦀, bake &amp; eat cookies 🍪, nap (refills the beach!), carry pillows &amp; teddy</div>
+<script>
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+const W = 960, H = 600;
+const WORLD = 2000;
+const SHOFF = 440;
+let cam = 0;
+let t = 0;
+
+const keys = { left:false, right:false, up:false, down:false };
+const state = {
+  scene: 'beach',
+  shells: 0, rocks: 0,
+  totalShells: 10, totalRocks: 6,
+  found: 0, rocksFound: 0,
+  napping: false, napLoc: 'sofa', napT: 0,
+  won: false, rockDone: false,
+  dough: 0, cookies: 0,
+  msg: '', msgT: 0
+};
+const player = { x: 560, y: 430, r: 15, dir: 1, moving: false, carrying: null };
+
+const shellColors = ['#ff9d76', '#ffb3c1', '#ffd6a5', '#f4acb7', '#ffc8dd'];
+let shells = [[470,250],[560,470],[650,300],[740,215],[830,430],[940,510],[1120,470],[1210,250],[1330,350],[1420,520]]
+  .map((p,i)=>({x:p[0],y:p[1],got:false,c:shellColors[i%shellColors.length],a:(i*1.3)%6.28}));
+let rocks = [[500,350],[600,220],[880,260],[1160,210],[1290,480],[1500,300]]
+  .map(p=>({x:p[0],y:p[1],got:false}));
+
+let pillows = [
+  {x:770,y:500,c:'#ff8fab',kind:'pillow'},
+  {x:830,y:430,c:'#ffd166',kind:'pillow'},
+  {x:600,y:530,c:'#9b5de5',kind:'pillow'}
+];
+let bedroomPillows = [
+  {x:200,y:520,c:'#ff8fab',kind:'pillow'},
+  {x:700,y:520,c:'#8fd3ff',kind:'pillow'}
+];
+let teddy = {x:600,y:450,c:'#c08552',kind:'teddy'};
+
+const zoneDoorBeach = {x:205,y:382,w:90,h:56};
+const zoneSofa   = {x:570,y:360,w:190,h:75};
+const zoneExit   = {x:780,y:350,w:155,h:150};
+const zoneStove  = {x:220,y:330,w:140,h:80};
+const zoneCookie = {x:245,y:470,w:140,h:60};
+const zoneShop = {x:995,y:378,w:130,h:60};
+const zoneBedroomDoor = {x:14,y:335,w:88,h:70};
+const zoneBed      = {x:110,y:385,w:200,h:75};
+const zoneLivingDoor = {x:780,y:350,w:155,h:150};
+const houseSolids = [{x:60,y:160,w:380,h:220},{x:395,y:500,w:95,h:70},{x:1445,y:375,w:140,h:115}];
+const livingSolids  = [{x:525,y:250,w:325,h:110},{x:235,y:395,w:160,h:70}];
+const bedroomSolids = [{x:60,y:240,w:290,h:140}];
+
+function setMsg(txt, ttl){ state.msg = txt; state.msgT = ttl || 110; }
+function near(z){ return player.x > z.x && player.x < z.x+z.w && player.y > z.y && player.y < z.y+z.h; }
+function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function pickables(){ return state.scene === 'living' ? pillows : bedroomPillows.concat([teddy]); }
+
+let AC = null;
+function beep(f, d, type){
+  try{
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(.15, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, AC.currentTime + (d||.12));
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + (d||.12));
+  }catch(e){}
+}
+function fanfare(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.25,'triangle'), i*140)); }
+
+const nomMsgs = ['Nom nom nom! Yummy! 🍪', 'Chomp chomp! So tasty!', 'Crunch crunch! Delicious!', 'Mmmm, Nina loves cookies!'];
+const crabMsgs = ['Welcome! 3 shells = 1 dough! ✂️', '*snip snip* Great deal!', 'The best dough on the beach!'];
+
+function randSpot(){
+  while(true){
+    const x = 60 + Math.random()*(WORLD - 120), y = 215 + Math.random()*330;
+    const inHouse = x > 40 && x < 450 && y > 150 && y < 395;
+    const inShop = x > SHOFF + 535 && x < SHOFF + 720 && y > 235 && y < 390;
+    const inRocks = x > 1420 && x < 1610 && y > 355 && y < 505;
+    const inPalm = Math.abs(x-805) < 60 && y < 285;
+    const inCastle = x > 380 && x < 500 && y > 480;
+    if(!(inHouse || inShop || inRocks || inPalm || inCastle)) return {x, y};
+  }
+}
+
+function regenBeach(){
+  for(const s of shells){ if(s.got){ const p = randSpot(); s.x = p.x; s.y = p.y; s.got = false; } }
+  for(const r of rocks){ if(r.got){ const p = randSpot(); r.x = p.x; r.y = p.y; r.got = false; } }
+}
+
+function tryAction(){
+  if(state.scene === 'beach'){
+    if(near(zoneShop)){
+      if(state.shells >= 3){
+        state.shells -= 3; state.dough++;
+        setMsg('Traded 3 shells for 1 dough! 🫓 ' + crabMsgs[state.dough % crabMsgs.length], 150);
+        beep(700,.15);
+      } else {
+        setMsg('The crab says: bring me 3 seashells and I\'ll give you dough! 🦀', 150);
+        beep(300,.1);
+      }
+      return;
+    }
+    if(near(zoneDoorBeach)){
+      state.scene = 'living';
+      player.x = 830; player.y = 430;
+      setMsg('Welcome home, Nina! Kitchen, couch, bedroom... and cookies!', 220);
+      beep(392,.15);
+    }
+    return;
+  }
+  if(state.napping){
+    state.napping = false;
+    regenBeach();
+    setMsg('You slept great! The tide washed new shells & rocks onto the beach! 🌊', 180);
+    beep(330,.1);
+    return;
+  }
+  if(player.carrying){
+    const c = player.carrying;
+    c.x = clamp(player.x, 45, 900);
+    c.y = clamp(player.y + 26, 340, 565);
+    if(state.scene === 'living' && near(zoneSofa) && c.kind !== 'teddy'){ c.x = clamp(player.x, 560, 790); c.y = 288; }
+    player.carrying = null; beep(300,.08); return;
+  }
+  if(state.scene === 'living'){
+    if(near(zoneStove)){
+      if(state.dough > 0){
+        state.dough--; state.cookies += 5;
+        setMsg('Nina baked 5 more cookies! 🍪 ' + state.cookies + ' on the plate now!', 160);
+        fanfare();
+      } else {
+        setMsg('You need dough! Trade 3 seashells at the Shell Shop on the beach 🦀', 160);
+        beep(440,.1);
+      }
+      return;
+    }
+    if(near(zoneCookie)){
+      if(state.cookies > 0){
+        state.cookies--;
+        setMsg(nomMsgs[state.cookies % nomMsgs.length] + '  (' + state.cookies + ' left)', 120);
+        beep(500 + (5-state.cookies)*80, .15);
+      } else {
+        setMsg('The plate is empty... bake more with dough at the stove!', 120);
+      }
+      return;
+    }
+    if(near(zoneSofa)){ state.napping = true; state.napLoc = 'sofa'; state.napT = 0; setMsg('So cozy... (press E to wake up)', 200); beep(220,.3,'triangle'); return; }
+    if(near(zoneExit)){
+      state.scene = 'beach';
+      player.x = 235; player.y = 405;
+      beep(523,.15);
+      return;
+    }
+    if(near(zoneBedroomDoor)){
+      state.scene = 'bedroom';
+      player.x = 830; player.y = 430;
+      setMsg('Shhh... the cozy bedroom! Nap on the bed or hug the teddy 🧸', 200);
+      beep(494,.15);
+      return;
+    }
+  } else {
+    if(near(zoneBed)){ state.napping = true; state.napLoc = 'bed'; state.napT = 0; setMsg('Dreaming of seashells... (press E to wake up)', 200); beep(220,.3,'triangle'); return; }
+    if(near(zoneLivingDoor)){
+      state.scene = 'living';
+      player.x = 56; player.y = 400;
+      beep(392,.15);
+      return;
+    }
+  }
+  let best = null, bd = 65;
+  for(const p of pickables()){ const d = dist(player.x, player.y, p.x, p.y); if(d < bd){ bd = d; best = p; } }
+  if(best){
+    player.carrying = best;
+    if(best.kind === 'teddy') setMsg('Teddy is so huggable! 🧸', 100);
+    beep(587,.08);
+  }
+}
+
+const keyMap = { a:'left', d:'right', w:'up', s:'down', arrowleft:'left', arrowright:'right', arrowup:'up', arrowdown:'down' };
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if(keyMap[k]){ keys[keyMap[k]] = true; e.preventDefault(); }
+  if((k === 'e' || k === ' ') && !e.repeat){ tryAction(); e.preventDefault(); }
+});
+addEventListener('keyup', e => { const k = e.key.toLowerCase(); if(keyMap[k]) keys[keyMap[k]] = false; });
+addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
+
+if(matchMedia('(pointer:coarse)').matches) document.getElementById('touch').style.display = 'flex';
+document.querySelectorAll('[data-k]').forEach(b => {
+  const k = b.dataset.k;
+  const on = ev => { ev.preventDefault(); keys[k] = true; };
+  const off = ev => { ev.preventDefault(); keys[k] = false; };
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
+  b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+});
+document.getElementById('act').addEventListener('pointerdown', ev => { ev.preventDefault(); tryAction(); });
+
+function collide(p, rects){
+  for(const r of rects){
+    if(p.x + p.r > r.x && p.x - p.r < r.x + r.w && p.y + p.r > r.y && p.y - p.r < r.y + r.h){
+      const L = p.x + p.r - r.x, R = r.x + r.w - (p.x - p.r);
+      const T = p.y + p.r - r.y, B = r.y + r.h - (p.y - p.r);
+      const m = Math.min(L, R, T, B);
+      if(m === L) p.x = r.x - p.r; else if(m === R) p.x = r.x + r.w + p.r;
+      else if(m === T) p.y = r.y - p.r; else p.y = r.y + r.h + p.r;
+    }
+  }
+}
+
+function update(){
+  t++;
+  if(state.msgT > 0) state.msgT--;
+  if(state.napping){ state.napT++; return; }
+  let dx = 0, dy = 0;
+  if(keys.left) dx--; if(keys.right) dx++; if(keys.up) dy--; if(keys.down) dy++;
+  player.moving = !!(dx || dy);
+  if(player.moving){
+    const l = Math.hypot(dx, dy), sp = 3.3;
+    player.x += dx/l*sp; player.y += dy/l*sp;
+    if(dx) player.dir = dx > 0 ? 1 : -1;
+  }
+  if(state.scene === 'beach'){
+    player.x = clamp(player.x, 20, WORLD - 20); player.y = clamp(player.y, 205, 565);
+    collide(player, houseSolids);
+    cam += (clamp(player.x - 480, 0, WORLD - W) - cam) * .12;
+    for(const s of shells){
+      if(!s.got && dist(player.x, player.y, s.x, s.y) < 30){
+        s.got = true; state.shells++; state.found++; beep(660 + state.shells*30, .12);
+        if(state.found >= state.totalShells && !state.won){ state.won = true; setMsg('YOU FOUND EVERY SEASHELL! 🏆', 240); fanfare(); }
+        else setMsg('+1 seashell!', 70);
+      }
+    }
+    for(const r of rocks){
+      if(!r.got && dist(player.x, player.y, r.x, r.y) < 30){
+        r.got = true; state.rocks++; state.rocksFound++; beep(180, .15, 'square');
+        if(state.rocksFound >= state.totalRocks && !state.rockDone){ state.rockDone = true; setMsg('Rock collection complete! 🪨', 200); fanfare(); }
+        else setMsg('+1 rock!', 70);
+      }
+    }
+  } else {
+    cam = 0;
+    player.x = clamp(player.x, 40, 930); player.y = clamp(player.y, 335, 565);
+    collide(player, state.scene === 'living' ? livingSolids : bedroomSolids);
+  }
+}
+
+function rrect(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+function bubble(x, y, txt){
+  ctx.font = '700 15px system-ui';
+  const w = ctx.measureText(txt).width + 22;
+  x = clamp(x, cam + w/2 + 6, cam + W - w/2 - 6);
+  ctx.save();
+  ctx.globalAlpha = .8 + Math.sin(t*.15)*.15;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#88a';
+  ctx.lineWidth = 2;
+  rrect(x - w/2, y - 34, w, 28, 14);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1d3557';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(txt, x, y - 19);
+  ctx.restore();
+}
+
+function drawShellItem(s){
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(s.a);
+  ctx.fillStyle = s.c;
+  ctx.beginPath(); ctx.arc(0, 0, 11, Math.PI, 0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(150,60,40,.55)'; ctx.lineWidth = 1.5;
+  for(let i = -2; i <= 2; i++){ ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(i*4.5, -9); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(0, 0, 11, Math.PI, 0); ctx.stroke();
+  ctx.restore();
+}
+
+function drawRockItem(x, y, s){
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = '#8f8f98';
+  ctx.beginPath(); ctx.moveTo(-12, 6); ctx.lineTo(-8, -7); ctx.lineTo(2, -11); ctx.lineTo(12, -4); ctx.lineTo(11, 6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  ctx.beginPath(); ctx.moveTo(-8, -7); ctx.lineTo(2, -11); ctx.lineTo(6, -6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawCloud(x, y, s){
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.beginPath();
+  ctx.arc(x, y, 16*s, 0, 7); ctx.arc(x+18*s, y-6*s, 13*s, 0, 7); ctx.arc(x+36*s, y, 15*s, 0, 7);
+  ctx.fill();
+}
+
+function drawShop(){
+  ctx.save();
+  ctx.translate(SHOFF, 0);
+  ctx.fillStyle = '#8a5a33';
+  ctx.fillRect(562, 288, 8, 85); ctx.fillRect(672, 288, 8, 85);
+  for(let i = 0; i < 6; i++){
+    ctx.fillStyle = i % 2 ? '#fff' : '#e63946';
+    ctx.fillRect(555 + i*21, 262, 21, 24);
+    ctx.beginPath(); ctx.arc(565 + i*21, 286, 10.5, 0, Math.PI); ctx.fill();
+  }
+  ctx.fillStyle = '#2a9d8f';
+  rrect(578, 232, 86, 24, 6); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '700 13px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('SHELL SHOP', 621, 244);
+  ctx.fillStyle = '#3a2416';
+  ctx.strokeStyle = '#3a2416'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(611, 302); ctx.lineTo(611, 296); ctx.moveTo(631, 302); ctx.lineTo(631, 296); ctx.stroke();
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.arc(603, 296, 4, 0, 7); ctx.arc(639, 296, 4, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(611, 294, 3.4, 0, 7); ctx.arc(631, 294, 3.4, 0, 7); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(611, 294, 1.4, 0, 7); ctx.arc(631, 294, 1.4, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.ellipse(621, 313, 22, 13, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#e63946'; ctx.lineWidth = 3;
+  for(const s of [-1, 1]){
+    ctx.beginPath();
+    ctx.moveTo(621 + 18*s, 308); ctx.lineTo(636 + 18*s, 300);
+    ctx.moveTo(621 + 19*s, 315); ctx.lineTo(638 + 18*s, 313);
+    ctx.moveTo(621 + 18*s, 321); ctx.lineTo(635 + 18*s, 325);
+    ctx.stroke();
+    ctx.fillStyle = '#e63946';
+    ctx.beginPath(); ctx.arc(621 + 30*s, 298, 7, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(621 + 28*s, 292, 3, 0, 7); ctx.arc(621 + 33*s, 291, 3, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#a9743f';
+  ctx.fillRect(558, 328, 126, 46);
+  ctx.strokeStyle = '#8a5a33'; ctx.lineWidth = 2;
+  ctx.strokeRect(558, 328, 126, 46);
+  ctx.beginPath(); ctx.moveTo(558, 343); ctx.lineTo(684, 343); ctx.moveTo(558, 358); ctx.lineTo(684, 358); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(585, 326, 12, 5, 0, Math.PI, 2*Math.PI); ctx.fill();
+  drawShellItem({x: 581, y: 320, a: 0, c: '#ff9d76'});
+  drawShellItem({x: 590, y: 320, a: .6, c: '#ffc8dd'});
+  ctx.fillStyle = '#f4e3c8';
+  rrect(648, 312, 20, 16, 4); ctx.fill();
+  ctx.fillStyle = '#e8d5a8';
+  ctx.beginPath(); ctx.arc(658, 312, 8, Math.PI, 2*Math.PI); ctx.fill();
+  ctx.restore();
+  if(!state.napping && near(zoneShop)) bubble(620 + SHOFF, 455, state.shells >= 3 ? '3 🐚 → 1 dough! Press E!' : 'Shell Shop: 3 🐚 = 1 🫓 (press E)');
+}
+
+function drawBeach(){
+  ctx.save();
+  ctx.translate(-cam, 0);
+  const sky = ctx.createLinearGradient(0, 0, 0, 170);
+  sky.addColorStop(0, '#7ec8ff'); sky.addColorStop(1, '#e6f9ff');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, WORLD, 175);
+  ctx.fillStyle = '#ffe066';
+  ctx.beginPath(); ctx.arc(1800, 60, 40, 0, 7); ctx.fill();
+  drawCloud((t*.15 % (WORLD + 140)) - 70, 60, 1);
+  drawCloud(((t*.1 + 700) % (WORLD + 140)) - 70, 95, .8);
+  drawCloud(((t*.12 + 1500) % (WORLD + 140)) - 70, 45, .9);
+  ctx.fillStyle = '#4aa3d8';
+  ctx.fillRect(0, 105, WORLD, 70);
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  for(let i = 0; i < 14; i++){
+    const x = (i*160 + t*.6) % (WORLD + 60) - 30;
+    ctx.beginPath(); ctx.arc(x, 168 + Math.sin(t*.05 + i)*3, 22, Math.PI, 0); ctx.fill();
+  }
+  ctx.fillStyle = '#f7e0a8';
+  ctx.fillRect(0, 170, WORLD, H - 170);
+  ctx.fillStyle = 'rgba(190,150,90,.25)';
+  for(let i = 0; i < 150; i++){
+    const x = (i*137) % WORLD, y = 190 + (i*211) % 390;
+    ctx.fillRect(x, y, 3, 3);
+  }
+  for(let i = 0; i < 4; i++){
+    const gx = ((t*.5 + i*520) % (WORLD + 160)) - 80;
+    const gy = 70 + (i % 2)*40 + Math.sin(t*.04 + i*2)*8;
+    ctx.strokeStyle = '#556'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(gx, gy, 6, Math.PI*1.1, Math.PI*1.9);
+    ctx.arc(gx+11, gy, 6, Math.PI*1.1, Math.PI*1.9);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#9c6b3c'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(805, 280); ctx.quadraticCurveTo(795, 235, 800, 200); ctx.stroke();
+  ctx.fillStyle = '#2e9e5b';
+  for(let i = 0; i < 6; i++){
+    const a = -0.4 - i*1.05;
+    ctx.beginPath();
+    ctx.moveTo(800, 198);
+    ctx.quadraticCurveTo(800 + Math.cos(a)*35, 198 + Math.sin(a)*30, 800 + Math.cos(a)*60, 198 + Math.sin(a)*50 + 14);
+    ctx.quadraticCurveTo(800 + Math.cos(a)*35, 198 + Math.sin(a)*30 - 8, 800, 198);
+    ctx.fill();
+  }
+  for(const s of shells) if(!s.got) drawShellItem(s);
+  for(const r of rocks) if(!r.got) drawRockItem(r.x, r.y, 1);
+  ctx.fillStyle = '#eecf8f';
+  ctx.fillRect(400, 530, 80, 42);
+  ctx.fillRect(406, 505, 22, 30); ctx.fillRect(452, 505, 22, 30); ctx.fillRect(428, 493, 24, 42);
+  ctx.fillRect(406, 500, 8, 7); ctx.fillRect(420, 500, 8, 7);
+  ctx.fillRect(452, 500, 8, 7); ctx.fillRect(466, 500, 8, 7);
+  ctx.fillRect(428, 488, 8, 7); ctx.fillRect(444, 488, 8, 7);
+  ctx.fillStyle = '#b8894f';
+  rrect(432, 548, 16, 24, 8); ctx.fill();
+  ctx.strokeStyle = '#7a4a2b'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(440, 488); ctx.lineTo(440, 464); ctx.stroke();
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.moveTo(440, 464); ctx.lineTo(460, 469); ctx.lineTo(440, 474); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#8f8f98';
+  ctx.beginPath(); ctx.arc(1520, 430, 62, Math.PI, 2*Math.PI); ctx.fill();
+  ctx.fillRect(1458, 430, 124, 50);
+  drawRockItem(1440, 500, 1.6); drawRockItem(1530, 505, 1.4);
+  drawShop();
+  ctx.strokeStyle = '#8a5a33'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(1700, 468); ctx.lineTo(1700, 382); ctx.stroke();
+  for(let k = 0; k < 6; k++){
+    ctx.fillStyle = k % 2 ? '#fff' : '#ff6b6b';
+    ctx.beginPath();
+    ctx.moveTo(1700, 385);
+    ctx.arc(1700, 385, 58, Math.PI + k*Math.PI/6, Math.PI + (k+1)*Math.PI/6);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = '#4ec5e8';
+  rrect(1655, 478, 95, 32, 6); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.6)';
+  ctx.fillRect(1663, 478, 8, 32); ctx.fillRect(1735, 478, 8, 32);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(1782, 505, 13, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e63946';
+  ctx.beginPath(); ctx.arc(1782, 505, 13, -Math.PI/2, 0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(1782, 505, 13, Math.PI/2, Math.PI); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#a03040'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(1782, 505, 13, 0, 7); ctx.stroke();
+  ctx.fillStyle = '#8d7c6a';
+  ctx.fillRect(370, 85, 30, 55);
+  ctx.fillStyle = '#f6e3b8';
+  ctx.fillRect(60, 160, 380, 220);
+  ctx.strokeStyle = '#d9b98a'; ctx.lineWidth = 2;
+  for(let i = 1; i < 6; i++){ ctx.beginPath(); ctx.moveTo(60, 160 + i*36); ctx.lineTo(440, 160 + i*36); ctx.stroke(); }
+  ctx.fillStyle = '#d96a4f';
+  ctx.beginPath(); ctx.moveTo(35, 160); ctx.lineTo(465, 160); ctx.lineTo(250, 60); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#7a4a2b';
+  rrect(220, 290, 60, 90, 8); ctx.fill();
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath(); ctx.arc(270, 337, 4, 0, 7); ctx.fill();
+  ctx.fillStyle = '#8fd3ff'; ctx.fillRect(90, 205, 60, 50);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+  ctx.strokeRect(90, 205, 60, 50);
+  ctx.beginPath(); ctx.moveTo(120, 205); ctx.lineTo(120, 255); ctx.moveTo(90, 230); ctx.lineTo(150, 230); ctx.stroke();
+  ctx.fillStyle = '#8fd3ff'; ctx.fillRect(350, 205, 60, 50);
+  ctx.strokeRect(350, 205, 60, 50);
+  ctx.beginPath(); ctx.moveTo(380, 205); ctx.lineTo(380, 255); ctx.moveTo(350, 230); ctx.lineTo(410, 230); ctx.stroke();
+  ctx.fillStyle = '#b3623a';
+  rrect(185, 256, 130, 24, 6); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '700 13px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText("NINA'S HOME ♡", 250, 268);
+  if(near(zoneDoorBeach)) bubble(250, 440, 'Press E to go inside!');
+  drawPlayer();
+  ctx.restore();
+}
+
+function drawRoomShell(wallColor){
+  ctx.fillStyle = wallColor; ctx.fillRect(0, 0, W, 300);
+  ctx.fillStyle = '#e8c9a0'; ctx.fillRect(0, 292, W, 10);
+  ctx.fillStyle = '#d9a066'; ctx.fillRect(0, 300, W, H - 300);
+  ctx.strokeStyle = 'rgba(120,70,30,.35)'; ctx.lineWidth = 3;
+  for(let y = 335; y < H; y += 42){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for(let x = 40; x < W; x += 90){ ctx.beginPath(); ctx.moveTo(x, 300); ctx.lineTo(x, H); ctx.stroke(); }
+}
+
+function drawWallDoor(x, sign){
+  ctx.strokeStyle = '#b3623a'; ctx.lineWidth = 8;
+  ctx.strokeRect(x, 156, 68, 200);
+  ctx.fillStyle = '#7a4a2b';
+  ctx.fillRect(x + 4, 160, 60, 196);
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath(); ctx.arc(x + 16, 262, 5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#b3623a'; rrect(x - 10, 118, 88, 26, 6); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(sign, x + 34, 131);
+}
+
+function drawSofa(){
+  ctx.fillStyle = '#2f8f6f';
+  rrect(540, 250, 260, 60, 14); ctx.fill();
+  rrect(525, 285, 40, 80, 12); ctx.fill();
+  rrect(765, 285, 40, 80, 12); ctx.fill();
+  ctx.fillStyle = '#3aa17e';
+  rrect(560, 258, 105, 46, 10); ctx.fill();
+  rrect(675, 258, 105, 46, 10); ctx.fill();
+  rrect(565, 296, 210, 50, 12); ctx.fill();
+  ctx.fillStyle = '#ffd166';
+  ctx.save(); ctx.translate(595, 280); ctx.rotate(-.2); rrect(-14, -14, 28, 28, 8); ctx.fill(); ctx.restore();
+  ctx.fillStyle = '#ff8fab';
+  ctx.save(); ctx.translate(760, 282); ctx.rotate(.2); rrect(-14, -14, 28, 28, 8); ctx.fill(); ctx.restore();
+  ctx.fillStyle = '#256b53';
+  ctx.fillRect(540, 358, 16, 12); ctx.fillRect(784, 358, 16, 12);
+}
+
+function drawKitchen(){
+  ctx.fillStyle = '#e0e7ef';
+  rrect(125, 130, 85, 170, 8); ctx.fill();
+  ctx.strokeStyle = '#a8b6c4'; ctx.lineWidth = 3;
+  ctx.strokeRect(125, 130, 85, 170);
+  ctx.beginPath(); ctx.moveTo(125, 195); ctx.lineTo(210, 195); ctx.stroke();
+  ctx.fillStyle = '#8195a8';
+  ctx.fillRect(195, 150, 6, 30); ctx.fillRect(195, 210, 6, 30);
+  ctx.fillStyle = '#dfe3e8';
+  rrect(235, 225, 95, 75, 6); ctx.fill();
+  ctx.strokeStyle = '#aab2bb'; ctx.lineWidth = 2;
+  ctx.strokeRect(235, 225, 95, 75);
+  ctx.fillStyle = '#3b3f45';
+  for(const bx of [258, 302]){ for(const by of [232, 248]){ ctx.beginPath(); ctx.arc(bx, by, 7, 0, 7); ctx.fill(); } }
+  ctx.fillStyle = '#5b6068';
+  rrect(250, 265, 65, 28, 5); ctx.fill();
+  ctx.fillStyle = '#c8d2dc';
+  ctx.fillRect(255, 269, 55, 4);
+  ctx.fillStyle = '#b3623a';
+  ctx.fillRect(345, 245, 145, 55);
+  ctx.strokeStyle = '#8a4a26';
+  ctx.strokeRect(345, 245, 145, 55);
+  ctx.beginPath(); ctx.moveTo(418, 245); ctx.lineTo(418, 300); ctx.stroke();
+  ctx.fillStyle = '#f4e3c8';
+  ctx.fillRect(340, 235, 155, 12);
+  ctx.fillStyle = '#cfd8dc';
+  ctx.beginPath(); ctx.ellipse(410, 237, 26, 7, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#90a0ad'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(410, 222); ctx.lineTo(410, 216); ctx.lineTo(400, 216); ctx.stroke();
+  ctx.fillStyle = '#2e9e5b';
+  ctx.beginPath(); ctx.arc(470, 228, 8, 0, 7); ctx.fill();
+  ctx.fillStyle = '#b3623a';
+  rrect(355, 205, 26, 30, 4); ctx.fill();
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath(); ctx.arc(368, 220, 5, 0, 7); ctx.fill();
+  if(!state.napping && !player.carrying && near(zoneStove)) bubble(282, 420, state.dough > 0 ? 'Press E to bake cookies! 🍪' : 'Need dough! Trade shells at the Shell Shop 🦀');
+}
+
+function drawPillowItem(p){
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.fillStyle = p.c;
+  rrect(-16, -14, 32, 28, 9); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.moveTo(0, -7); ctx.lineTo(0, 7); ctx.stroke();
+  ctx.restore();
+}
+
+function drawTeddyItem(x, y, s){
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = '#c08552';
+  ctx.beginPath(); ctx.arc(-10, -14, 6, 0, 7); ctx.arc(10, -14, 6, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -8, 12, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 8, 13, 16, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(-14, 4, 5, 0, 7); ctx.arc(14, 4, 5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(-8, 24, 6, 0, 7); ctx.arc(8, 24, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e8c39a';
+  ctx.beginPath(); ctx.ellipse(0, -4, 6, 5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#3a2416';
+  ctx.beginPath(); ctx.arc(-4, -10, 1.8, 0, 7); ctx.arc(4, -10, 1.8, 0, 7); ctx.arc(0, -4, 2, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+function drawCarryItem(){
+  ctx.save();
+  ctx.translate(player.x, player.y - 48);
+  if(player.carrying.kind === 'teddy'){
+    ctx.scale(.7, .7);
+    ctx.fillStyle = '#c08552';
+    ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.fill();
+    ctx.fillStyle = '#e8c39a'; ctx.beginPath(); ctx.arc(0, 4, 7, 0, 7); ctx.fill();
+    ctx.fillStyle = '#3a2416'; ctx.beginPath(); ctx.arc(-5, -3, 2, 0, 7); ctx.arc(5, -3, 2, 0, 7); ctx.fill();
+  } else {
+    ctx.fillStyle = player.carrying.c;
+    rrect(-16, -14, 32, 28, 9); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawSleep(cx, cy, blanket){
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.fillStyle = '#6a5acd';
+  rrect(-34, -8, 58, 18, 9); ctx.fill();
+  ctx.fillStyle = '#ffd9b3';
+  ctx.beginPath(); ctx.arc(-44, -2, 11, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#40301f'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(-47, -3, 3, .2, Math.PI - .2, false); ctx.stroke();
+  ctx.fillStyle = '#ff8fab';
+  rrect(-62, -12, 18, 24, 7); ctx.fill();
+  ctx.fillStyle = blanket;
+  rrect(-6, 0, 46, 12, 6); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = 'rgba(60,80,160,.9)';
+  ctx.font = '700 20px system-ui'; ctx.textAlign = 'left';
+  for(let i = 0; i < 3; i++){
+    const ph = (state.napT*.02 + i*.33) % 1;
+    ctx.globalAlpha = 1 - ph;
+    ctx.fillText('Z', cx + 40 + i*14 + ph*20, cy - 50 - ph*45 - i*6);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCookiesPlate(){
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(315, 402, 30, 11, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#c9d4de'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(315, 402, 30, 11, 0, 0, 7); ctx.stroke();
+  const gap = Math.min(6, 44 / Math.max(1, state.cookies - 1));
+  for(let i = 0; i < state.cookies; i++){
+    const wob = i === state.cookies - 1 ? Math.sin(t*.08)*1.2 : 0;
+    const cx = 315 + (i % 2 ? 3 : -3) + wob, cy = 396 - i*gap;
+    ctx.fillStyle = '#b9852f';
+    ctx.beginPath(); ctx.ellipse(cx, cy + 3, 11, 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#d9a441';
+    ctx.beginPath(); ctx.ellipse(cx, cy, 11, 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#6b3f1d';
+    ctx.beginPath();
+    ctx.arc(cx - 4, cy - 1, 1.6, 0, 7);
+    ctx.arc(cx + 3, cy - 2, 1.6, 0, 7);
+    ctx.arc(cx + 1, cy + 2, 1.6, 0, 7);
+    ctx.fill();
+  }
+}
+
+function drawLiving(){
+  drawRoomShell('#ffe8cf');
+  drawWallDoor(876, 'TO BEACH');
+  drawWallDoor(18, 'BEDROOM');
+  ctx.fillStyle = '#5c3a1e';
+  ctx.fillRect(660, 110, 180, 140);
+  ctx.fillStyle = '#9fdcff';
+  ctx.fillRect(670, 120, 160, 120);
+  ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.arc(800, 145, 16, 0, 7); ctx.fill();
+  ctx.fillStyle = '#4aa3d8'; ctx.fillRect(670, 195, 160, 45);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 6;
+  ctx.strokeRect(670, 120, 160, 120);
+  ctx.beginPath(); ctx.moveTo(750, 120); ctx.lineTo(750, 240); ctx.moveTo(670, 180); ctx.lineTo(830, 180); ctx.stroke();
+  drawKitchen();
+  ctx.fillStyle = '#f28f8f';
+  ctx.beginPath(); ctx.ellipse(320, 445, 150, 62, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e9dcc0';
+  ctx.beginPath(); ctx.ellipse(320, 445, 110, 40, 0, 0, 7); ctx.fill();
+  drawSofa();
+  ctx.fillStyle = '#9c6b3c';
+  rrect(265, 405, 100, 46, 12); ctx.fill();
+  if(state.cookies > 0) drawCookiesPlate();
+  else {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(315, 405, 26, 10, 0, Math.PI, 2*Math.PI); ctx.fill();
+    drawShellItem({x: 308, y: 398, a: 0, c: '#ff9d76'});
+    drawShellItem({x: 324, y: 398, a: .5, c: '#ffd6a5'});
+  }
+  for(const p of pillows) if(p !== player.carrying) drawPillowItem(p);
+  if(!state.napping) drawPlayer();
+  else if(state.napLoc === 'sofa') drawSleep(685, 300, '#57c7ff');
+  if(player.carrying) drawCarryItem();
+  if(!state.napping && !player.carrying){
+    if(near(zoneSofa)) bubble(665, 430, 'Press E to nap on the couch');
+    if(near(zoneExit)) bubble(845, 400, 'Press E to go outside');
+    if(near(zoneBedroomDoor)) bubble(58, 415, 'Press E to the bedroom');
+    if(near(zoneCookie) && state.cookies > 0) bubble(315, 545, 'Press E to eat a cookie! 🍪');
+    if(!near(zoneSofa) && !near(zoneExit) && !near(zoneStove) && !near(zoneBedroomDoor) && !near(zoneCookie)){
+      let best = null, bd = 65;
+      for(const p of pickables()){ const d = dist(player.x, player.y, p.x, p.y); if(d < bd){ bd = d; best = p; } }
+      if(best) bubble(best.x, best.y - 8, 'Press E to carry ' + (best.kind === 'teddy' ? 'teddy' : 'pillow'));
+    }
+  }
+  if(state.napping) bubble(770, 250, 'Press E to wake up');
+}
+
+function drawBedroom(){
+  drawRoomShell('#ffe0ec');
+  ctx.strokeStyle = '#d98ab0'; ctx.lineWidth = 8;
+  ctx.strokeRect(876, 156, 68, 200);
+  ctx.fillStyle = '#7a4a2b';
+  ctx.fillRect(880, 160, 60, 196);
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath(); ctx.arc(892, 262, 5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#d98ab0'; rrect(866, 118, 88, 26, 6); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('TO LIVING', 910, 131);
+  ctx.fillStyle = '#5c3a1e';
+  ctx.fillRect(430, 110, 170, 140);
+  ctx.fillStyle = '#9fdcff';
+  ctx.fillRect(440, 120, 150, 120);
+  ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.arc(560, 145, 14, 0, 7); ctx.fill();
+  ctx.fillStyle = '#4aa3d8'; ctx.fillRect(440, 195, 150, 45);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 6;
+  ctx.strokeRect(440, 120, 150, 120);
+  ctx.beginPath(); ctx.moveTo(515, 120); ctx.lineTo(515, 240); ctx.moveTo(440, 180); ctx.lineTo(590, 180); ctx.stroke();
+  ctx.fillStyle = '#f28f8f';
+  ctx.beginPath(); ctx.ellipse(480, 460, 150, 62, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#e9dcc0';
+  ctx.beginPath(); ctx.ellipse(480, 460, 110, 40, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#7a4a2b';
+  rrect(55, 215, 25, 165, 6); ctx.fill();
+  rrect(75, 250, 275, 130, 10); ctx.fill();
+  ctx.fillStyle = '#fff';
+  rrect(85, 255, 255, 115, 8); ctx.fill();
+  ctx.fillStyle = '#b19cd9';
+  rrect(140, 285, 200, 90, 10); ctx.fill();
+  ctx.fillStyle = '#c9b8ec';
+  rrect(140, 285, 200, 20, 10); ctx.fill();
+  ctx.fillStyle = '#ffd9e8';
+  rrect(92, 262, 46, 30, 8); ctx.fill();
+  rrect(142, 262, 46, 30, 8); ctx.fill();
+  ctx.fillStyle = '#7a4a2b';
+  ctx.fillRect(390, 250, 60, 50);
+  ctx.fillStyle = '#333';
+  ctx.fillRect(417, 222, 6, 28);
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath(); ctx.moveTo(402, 224); ctx.lineTo(438, 224); ctx.lineTo(430, 200); ctx.lineTo(410, 200); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#7a4a2b';
+  rrect(660, 170, 90, 130, 6); ctx.fill();
+  ctx.fillStyle = '#5c3a1e';
+  ctx.fillRect(668, 210, 74, 6); ctx.fillRect(668, 252, 74, 6);
+  const bookC = ['#e63946','#457b9d','#f4a261','#2a9d8f','#9b5de5','#ff8fab'];
+  for(let s = 0; s < 2; s++){
+    for(let i = 0; i < 6; i++){
+      ctx.fillStyle = bookC[(s*6+i) % bookC.length];
+      ctx.fillRect(670 + i*12, (s === 0 ? 182 : 224) + (i % 2), 10, (s === 0 ? 28 : 28) - (i % 2));
+    }
+  }
+  ctx.fillStyle = '#8a5a33';
+  ctx.fillRect(150, 130, 4, 40); ctx.fillRect(236, 130, 4, 40);
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#8a5a33'; ctx.lineWidth = 4;
+  ctx.fillRect(140, 165, 110, 75); ctx.strokeRect(140, 165, 110, 75);
+  ctx.fillStyle = '#9fdcff'; ctx.fillRect(148, 173, 94, 59);
+  ctx.fillStyle = '#4aa3d8'; ctx.fillRect(148, 205, 94, 27);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(190, 180); ctx.lineTo(190, 202); ctx.lineTo(206, 202); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#7a4a2b'; ctx.fillRect(182, 202, 24, 6);
+  for(const p of bedroomPillows) if(p !== player.carrying) drawPillowItem(p);
+  if(teddy !== player.carrying) drawTeddyItem(teddy.x, teddy.y, 1);
+  if(!state.napping) drawPlayer();
+  else if(state.napLoc === 'bed') drawSleep(230, 292, '#b19cd9');
+  if(player.carrying) drawCarryItem();
+  if(!state.napping && !player.carrying){
+    if(near(zoneBed)) bubble(210, 435, 'Press E to nap in bed');
+    if(near(zoneLivingDoor)) bubble(845, 400, 'Press E to living room');
+    if(!near(zoneBed) && !near(zoneLivingDoor)){
+      let best = null, bd = 65;
+      for(const p of pickables()){ const d = dist(player.x, player.y, p.x, p.y); if(d < bd){ bd = d; best = p; } }
+      if(best) bubble(best.x, best.y - 8, 'Press E to carry ' + (best.kind === 'teddy' ? 'teddy' : 'pillow'));
+    }
+  }
+  if(state.napping) bubble(320, 240, 'Press E to wake up');
+}
+
+function drawPlayer(){
+  const bob = player.moving ? Math.abs(Math.sin(t*.3))*-3 : Math.sin(t*.05)*1.5;
+  ctx.save();
+  ctx.translate(player.x, player.y + bob);
+  const sw = player.moving ? Math.sin(t*.35)*5 : 0;
+  ctx.fillStyle = '#3b6ea5';
+  ctx.fillRect(-8 + sw, 8, 7, 16);
+  ctx.fillRect(1 - sw, 8, 7, 16);
+  ctx.fillStyle = '#ff7f50';
+  rrect(-11, -14, 22, 26, 8); ctx.fill();
+  ctx.fillStyle = '#ffd9b3';
+  ctx.beginPath(); ctx.arc(0, -24, 10, 0, 7); ctx.fill();
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath(); ctx.ellipse(0, -30, 15, 5, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -31, 9, Math.PI, 2*Math.PI); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(player.dir*3 - 2, -23, 1.6, 0, 7); ctx.arc(player.dir*3 + 3, -23, 1.6, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#a0522d'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(player.dir*2, -20, 3.5, .3, Math.PI - .3); ctx.stroke();
+  ctx.restore();
+}
+
+function drawHUD(){
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  rrect(12, 12, 140, 40, 12); ctx.fill();
+  rrect(160, 12, 140, 40, 12); ctx.fill();
+  rrect(308, 12, 95, 40, 12); ctx.fill();
+  rrect(411, 12, 95, 40, 12); ctx.fill();
+  ctx.font = '700 18px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#b3452f';
+  ctx.fillText('🐚 ' + state.shells + (state.won ? ' 🏆' : ''), 82, 33);
+  ctx.fillStyle = '#555c66';
+  ctx.fillText('🪨 ' + state.rocks + (state.rockDone ? ' 🏆' : ''), 230, 33);
+  ctx.fillStyle = '#8a5a33';
+  ctx.fillText('🫓 ' + state.dough, 355, 33);
+  ctx.fillStyle = '#d97706';
+  ctx.fillText('🍪 ' + state.cookies, 458, 33);
+  ctx.restore();
+  if(state.msgT > 0){
+    const a = Math.min(1, state.msgT/30);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.font = '800 26px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(state.msg).width + 40;
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    rrect(W/2 - w/2, 68, w, 46, 16); ctx.fill();
+    ctx.fillStyle = '#d9480f';
+    ctx.fillText(state.msg, W/2, 92);
+    ctx.restore();
+  }
+}
+
+function frame(){
+  update();
+  if(state.scene === 'beach') drawBeach();
+  else if(state.scene === 'living') drawLiving();
+  else drawBedroom();
+  drawHUD();
+  requestAnimationFrame(frame);
+}
+setMsg("Hi Nina! Collect seashells 🐚 — the Shell Shop is down the beach (walk right!), trade for dough, and bake cookies!", 350);
+frame();
+</script>
+</body>
+</html>

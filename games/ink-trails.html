@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ink Trails — draw the path home</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; background:#20182e; overflow:hidden; font-family:'Segoe UI', system-ui, -apple-system, sans-serif; }
+  body { display:flex; align-items:center; justify-content:center; }
+  #stage { position:relative; width:min(96vw, calc(96vh * 1.6)); aspect-ratio:1.6; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; border-radius:14px;
+    box-shadow:0 22px 70px rgba(0,0,0,.55); touch-action:none; cursor:crosshair; }
+
+  .pill { position:absolute; background:rgba(28,22,44,.62); backdrop-filter:blur(6px);
+    border:1px solid rgba(255,255,255,.14); border-radius:999px; color:#f3ecff; user-select:none; }
+  #hudTop { top:12px; left:0; right:0; display:flex; justify-content:center; pointer-events:none; }
+  #hudTop .pill { position:static; }
+  #hudName { padding:7px 20px; font-size:15px; letter-spacing:.12em; text-transform:uppercase;
+    font-weight:600; color:#ffe9c4; }
+  #hint { position:absolute; top:52px; left:50%; transform:translateX(-50%); padding:6px 16px;
+    font-size:13px; color:#d9d2ee; max-width:80%; text-align:center; transition:opacity 1.2s; }
+  #hudStats { bottom:12px; left:14px; display:flex; gap:8px; pointer-events:none; }
+  #hudStats .pill { position:static; padding:6px 14px; font-size:14px; }
+  #inkWrap { width:130px; height:9px; background:rgba(255,255,255,.16); border-radius:6px;
+    margin-top:5px; overflow:hidden; }
+  #inkBar { height:100%; width:100%; background:linear-gradient(90deg,#ffd98a,#f4a83c); border-radius:6px; }
+  #hudBtns { bottom:12px; right:14px; display:flex; gap:8px; }
+  #hudBtns button { position:static; border:1px solid rgba(255,255,255,.18); cursor:pointer;
+    background:rgba(28,22,44,.7); color:#f3ecff; border-radius:999px; padding:7px 16px;
+    font-size:14px; font-family:inherit; letter-spacing:.04em; transition:transform .12s, background .15s; }
+  #hudBtns button:hover { background:rgba(70,55,105,.85); transform:translateY(-1px); }
+  #goBtn { background:linear-gradient(135deg,#ffb85c,#f08a4b) !important; color:#2b1c10 !important;
+    font-weight:700; }
+  .hidden { display:none !important; }
+
+  #overlay { position:absolute; inset:0; border-radius:14px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:rgba(24,17,38,.72); backdrop-filter:blur(4px);
+    text-align:center; color:#f6efff; }
+  .titleMain { font-size:clamp(42px,8vw,76px); font-weight:800; letter-spacing:.06em;
+    background:linear-gradient(120deg,#ffd98a 0%, #f2955f 45%, #d87fa0 80%, #9d7cc0 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 4px 18px rgba(240,150,90,.35)); }
+  .tagline { margin-top:8px; font-size:clamp(14px,2.2vw,19px); color:#d6c9ee; letter-spacing:.14em; }
+  .bigBtn { margin-top:34px; padding:14px 46px; font-size:19px; font-weight:700; letter-spacing:.08em;
+    border:none; border-radius:999px; cursor:pointer; font-family:inherit;
+    background:linear-gradient(135deg,#ffc46b,#ef8b52); color:#2b1c10;
+    box-shadow:0 10px 30px rgba(240,140,80,.35); transition:transform .15s, box-shadow .15s; }
+  .bigBtn:hover { transform:translateY(-2px) scale(1.03); box-shadow:0 14px 38px rgba(240,140,80,.5); }
+  #lvlSelect { margin-top:20px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; max-width:70%; }
+  .lvlBtn { padding:9px 13px; border-radius:12px; border:1px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.10); color:#f0e8ff; cursor:pointer; font-family:inherit;
+    font-size:13px; min-width:66px; transition:background .15s, transform .12s; }
+  .lvlBtn:hover { background:rgba(255,255,255,.22); transform:translateY(-1px); }
+  .lvlBtn.locked { opacity:.32; cursor:default; pointer-events:none; }
+  .lvlBtn .st { color:#ffcf6e; }
+  .footerStars { margin-top:22px; font-size:15px; color:#cbbce8; letter-spacing:.1em; }
+  #winStars { font-size:52px; letter-spacing:.18em; margin-top:6px; height:60px; }
+  #winStars span { display:inline-block; color:#5a4d78; transform:scale(.3); }
+  #winStars span.lit { color:#ffcf6e; text-shadow:0 0 18px rgba(255,200,90,.8);
+    animation:pop .45s cubic-bezier(.2,1.8,.4,1) forwards; }
+  @keyframes pop { 0%{transform:scale(.2) rotate(-30deg)} 100%{transform:scale(1) rotate(0)} }
+  #winSub { margin-top:10px; font-size:15px; color:#d9cdef; }
+  #winBtns { display:flex; gap:12px; }
+  #winBtns .bigBtn { margin-top:26px; padding:11px 30px; font-size:16px; }
+  #winBtns .ghost { background:rgba(255,255,255,.12); color:#efe6ff; box-shadow:none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" width="960" height="600"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="hudTop"><div class="pill" id="hudName">Level</div></div>
+    <div class="pill" id="hint">hint</div>
+    <div id="hudStats">
+      <div class="pill"><span id="berryCount">0 / 0</span> <span style="color:#f4a83c">✦</span></div>
+      <div class="pill"><div style="font-size:11px;letter-spacing:.1em;color:#cbbce8">INK</div><div id="inkWrap"><div id="inkBar"></div></div></div>
+    </div>
+    <div id="hudBtns">
+      <button id="menuBtn" title="Back to title">MENU</button>
+      <button id="undoBtn" title="Undo last stroke (U)">↶ Undo</button>
+      <button id="resetBtn" title="Reset level (R)">⟳ Reset</button>
+      <button id="goBtn" title="Release the marble (Space)">GO ▸</button>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <div id="titleScreen">
+      <div class="titleMain">INK&nbsp;TRAILS</div>
+      <div class="tagline">DRAW THE PATH &nbsp;·&nbsp; GUIDE THE GLOW HOME</div>
+      <button class="bigBtn" id="playBtn">PLAY</button>
+      <div id="lvlSelect"></div>
+      <div class="footerStars" id="titleStars"></div>
+      <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.3);letter-spacing:.2em">BUILD 2026-09-15-C</div>
+    </div>
+    <div id="winScreen" class="hidden">
+      <div class="titleMain" style="font-size:clamp(30px,5vw,46px)" id="winTitle">Lantern lit!</div>
+      <div id="winStars"><span>✦</span><span>✦</span><span>✦</span></div>
+      <div id="winSub"></div>
+      <div id="winBtns">
+        <button class="bigBtn ghost" id="winMenuBtn">MENU</button>
+        <button class="bigBtn ghost" id="replayBtn">REPLAY</button>
+        <button class="bigBtn" id="nextBtn">NEXT ▸</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*==CORE==*/
+var W = 960, H = 600, G = 1500, R = 12, BERRY_R = 26, GOAL_R = 30;
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function S(x1,y1,x2,y2,k){ return {x1:x1,y1:y1,x2:x2,y2:y2,kind:k||'wall'}; }
+function RECT(x,y,w,h){ return [S(x,y,x+w,y),S(x+w,y,x+w,y+h),S(x+w,y+h,x,y+h),S(x,y+h,x,y)]; }
+function SPIKES(x0,x1,y,h,n){
+  var segs=[], w=(x1-x0)/n;
+  for(var i=0;i<n;i++){ var a=x0+i*w;
+    segs.push(S(a,y,a+w/2,y-h,'spike'));
+    segs.push(S(a+w/2,y-h,a+w,y,'spike'));
+  }
+  return segs;
+}
+var LEVELS = [
+  { name:'First Light', hint:'Draw a ramp from the ledge to the lantern shelf, then press GO.',
+    ink:800, start:[120,100], goal:[830,446],
+    segs:[S(40,160,240,280)].concat(RECT(720,470,220,26)),
+    fans:[], spinners:[], movers:[], berries:[[180,232],[760,450]] },
+
+  { name:'Bounce Lantern', hint:'The teal pad launches you high — ride the arc into the shelf.',
+    ink:550, start:[260,90], goal:[860,276],
+    segs:RECT(750,300,210,26).concat([S(200,520,340,570,'pad')]),
+    fans:[], spinners:[], movers:[], berries:[[260,300],[620,228]] },
+
+  { name:'Thorn Gap', hint:'Roll down, then draw a bridge over the thorns.',
+    ink:700, start:[80,120], goal:[760,425],
+    segs:[S(40,180,220,290), S(220,290,330,290), S(330,500,660,500)]
+      .concat(SPIKES(370,630,500,28,10)).concat(RECT(655,455,305,26)),
+    fans:[], spinners:[], movers:[], berries:[[140,229],[480,360],[760,433]] },
+
+  { name:'Cargo Run', hint:'Land on the drifting plank and ride it to the lantern pier.',
+    ink:600, start:[120,90], goal:[620,402],
+    segs:[S(40,170,200,270)].concat(RECT(700,500,260,26)),
+    fans:[], spinners:[],
+    movers:[{bx:400,by:430,axis:'x',amp:120,speed:1.1,phase:-1.57,
+      segs:[{dx1:0,dy1:0,dx2:200,dy2:0}]}],
+    arrive:{mover:0,minOff:105,cx:100,cy:-12,du:[-75,75],dv:[-55,35]},
+    berries:[[150,226],[300,340],[520,412]] },
+
+  { name:'Wind Garden', hint:'The updraft carries you — shape the air with your lines.',
+    ink:550, start:[70,110], goal:[830,406],
+    segs:[S(30,135,190,240)].concat(RECT(700,430,260,26)),
+    fans:[{x:260,y:140,w:230,h:380,ax:150,ay:-3100}],
+    spinners:[], movers:[], berries:[[350,345],[470,335],[610,320]] },
+
+  { name:'Thorns That Spin', hint:'Time your roll past the spinning spikes.',
+    ink:550, start:[140,240], goal:[840,490],
+    segs:[S(60,424,900,515)],
+    fans:[],
+    spinners:[{cx:380,cy:372,len:150,speed:1.7,phase:0},
+             {cx:630,cy:405,len:150,speed:1.7,phase:1.9}],
+    movers:[], berries:[[250,430],[500,458],[750,494]] },
+
+  { name:'Catch the Glow', hint:'Drop into the passing lantern car — hold on to the far pier.',
+    ink:450, start:[500,80], goal:[760,410],
+    segs:[],
+    fans:[], spinners:[],
+    movers:[{bx:500,by:430,axis:'x',amp:240,speed:1.3,phase:-0.99,
+      segs:[{dx1:-40,dy1:0,dx2:-40,dy2:44},
+            {dx1:-40,dy1:44,dx2:40,dy2:44},
+            {dx1:40,dy1:0,dx2:40,dy2:44}]}],
+    arrive:{mover:0,minOff:190,cx:0,cy:-12,du:[-26,26],dv:[-45,60]},
+    berries:[[500,200],[620,450]] },
+
+  { name:'Grand Finale', hint:'One long bridge over the thorn pit. Draw smooth and true.',
+    ink:850, start:[120,90], goal:[830,431],
+    segs:[S(50,115,200,235), S(205,505,700,505)]
+      .concat(SPIKES(240,660,505,30,13)).concat(RECT(700,455,260,26)),
+    fans:[{x:600,y:250,w:80,h:230,ax:80,ay:-900}],
+    spinners:[], movers:[], berries:[[140,175],[450,335],[830,431]] },
+
+  { name:'Downwell', hint:'You start inside a column of falling air. Slide left onto the safe ledge before the thorns claim you.',
+    ink:520, start:[300,80], goal:[110,268],
+    segs:[S(30,300,240,300), S(30,300,30,560), S(240,585,256.4,551,'spike'), S(256.4,551,272.7,585,'spike'), S(272.7,585,289.1,551,'spike'), S(289.1,551,305.5,585,'spike'), S(305.5,585,321.8,551,'spike'), S(321.8,551,338.2,585,'spike'), S(338.2,585,354.5,551,'spike'), S(354.5,551,370.9,585,'spike'), S(370.9,585,387.3,551,'spike'), S(387.3,551,403.6,585,'spike'), S(403.6,585,420,551,'spike'), S(420,551,436.4,585,'spike'), S(436.4,585,452.7,551,'spike'), S(452.7,551,469.1,585,'spike'), S(469.1,585,485.5,551,'spike'), S(485.5,551,501.8,585,'spike'), S(501.8,585,518.2,551,'spike'), S(518.2,551,534.5,585,'spike'), S(534.5,585,550.9,551,'spike'), S(550.9,551,567.3,585,'spike'), S(567.3,585,583.6,551,'spike'), S(583.6,551,600,585,'spike'), S(600,585,616.4,551,'spike'), S(616.4,551,632.7,585,'spike'), S(632.7,585,649.1,551,'spike'), S(649.1,551,665.5,585,'spike'), S(665.5,585,681.8,551,'spike'), S(681.8,551,698.2,585,'spike'), S(698.2,585,714.5,551,'spike'), S(714.5,551,730.9,585,'spike'), S(730.9,585,747.3,551,'spike'), S(747.3,551,763.6,585,'spike'), S(763.6,585,780,551,'spike'), S(780,551,796.4,585,'spike'), S(796.4,585,812.7,551,'spike'), S(812.7,551,829.1,585,'spike'), S(829.1,585,845.5,551,'spike'), S(845.5,551,861.8,585,'spike'), S(861.8,585,878.2,551,'spike'), S(878.2,551,894.5,585,'spike'), S(894.5,585,910.9,551,'spike'), S(910.9,551,927.3,585,'spike'), S(927.3,585,943.6,551,'spike'), S(943.6,551,960,585,'spike')],
+    fans:[{"x":240,"y":0,"w":720,"h":600,"ax":0,"ay":1600}],
+    spinners:[],
+    movers:[], berries:[[110,268], [500,150], [720,300]] },
+  { name:'Blowout', hint:'A geyser of air throws you into spiked stone. Bank out of the column and land on the right ledge.',
+    ink:520, start:[500,520], goal:[770,250],
+    segs:[S(360,90,620,90), S(360,90,376.3,60,'spike'), S(376.3,60,392.5,90,'spike'), S(392.5,90,408.8,60,'spike'), S(408.8,60,425,90,'spike'), S(425,90,441.3,60,'spike'), S(441.3,60,457.5,90,'spike'), S(457.5,90,473.8,60,'spike'), S(473.8,60,490,90,'spike'), S(490,90,506.3,60,'spike'), S(506.3,60,522.5,90,'spike'), S(522.5,90,538.8,60,'spike'), S(538.8,60,555,90,'spike'), S(555,90,571.3,60,'spike'), S(571.3,60,587.5,90,'spike'), S(587.5,90,603.8,60,'spike'), S(603.8,60,620,90,'spike'), S(690,270,900,270), S(900,270,900,296), S(900,296,690,296), S(690,296,690,270), S(0,585,360,585), S(620,585,960,585)],
+    fans:[{"x":430,"y":150,"w":140,"h":420,"ax":0,"ay":-2700}],
+    spinners:[],
+    movers:[], berries:[[500,250], [770,250], [880,180]] },
+  { name:'Shaftdown', hint:'Slow mills alternate across the shaft. Build little shelves and zig-zag to the bottom.',
+    ink:700, start:[110,70], goal:[820,540],
+    segs:[S(40,0,40,600), S(900,0,900,600), S(40,575,900,575)],
+    fans:[],
+    spinners:[{"cx":300,"cy":230,"len":150,"speed":1.5,"phase":0.4},{"cx":600,"cy":400,"len":150,"speed":1.5,"phase":1.7}],
+    movers:[], berries:[[180,150], [520,300], [760,480]] },
+  { name:'Catapult Relay', hint:'The slanted pad fires you skyward. Read the arc and catch it on the high shelf.',
+    ink:600, start:[180,180], goal:[760,150],
+    segs:[S(320,520,140,600,'pad'), S(0,600,960,600), S(690,170,900,170), S(900,170,900,196), S(900,196,690,196), S(690,196,690,170)],
+    fans:[],
+    spinners:[],
+    movers:[], berries:[[480,120], [620,300], [760,150]] },
+  { name:'Knife Edge', hint:'Left floats, right sinks. Cross the knife-edge and thread the narrow slot dead center.',
+    ink:520, start:[150,110], goal:[480,540],
+    segs:[S(0,560,430,560), S(530,560,960,560), S(430,560,430,592), S(530,560,530,592), S(0,560,17.1,534,'spike'), S(17.1,534,34.2,560,'spike'), S(34.2,560,51.3,534,'spike'), S(51.3,534,68.3,560,'spike'), S(68.3,560,85.4,534,'spike'), S(85.4,534,102.5,560,'spike'), S(102.5,560,119.6,534,'spike'), S(119.6,534,136.7,560,'spike'), S(136.7,560,153.8,534,'spike'), S(153.8,534,170.8,560,'spike'), S(170.8,560,187.9,534,'spike'), S(187.9,534,205,560,'spike'), S(205,560,222.1,534,'spike'), S(222.1,534,239.2,560,'spike'), S(239.2,560,256.3,534,'spike'), S(256.3,534,273.3,560,'spike'), S(273.3,560,290.4,534,'spike'), S(290.4,534,307.5,560,'spike'), S(307.5,560,324.6,534,'spike'), S(324.6,534,341.7,560,'spike'), S(341.7,560,358.7,534,'spike'), S(358.7,534,375.8,560,'spike'), S(375.8,560,392.9,534,'spike'), S(392.9,534,410,560,'spike'), S(550,560,567.1,534,'spike'), S(567.1,534,584.2,560,'spike'), S(584.2,560,601.3,534,'spike'), S(601.3,534,618.3,560,'spike'), S(618.3,560,635.4,534,'spike'), S(635.4,534,652.5,560,'spike'), S(652.5,560,669.6,534,'spike'), S(669.6,534,686.7,560,'spike'), S(686.7,560,703.8,534,'spike'), S(703.8,534,720.8,560,'spike'), S(720.8,560,737.9,534,'spike'), S(737.9,534,755,560,'spike'), S(755,560,772.1,534,'spike'), S(772.1,534,789.2,560,'spike'), S(789.2,560,806.3,534,'spike'), S(806.3,534,823.3,560,'spike'), S(823.3,560,840.4,534,'spike'), S(840.4,534,857.5,560,'spike'), S(857.5,560,874.6,534,'spike'), S(874.6,534,891.7,560,'spike'), S(891.7,560,908.8,534,'spike'), S(908.8,534,925.8,560,'spike'), S(925.8,560,942.9,534,'spike'), S(942.9,534,960,560,'spike')],
+    fans:[{"x":0,"y":0,"w":430,"h":560,"ax":0,"ay":-1360},{"x":530,"y":0,"w":430,"h":560,"ax":0,"ay":1360}],
+    spinners:[],
+    movers:[], berries:[[220,300], [480,300], [760,300]] },
+  { name:'Chute Stopper', hint:'An updraft pins you to the ceiling. Deflect out of the column and drop into the pocket.',
+    ink:600, start:[300,150], goal:[120,520],
+    segs:[S(120,60,520,60), S(210,60,210,120), S(390,60,390,120), S(55,0,55,560), S(55,560,235,560)],
+    fans:[{"x":210,"y":80,"w":180,"h":360,"ax":0,"ay":-2600}],
+    spinners:[],
+    movers:[], berries:[[300,90], [150,200], [120,520]] },
+  { name:'Bumper Tower', hint:'A stack of bumpers throws you higher. Bank your way up to the crown.',
+    ink:620, start:[300,540], goal:[480,95],
+    segs:[S(0,600,960,600), S(240,560,360,600,'pad'), S(600,470,720,510,'pad'), S(240,380,360,420,'pad'), S(600,290,720,330,'pad'), S(420,110,560,110), S(560,110,560,136), S(560,136,420,136), S(420,136,420,110)],
+    fans:[],
+    spinners:[],
+    movers:[], berries:[[430,500], [620,380], [480,95]] },
+  { name:'Whirlpool', hint:'The current drags you to the center. Punch through the gap on the upper right.',
+    ink:600, start:[480,300], goal:[840,130],
+    segs:[S(210,60,360,60), S(600,60,760,60), S(210,560,760,560), S(210,60,210,560), S(940,60,940,560)],
+    fans:[{"x":210,"y":200,"w":140,"h":200,"ax":820,"ay":-260},{"x":630,"y":200,"w":140,"h":200,"ax":-820,"ay":-260},{"x":350,"y":120,"w":280,"h":120,"ax":200,"ay":520},{"x":350,"y":400,"w":280,"h":160,"ax":0,"ay":-520}],
+    spinners:[],
+    movers:[], berries:[[480,180], [650,250], [840,130]] },
+  { name:'Boomerang', hint:'The wind never lets you reach the far side. Let the pad throw you back and land in the catch.',
+    ink:520, start:[120,120], goal:[180,520],
+    segs:[S(900,120,940,120), S(900,120,900,560), S(60,560,470,560), S(120,520,280,520), S(280,520,280,546), S(280,546,120,546), S(120,546,120,520)],
+    fans:[{"x":180,"y":80,"w":600,"h":480,"ax":-500,"ay":0}],
+    spinners:[],
+    movers:[], berries:[[480,300], [900,300], [180,520]] },
+  { name:'Slow Spiral', hint:'A blade sweeps the floor below. Get rolling and cross the blade zone on the timing to the far corner.',
+    ink:660, start:[120,150], goal:[820,555],
+    segs:[S(60,120,900,120), S(60,120,60,600), S(900,120,900,600), S(60,600,900,600)],
+    fans:[{"x":420,"y":160,"w":160,"h":400,"ax":0,"ay":800}],
+    spinners:[{"cx":480,"cy":520,"len":420,"speed":1.3,"phase":0}],
+    movers:[], berries:[[300,555], [600,300], [700,555]] },
+  { name:'Moving Door', hint:'A slow mill is the only door. Drop through the opening and ride the board into the lantern.',
+    ink:560, start:[160,120], goal:[740,520],
+    segs:[S(50,200,210,270), S(0,600,960,600), S(480,0,480,300), S(480,470,480,600)],
+    fans:[],
+    spinners:[{"cx":480,"cy":385,"len":90,"speed":2,"phase":0}],
+    movers:[{"bx":740,"by":320,"axis":"x","amp":120,"speed":1.1,"phase":-1.57,"segs":[{"dx1":-110,"dy1":0,"dx2":110,"dy2":0}]}], berries:[[300,300], [620,250], [740,500]] },
+  { name:'Gap Hopper', hint:'Five pits, one spring. Land the spring clean and sail the whole field.',
+    ink:560, start:[100,120], goal:[880,520],
+    segs:[S(40,300,120,360,'pad'), S(860,560,960,560), S(140,560,161.9,530,'spike'), S(161.9,530,183.8,560,'spike'), S(183.8,560,205.6,530,'spike'), S(205.6,530,227.5,560,'spike'), S(227.5,560,249.4,530,'spike'), S(249.4,530,271.3,560,'spike'), S(271.3,560,293.1,530,'spike'), S(293.1,530,315,560,'spike'), S(315,560,336.9,530,'spike'), S(336.9,530,358.8,560,'spike'), S(358.8,560,380.6,530,'spike'), S(380.6,530,402.5,560,'spike'), S(402.5,560,424.4,530,'spike'), S(424.4,530,446.3,560,'spike'), S(446.3,560,468.1,530,'spike'), S(468.1,530,490,560,'spike'), S(490,560,511.9,530,'spike'), S(511.9,530,533.8,560,'spike'), S(533.8,560,555.6,530,'spike'), S(555.6,530,577.5,560,'spike'), S(577.5,560,599.4,530,'spike'), S(599.4,530,621.3,560,'spike'), S(621.3,560,643.1,530,'spike'), S(643.1,530,665,560,'spike'), S(665,560,686.9,530,'spike'), S(686.9,530,708.8,560,'spike'), S(708.8,560,730.6,530,'spike'), S(730.6,530,752.5,560,'spike'), S(752.5,560,774.4,530,'spike'), S(774.4,530,796.3,560,'spike'), S(796.3,560,818.1,530,'spike'), S(818.1,530,840,560,'spike'), S(140,560,140,585), S(840,560,840,585)],
+    fans:[],
+    spinners:[],
+    movers:[], berries:[[300,300], [520,220], [720,320]] },
+  { name:'Sink or Swim', hint:'Some lanes drown, some float. Find the calm column and slide to the bottom.',
+    ink:600, start:[120,80], goal:[820,540],
+    segs:[S(0,570,400,570), S(560,570,960,570), S(400,570,560,570), S(400,570,420,540,'spike'), S(420,540,440,570,'spike'), S(440,570,460,540,'spike'), S(460,540,480,570,'spike'), S(480,570,500,540,'spike'), S(500,540,520,570,'spike'), S(520,570,540,540,'spike'), S(540,540,560,570,'spike')],
+    fans:[{"x":0,"y":0,"w":200,"h":570,"ax":0,"ay":1400},{"x":200,"y":0,"w":200,"h":570,"ax":0,"ay":-1400},{"x":400,"y":0,"w":200,"h":570,"ax":0,"ay":1400},{"x":600,"y":0,"w":180,"h":570,"ax":0,"ay":-1400},{"x":780,"y":0,"w":180,"h":570,"ax":0,"ay":0}],
+    spinners:[],
+    movers:[], berries:[[90,300], [490,300], [820,300]] },
+  { name:'The Long Board', hint:'A drifting board crosses the dead field. Ride it out and drop onto the lantern.',
+    ink:520, start:[120,100], goal:[720,470],
+    segs:[S(60,180,220,260), S(0,600,960,600), S(260,560,279.4,530,'spike'), S(279.4,530,298.9,560,'spike'), S(298.9,560,318.3,530,'spike'), S(318.3,530,337.8,560,'spike'), S(337.8,560,357.2,530,'spike'), S(357.2,530,376.7,560,'spike'), S(376.7,560,396.1,530,'spike'), S(396.1,530,415.6,560,'spike'), S(415.6,560,435,530,'spike'), S(435,530,454.4,560,'spike'), S(454.4,560,473.9,530,'spike'), S(473.9,530,493.3,560,'spike'), S(493.3,560,512.8,530,'spike'), S(512.8,530,532.2,560,'spike'), S(532.2,560,551.7,530,'spike'), S(551.7,530,571.1,560,'spike'), S(571.1,560,590.6,530,'spike'), S(590.6,530,610,560,'spike'), S(610,560,629.4,530,'spike'), S(629.4,530,648.9,560,'spike'), S(648.9,560,668.3,530,'spike'), S(668.3,530,687.8,560,'spike'), S(687.8,560,707.2,530,'spike'), S(707.2,530,726.7,560,'spike'), S(726.7,560,746.1,530,'spike'), S(746.1,530,765.6,560,'spike'), S(765.6,560,785,530,'spike'), S(785,530,804.4,560,'spike'), S(804.4,560,823.9,530,'spike'), S(823.9,530,843.3,560,'spike'), S(843.3,560,862.8,530,'spike'), S(862.8,530,882.2,560,'spike'), S(882.2,560,901.7,530,'spike'), S(901.7,530,921.1,560,'spike'), S(921.1,560,940.6,530,'spike'), S(940.6,530,960,560,'spike')],
+    fans:[],
+    spinners:[],
+    movers:[{"bx":430,"by":380,"axis":"x","amp":180,"speed":1.1,"phase":-1.57,"segs":[{"dx1":0,"dy1":0,"dx2":220,"dy2":0}]}], berries:[[160,200], [430,300], [600,430]] },
+  { name:'UpthenDown', hint:'Flung up, dumped down. Clear the peak and drop into the chute on the far side.',
+    ink:560, start:[150,500], goal:[820,540],
+    segs:[S(430,120,520,300), S(520,300,430,480), S(760,570,880,570), S(430,480,520,480), S(0,585,17.5,559,'spike'), S(17.5,559,35,585,'spike'), S(35,585,52.5,559,'spike'), S(52.5,559,70,585,'spike'), S(70,585,87.5,559,'spike'), S(87.5,559,105,585,'spike'), S(105,585,122.5,559,'spike'), S(122.5,559,140,585,'spike'), S(140,585,157.5,559,'spike'), S(157.5,559,175,585,'spike'), S(175,585,192.5,559,'spike'), S(192.5,559,210,585,'spike'), S(210,585,227.5,559,'spike'), S(227.5,559,245,585,'spike'), S(245,585,262.5,559,'spike'), S(262.5,559,280,585,'spike'), S(280,585,297.5,559,'spike'), S(297.5,559,315,585,'spike'), S(315,585,332.5,559,'spike'), S(332.5,559,350,585,'spike'), S(350,585,367.5,559,'spike'), S(367.5,559,385,585,'spike'), S(385,585,402.5,559,'spike'), S(402.5,559,420,585,'spike')],
+    fans:[{"x":80,"y":150,"w":260,"h":380,"ax":0,"ay":-2600},{"x":560,"y":150,"w":260,"h":380,"ax":0,"ay":1400}],
+    spinners:[],
+    movers:[], berries:[[210,250], [480,150], [820,420]] },
+  { name:'Pendulum Pass', hint:'One slow mill, a wide opening. Drop through on the beat and ride the board home.',
+    ink:560, start:[180,80], goal:[740,470],
+    segs:[S(60,170,220,250), S(0,600,960,600), S(400,0,400,280), S(400,470,400,600)],
+    fans:[],
+    spinners:[{"cx":400,"cy":375,"len":100,"speed":2.1,"phase":0}],
+    movers:[{"bx":700,"by":340,"axis":"x","amp":140,"speed":1.1,"phase":-1.57,"segs":[{"dx1":-110,"dy1":0,"dx2":110,"dy2":0}]}], berries:[[150,150], [400,375], [640,300]] },
+  { name:'Under the Blade', hint:'A blade sweeps the corridor. Stay low and late, slip under to the pocket beyond.',
+    ink:560, start:[120,470], goal:[820,500],
+    segs:[S(40,470,300,470), S(660,470,900,470), S(0,600,960,600), S(40,540,300,540), S(660,540,900,540)],
+    fans:[],
+    spinners:[{"cx":480,"cy":505,"len":280,"speed":1.6,"phase":0}],
+    movers:[], berries:[[240,505], [480,470], [720,505]] },
+  { name:'Draft Chess', hint:'Three currents are traps. Read the air and build a wall to the one true lane.',
+    ink:560, start:[120,80], goal:[860,520],
+    segs:[S(0,560,300,560), S(760,560,960,560), S(300,560,300,600), S(760,560,760,600), S(320,585,337.5,555,'spike'), S(337.5,555,355,585,'spike'), S(355,585,372.5,555,'spike'), S(372.5,555,390,585,'spike'), S(390,585,407.5,555,'spike'), S(407.5,555,425,585,'spike'), S(425,585,442.5,555,'spike'), S(442.5,555,460,585,'spike'), S(460,585,477.5,555,'spike'), S(477.5,555,495,585,'spike'), S(495,585,512.5,555,'spike'), S(512.5,555,530,585,'spike'), S(530,585,547.5,555,'spike'), S(547.5,555,565,585,'spike'), S(565,585,582.5,555,'spike'), S(582.5,555,600,585,'spike'), S(600,585,617.5,555,'spike'), S(617.5,555,635,585,'spike'), S(635,585,652.5,555,'spike'), S(652.5,555,670,585,'spike'), S(670,585,687.5,555,'spike'), S(687.5,555,705,585,'spike'), S(705,585,722.5,555,'spike'), S(722.5,555,740,585,'spike')],
+    fans:[{"x":0,"y":120,"w":220,"h":440,"ax":900,"ay":200},{"x":300,"y":120,"w":220,"h":440,"ax":-1400,"ay":200},{"x":540,"y":120,"w":200,"h":440,"ax":900,"ay":200}],
+    spinners:[],
+    movers:[], berries:[[200,300], [480,250], [700,320]] },
+  { name:'Trampoline Climb', hint:'Bumpers only rise if you steer. Climb the spike corridor to the crown.',
+    ink:640, start:[480,540], goal:[480,95],
+    segs:[S(200,600,760,600), S(300,560,460,600,'pad'), S(560,450,720,490,'pad'), S(260,340,420,380,'pad'), S(540,230,700,270,'pad'), S(420,110,550,110), S(550,110,550,136), S(550,136,420,136), S(420,136,420,110)],
+    fans:[],
+    spinners:[],
+    movers:[], berries:[[480,470], [480,330], [480,120]] },
+  { name:'Conveyor Cross', hint:'One board drifts across the dead field. Ride it over and drop onto the lantern.',
+    ink:560, start:[110,100], goal:[820,500],
+    segs:[S(50,190,210,270), S(0,600,960,600), S(260,570,282.9,544,'spike'), S(282.9,544,305.7,570,'spike'), S(305.7,570,328.6,544,'spike'), S(328.6,544,351.4,570,'spike'), S(351.4,570,374.3,544,'spike'), S(374.3,544,397.1,570,'spike'), S(397.1,570,420,544,'spike'), S(420,544,442.9,570,'spike'), S(442.9,570,465.7,544,'spike'), S(465.7,544,488.6,570,'spike'), S(488.6,570,511.4,544,'spike'), S(511.4,544,534.3,570,'spike'), S(534.3,570,557.1,544,'spike'), S(557.1,544,580,570,'spike'), S(580,570,602.9,544,'spike'), S(602.9,544,625.7,570,'spike'), S(625.7,570,648.6,544,'spike'), S(648.6,544,671.4,570,'spike'), S(671.4,570,694.3,544,'spike'), S(694.3,544,717.1,570,'spike'), S(717.1,570,740,544,'spike'), S(740,544,762.9,570,'spike'), S(762.9,570,785.7,544,'spike'), S(785.7,544,808.6,570,'spike'), S(808.6,570,831.4,544,'spike'), S(831.4,544,854.3,570,'spike'), S(854.3,570,877.1,544,'spike'), S(877.1,544,900,570,'spike')],
+    fans:[],
+    spinners:[],
+    movers:[{"bx":520,"by":360,"axis":"x","amp":180,"speed":1.1,"phase":-1.57,"segs":[{"dx1":-120,"dy1":0,"dx2":120,"dy2":0}]}], berries:[[180,200], [430,300], [720,430]] },
+  { name:'Needle Gauge', hint:'Three mills, a narrowing tube. Every pass is razor timing.',
+    ink:600, start:[120,80], goal:[520,560],
+    segs:[S(40,0,40,600), S(900,0,900,600), S(40,585,900,585)],
+    fans:[],
+    spinners:[{"cx":250,"cy":200,"len":200,"speed":2.4,"phase":0.2},{"cx":430,"cy":330,"len":200,"speed":2.4,"phase":1.7},{"cx":590,"cy":460,"len":200,"speed":2.4,"phase":3.2}],
+    movers:[], berries:[[200,120], [400,250], [560,400]] },
+  { name:'The Gauntlet', hint:'Everything at once: geyser, blade, elevator, drain. Light the last lantern.',
+    ink:700, start:[120,500], goal:[820,520],
+    segs:[S(60,200,220,200), S(360,240,360,360), S(0,600,960,600), S(420,585,437,557,'spike'), S(437,557,454,585,'spike'), S(454,585,471,557,'spike'), S(471,557,488,585,'spike'), S(488,585,505,557,'spike'), S(505,557,522,585,'spike'), S(522,585,539,557,'spike'), S(539,557,556,585,'spike'), S(556,585,573,557,'spike'), S(573,557,590,585,'spike'), S(590,585,607,557,'spike'), S(607,557,624,585,'spike'), S(624,585,641,557,'spike'), S(641,557,658,585,'spike'), S(658,585,675,557,'spike'), S(675,557,692,585,'spike'), S(692,585,709,557,'spike'), S(709,557,726,585,'spike'), S(726,585,743,557,'spike'), S(743,557,760,585,'spike')],
+    fans:[{"x":80,"y":150,"w":200,"h":360,"ax":0,"ay":-2200},{"x":600,"y":150,"w":220,"h":340,"ax":0,"ay":1200}],
+    spinners:[{"cx":420,"cy":430,"len":150,"speed":2.2,"phase":0.6}],
+    movers:[{"bx":660,"by":360,"axis":"x","amp":120,"speed":1.2,"phase":-1.57,"segs":[{"dx1":-110,"dy1":0,"dx2":110,"dy2":0}]}], berries:[[180,250], [420,300], [720,300]] }
+];
+function moverOff(m,t){ return m.amp*Math.sin(m.speed*t+m.phase); }
+function moverVel(m,t){ return m.amp*m.speed*Math.cos(m.speed*t+m.phase); }
+function dynSegs(lv,t){
+  var out=[], i,j;
+  for(i=0;i<lv.segs.length;i++){ var s=lv.segs[i];
+    out.push({x1:s.x1,y1:s.y1,x2:s.x2,y2:s.y2,pvx:0,pvy:0,kind:s.kind}); }
+  for(i=0;i<(lv.movers||[]).length;i++){ var m=lv.movers[i];
+    var o=moverOff(m,t), v=moverVel(m,t);
+    var vx=m.axis==='x'?v:0, vy=m.axis==='y'?v:0;
+    for(j=0;j<m.segs.length;j++){ var d=m.segs[j];
+      var ox=m.axis==='x'?o:0, oy=m.axis==='y'?o:0;
+      out.push({x1:m.bx+d.dx1+ox, y1:m.by+d.dy1+oy,
+               x2:m.bx+d.dx2+ox, y2:m.by+d.dy2+oy, pvx:vx, pvy:vy, kind:'mover'}); } }
+  for(i=0;i<(lv.spinners||[]).length;i++){ var sp=lv.spinners[i];
+    var a=sp.phase+sp.speed*t, L=sp.len/2;
+    var hx=Math.cos(a)*L, hy=Math.sin(a)*L;
+    out.push({x1:sp.cx-hx, y1:sp.cy-hy, x2:sp.cx+hx, y2:sp.cy+hy,
+      pvx:-hy*sp.speed, pvy:hx*sp.speed, kind:'spike'}); }
+  return out;
+}
+function solveSeg(b,s){
+  var dx=s.x2-s.x1, dy=s.y2-s.y1, l2=dx*dx+dy*dy||1e-9;
+  var t=clamp(((b.x-s.x1)*dx+(b.y-s.y1)*dy)/l2,0,1);
+  var cx=s.x1+t*dx, cy=s.y1+t*dy;
+  var ddx=b.x-cx, ddy=b.y-cy, d=Math.hypot(ddx,ddy);
+  if(d>=R) return 0;
+  if(d<1e-4){ ddx=0; ddy=-1; d=1; } else { ddx/=d; ddy/=d; }
+  b.x=cx+ddx*R; b.y=cy+ddy*R;
+  var pvx=s.pvx||0, pvy=s.pvy||0;
+  var rvx=b.vx-pvx, rvy=b.vy-pvy;
+  var vn=rvx*ddx+rvy*ddy;
+  if(vn>=0) return 0;
+  var e,fr;
+  if(s.kind==='pad'){ e=1.05; fr=0.75; }
+  else if(s.kind==='mover'){ e=0.15; fr=0.93; }
+  else { e=0.24; fr=0.9985; }
+  var vn2=-e*vn;
+  var tx=-ddy, ty=ddx;
+  var vt=(rvx*tx+rvy*ty)*fr;
+  b.vx=pvx+ddx*vn2+tx*vt;
+  b.vy=pvy+ddy*vn2+ty*vt;
+  return -vn;
+}
+function spikeHit(b,s){
+  var dx=s.x2-s.x1, dy=s.y2-s.y1, l2=dx*dx+dy*dy||1e-9;
+  var t=clamp(((b.x-s.x1)*dx+(b.y-s.y1)*dy)/l2,0,1);
+  return Math.hypot(b.x-(s.x1+t*dx), b.y-(s.y1+t*dy)) < R+2;
+}
+function step(st,lv,drawn,dt){
+  if(st.done) return;
+  st.t+=dt; st.hit=0;
+  st.vy+=G*dt;
+  for(var f=0;f<(lv.fans||[]).length;f++){ var fa=lv.fans[f];
+    if(st.x>fa.x && st.x<fa.x+fa.w && st.y>fa.y && st.y<fa.y+fa.h){
+      st.vx+=fa.ax*dt; st.vy+=fa.ay*dt; } }
+  var sp=1700;
+  st.vx=clamp(st.vx,-sp,sp); st.vy=clamp(st.vy,-sp,sp);
+  st.x+=st.vx*dt; st.y+=st.vy*dt;
+  var all=dynSegs(lv,st.t).concat(drawn);
+  for(var it=0;it<3;it++) for(var i=0;i<all.length;i++){
+    var s=all[i]; if(s.kind==='spike') continue;
+    var h=solveSeg(st,s); if(h>st.hit) st.hit=h;
+  }
+  for(i=0;i<all.length;i++){ if(all[i].kind==='spike' && spikeHit(st,all[i])){
+    st.dead=true; st.done=true; return; } }
+  var bs=lv.berries||[];
+  for(i=0;i<bs.length;i++){ if(!st.berry[i] && Math.hypot(st.x-bs[i][0],st.y-bs[i][1])<BERRY_R+R){
+    st.berry[i]=true; st.lastBerry=bs[i]; } }
+  if(lv.arrive){
+    var m=lv.movers[lv.arrive.mover], o=moverOff(m,st.t);
+    var cxp=m.bx+(m.axis==='x'?o:0)+lv.arrive.cx;
+    var cyp=m.by+(m.axis==='y'?o:0)+lv.arrive.cy;
+    var u=st.x-cxp, vv=st.y-cyp;
+    if(o>=lv.arrive.minOff && u>=lv.arrive.du[0] && u<=lv.arrive.du[1] &&
+       vv>=lv.arrive.dv[0] && vv<=lv.arrive.dv[1]){ st.won=true; st.done=true; return; }
+  } else if(Math.hypot(st.x-lv.goal[0], st.y-lv.goal[1]) < GOAL_R) {
+    st.won=true; st.done=true; return;
+  }
+  if(st.y>H+140 || st.x<-140 || st.x>W+140 || st.y<-600){ st.missed=true; st.done=true; }
+}
+/*==CORE==*/
+
+if(typeof module!=='undefined' && module.exports){
+  module.exports = {W,H,R,G,BERRY_R,GOAL_R,S,RECT,SPIKES,LEVELS,moverOff,moverVel,dynSegs,step};
+}
+
+if(typeof document!=='undefined') (function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  var SKYS=[
+    ['#fcd9a8','#ef9a80','#8f5a7e'],
+    ['#f8b46f','#d96a72','#5f3a68'],
+    ['#e3a58c','#a85c74','#4c3158'],
+    ['#e6cdA0','#8fae92','#3c575e'],
+    ['#e79aa0','#b0556e','#512c4b'],
+    ['#8088b8','#565c8c','#232849'],
+    ['#5f6c96','#39406a','#171c38'],
+    ['#ffd98e','#f2955f','#8c4f63']
+  ];
+  var mode='title', lvlIdx=0, st=null, strokes=[], drawing=null, inkUsed=0;
+  var particles=[], trail=[], flies=[], shakeT=0, shakeMag=0, respawnT=0, hintT=0, shX=0, shY=0;
+  var lastBerryIdx=0, flash=0, flashColor='255,80,80';
+  var save={max:0, stars:{}};
+  try{ var raw=localStorage.getItem('inktrails_v1'); if(raw) save=JSON.parse(raw); }catch(e){}
+  function persist(){ try{ localStorage.setItem('inktrails_v1', JSON.stringify(save)); }catch(e){} }
+
+  var AC=null, lastSounds={};
+  function audio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(AC && AC.state==='suspended') AC.resume(); return AC; }
+  function tone(f0,f1,dur,type,vol,delay){
+    var a=audio(); if(!a) return;
+    if(f0===lastSounds.f && type==='sine' && performance.now()-(lastSounds.t||0)<25) return;
+    lastSounds={f:f0,t:performance.now()};
+    var t=a.currentTime+(delay||0);
+    var o=a.createOscillator(), g=a.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(f0,t);
+    if(f1) o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t+dur);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  }
+  var PENTA=[660,784,880,988,1174,1318];
+  function sBounce(v){ if(v>60) tone(90+Math.min(v,900)*0.14,null,0.07,'sine',Math.min(0.2,0.05+v/2600)); }
+  function sPad(){ tone(240,560,0.16,'triangle',0.22); }
+  function sBerry(){ tone(PENTA[(lastBerryIdx++)%PENTA.length],null,0.14,'sine',0.16); }
+  function sSpike(){ tone(150,45,0.3,'sawtooth',0.14); }
+  function sMiss(){ tone(320,120,0.25,'sine',0.07); }
+  function sWin(){ [523,659,784,1046,1318].forEach(function(f,i){ tone(f,null,0.28,'sine',0.14,i*0.09); });
+    tone(262,262,0.8,'triangle',0.08,0.1); }
+  function sClick(){ tone(700,null,0.05,'square',0.05); }
+
+  function makeFlies(){ flies=[]; for(var i=0;i<26;i++) flies.push({
+      x:Math.random()*W, y:Math.random()*H, p:Math.random()*6.28, s:0.2+Math.random()*0.5,
+      dx:(Math.random()-0.5)*14, dy:(Math.random()-0.5)*10 }); }
+  makeFlies();
+
+  function drawnSegs(){
+    var out=[];
+    for(var i=0;i<strokes.length;i++){ var p=strokes[i];
+      for(var j=1;j<p.length;j++) out.push({x1:p[j-1].x,y1:p[j-1].y,x2:p[j].x,y2:p[j].y,kind:'draw'}); }
+    return out;
+  }
+  function loadLevel(i){
+    lvlIdx=i; var lv=LEVELS[i];
+    strokes=[]; drawing=null; inkUsed=0; particles=[]; trail=[];
+    shakeT=0; shakeMag=0; shX=0; shY=0; flash=0;
+    ctx.setTransform(1,0,0,1,0,0);
+    newBall(); mode='ready'; hintT=5.5;
+    document.getElementById('hud').classList.remove('hidden');
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('hudName').textContent=(i+1)+' · '+lv.name;
+    var h=document.getElementById('hint'); h.textContent=lv.hint; h.style.opacity=1;
+    syncHud();
+  }
+  function newBall(){
+    var lv=LEVELS[lvlIdx];
+    st={x:lv.start[0], y:lv.start[1], vx:0, vy:0, t:0, hit:0,
+        berry:new Array((lv.berries||[]).length).fill(false), done:false,
+        won:false, dead:false, missed:false, lastBerry:null};
+  }
+  function syncHud(){
+    var lv=LEVELS[lvlIdx], n=0;
+    for(var i=0;i<(lv.berries||[]).length;i++) if(st.berry[i]) n++;
+    document.getElementById('berryCount').textContent=n+' / '+(lv.berries||[]).length;
+    var pct=Math.max(0,1-inkUsed/lv.ink);
+    var bar=document.getElementById('inkBar');
+    bar.style.width=(pct*100)+'%';
+    bar.style.background = pct<0.15 ? 'linear-gradient(90deg,#f07a6a,#c04b5c)' : 'linear-gradient(90deg,#ffd98a,#f4a83c)';
+    document.getElementById('goBtn').style.display = mode==='ready' ? '' : 'none';
+  }
+  function spawn(x,y,n,color,sp,life,size){
+    for(var i=0;i<n;i++){ var a=Math.random()*6.283, v=(0.25+Math.random()*0.75)*sp;
+      particles.push({x:x,y:y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-20,
+        life:life*(0.6+Math.random()*0.6), age:0, c:color, s:(size||3)*(0.5+Math.random())}); }
+    if(particles.length>420) particles.splice(0, particles.length-420);
+  }
+  function onEvent(){
+    var lv=LEVELS[lvlIdx];
+    if(st.lastBerry){ spawn(st.lastBerry[0],st.lastBerry[1],16,'246,170,70',160,0.7,3);
+      sBerry(); st.lastBerry=null; }
+    if(st.hit>0){
+      var padNear=false;
+      for(var i=0;i<lv.segs.length;i++) if(lv.segs[i].kind==='pad'){
+        if(Math.hypot(st.x-(lv.segs[i].x1+lv.segs[i].x2)/2, st.y-(lv.segs[i].y1+lv.segs[i].y2)/2)<160) padNear=true; }
+      if(padNear && st.hit>200){ sPad(); spawn(st.x,st.y,12,'90,220,200',200,0.6,3); }
+      else sBounce(st.hit);
+    }
+    if(st.dead){ spawn(st.x,st.y,34,'205,75,95',300,0.8,4);
+      shakeT=0.35; shakeMag=9; flash=0.25; flashColor='215,80,95'; sSpike(); respawnT=0.6; mode='dying'; }
+    else if(st.missed){ spawn(st.x,Math.min(st.y,H-14),16,'160,150,180',150,0.6,3);
+      flash=0.15; flashColor='130,120,160'; sMiss(); respawnT=0.55; mode='dying'; }
+    else if(st.won){ win(); }
+  }
+  function starsFor(){
+    var lv=LEVELS[lvlIdx], tot=(lv.berries||[]).length, got=0;
+    for(var i=0;i<tot;i++) if(st.berry[i]) got++;
+    var s=1; if(got===tot && tot>0) s++; if(inkUsed<=lv.ink*0.6) s++;
+    return {n:s, got:got, tot:tot};
+  }
+  function win(){
+    mode='won'; sWin(); shakeT=0.25; shakeMag=4;
+    spawn(LEVELS[lvlIdx].goal[0],LEVELS[lvlIdx].goal[1],50,'255,210,120',260,1.1,4);
+    spawn(W/2,H/2,40,'255,180,120',220,1.2,3);
+    var r=starsFor();
+    var prev=save.stars[lvlIdx]||0;
+    if(r.n>prev){ save.stars[lvlIdx]=r.n; }
+    if(lvlIdx+1>save.max){ save.max=lvlIdx+1; }
+    persist();
+    var done = lvlIdx>=LEVELS.length-1;
+    document.getElementById('winTitle').textContent = done ? 'Every lantern lit!' : 'Lantern lit!';
+    document.getElementById('nextBtn').textContent = done ? 'PLAY AGAIN' : 'NEXT ▸';
+    document.getElementById('nextBtn').classList.toggle('ghost',false);
+    var total=0; for(var k in save.stars) total+=save.stars[k];
+    document.getElementById('winSub').textContent =
+      'berries '+r.got+'/'+r.tot+' · ink used '+Math.round(inkUsed)+'/'+LEVELS[lvlIdx].ink+
+      '  ·  total ✦ '+total+' / '+(LEVELS.length*3);
+    var spans=document.querySelectorAll('#winStars span');
+    spans.forEach(function(sp){ sp.classList.remove('lit'); });
+    void document.getElementById('winStars').offsetWidth;
+    for(var i=0;i<r.n;i++) setTimeout((function(sp){return function(){ sp.classList.add('lit'); sClick(); }})(spans[i]), 250+i*280);
+    setTimeout(function(){
+      document.getElementById('overlay').classList.remove('hidden');
+      document.getElementById('titleScreen').classList.add('hidden');
+      document.getElementById('winScreen').classList.remove('hidden');
+    }, 950);
+  }
+  function showTitle(){
+    mode='title';
+    document.getElementById('hud').classList.add('hidden');
+    var total=0; for(var k in save.stars) total+=save.stars[k];
+    document.getElementById('titleStars').textContent = total>0 ? ('✦ '.repeat(Math.min(total,12))+'  '+total+' / '+(LEVELS.length*3)) : 'drag with your mouse to draw · space to release';
+    var sel=document.getElementById('lvlSelect'); sel.innerHTML='';
+    for(var i=0;i<LEVELS.length;i++){
+      var b=document.createElement('button');
+      var unlocked = i<=save.max && i<LEVELS.length;
+      b.className='lvlBtn'+(unlocked?'':' locked');
+      b.innerHTML=(i+1)+(save.stars[i]?' <span class="st">'+'✦'.repeat(save.stars[i])+'</span>':'');
+      if(unlocked){ (function(idx){ b.addEventListener('click', function(){ sClick(); loadLevel(idx); }); })(i); }
+      sel.appendChild(b);
+    }
+    document.getElementById('overlay').classList.remove('hidden');
+    document.getElementById('winScreen').classList.add('hidden');
+    document.getElementById('titleScreen').classList.remove('hidden');
+  }
+
+  function toXY(e){
+    var r=cv.getBoundingClientRect();
+    return { x:(e.clientX-r.left)*(W/r.width)-shX, y:(e.clientY-r.top)*(H/r.height)-shY };
+  }
+  cv.addEventListener('contextmenu', function(e){ e.preventDefault(); undo(); });
+  function undo(){
+    if((mode==='ready'||mode==='flying') && strokes.length){
+      strokes.pop();
+      recomputeInk(); syncHud(); sClick();
+    }
+  }
+  function recomputeInk(){
+    var l=0;
+    for(var i=0;i<strokes.length;i++){ var p=strokes[i];
+      for(var j=1;j<p.length;j++) l+=Math.hypot(p[j].x-p[j-1].x,p[j].y-p[j-1].y); }
+    inkUsed=l;
+  }
+  var drawingId=null;
+  cv.addEventListener('pointerdown', function(e){
+    if(e.button===2){ return; }
+    audio();
+    if(mode==='ready'||mode==='flying'){
+      drawingId=e.pointerId; drawing=[toXY(e)];
+      cv.setPointerCapture(e.pointerId);
+    }
+  });
+  cv.addEventListener('pointermove', function(e){
+    if(drawing===null || e.pointerId!==drawingId) return;
+    var p=toXY(e), lv=LEVELS[lvlIdx], last=drawing[drawing.length-1];
+    var d=Math.hypot(p.x-last.x,p.y-last.y);
+    if(d<5) return;
+    var remain=lv.ink-inkUsed;
+    if(remain<=0){ return; }
+    if(d>remain){ var f=remain/d; p={x:last.x+(p.x-last.x)*f, y:last.y+(p.y-last.y)*f}; d=remain; }
+    if(d<1){ return; }
+    drawing.push(p); inkUsed+=d;
+    if(Math.random()<0.25) spawn(p.x,p.y,1,'120,110,150',30,0.4,2);
+    syncHud();
+  });
+  function endDraw(e){
+    if(drawing===null || (e && e.pointerId!==drawingId)) return;
+    if(drawing.length>1) strokes.push(drawing);
+    drawing=null; drawingId=null;
+  }
+  cv.addEventListener('pointerup', endDraw);
+  cv.addEventListener('pointercancel', endDraw);
+
+  document.addEventListener('keydown', function(e){
+    if(e.code==='Space'){ e.preventDefault(); if(mode==='ready') release(); else if(mode==='title') { sClick(); startGame(); } }
+    else if(e.code==='Escape'){ if(mode!=='title'){ sClick(); showTitle(); } }
+    else if(e.key==='r'||e.key==='R'){ if(mode!=='title'&&mode!=='won'){ resetLevel(); } }
+    else if(e.key==='u'||e.key==='U'){ undo(); }
+  });
+  function release(){ if(mode==='ready'){ mode='flying'; st.vx=0; st.vy=0; tone(430,660,0.12,'sine',0.12); } }
+  function resetLevel(){ loadLevel(lvlIdx); }
+  function startGame(){
+    var startFrom=Math.min(save.max, LEVELS.length-1);
+    if(save.max>=LEVELS.length) startFrom=0;
+    loadLevel(startFrom);
+  }
+  document.getElementById('playBtn').addEventListener('click', function(){ sClick(); startGame(); });
+  document.getElementById('goBtn').addEventListener('click', function(){ release(); });
+  document.getElementById('resetBtn').addEventListener('click', function(){ sClick(); resetLevel(); });
+  document.getElementById('undoBtn').addEventListener('click', function(){ undo(); });
+  document.getElementById('menuBtn').addEventListener('click', function(){ sClick(); showTitle(); });
+  document.getElementById('winMenuBtn').addEventListener('click', function(){ sClick(); showTitle(); });
+  document.getElementById('replayBtn').addEventListener('click', function(){ sClick(); loadLevel(lvlIdx); });
+  document.getElementById('nextBtn').addEventListener('click', function(){
+    sClick();
+    if(lvlIdx>=LEVELS.length-1) loadLevel(0); else loadLevel(lvlIdx+1);
+  });
+
+  function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function line(a,b,c,d){ ctx.beginPath(); ctx.moveTo(a,b); ctx.lineTo(c,d); ctx.stroke(); }
+
+  function drawSky(t){
+    var p=SKYS[lvlIdx%SKYS.length];
+    var g=ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,p[0]); g.addColorStop(0.55,p[1]); g.addColorStop(1,p[2]);
+    ctx.fillStyle=g; ctx.fillRect(-24,-24,W+48,H+48);
+    ctx.save(); ctx.globalAlpha=0.5;
+    var sun=ctx.createRadialGradient(W*0.78,H*0.32,10,W*0.78,H*0.32,190);
+    sun.addColorStop(0,'rgba(255,240,205,0.85)'); sun.addColorStop(1,'rgba(255,240,205,0)');
+    ctx.fillStyle=sun; ctx.fillRect(-24,-24,W+48,H+48);
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha=0.22; ctx.fillStyle='#2e2745';
+    ctx.beginPath(); ctx.moveTo(0,H+30);
+    for(var x=0;x<=W;x+=16) ctx.lineTo(x, 380+Math.sin(x*0.006+1.3)*42+Math.sin(x*0.017)*16);
+    ctx.lineTo(W,H+30); ctx.fill();
+    ctx.globalAlpha=0.3;
+    ctx.beginPath(); ctx.moveTo(0,H+30);
+    for(x=0;x<=W;x+=16) ctx.lineTo(x, 460+Math.sin(x*0.008+4.1)*36+Math.sin(x*0.021+1)*12);
+    ctx.lineTo(W,H+30); ctx.fill(); ctx.restore();
+    for(var i=0;i<flies.length;i++){ var fl=flies[i];
+      fl.x+=fl.dx*0.004*60/60 + Math.sin(t*fl.s+fl.p)*0.3;
+      fl.y+=Math.cos(t*fl.s*0.8+fl.p)*0.25;
+      if(fl.x<0)fl.x+=W; if(fl.x>W)fl.x-=W;
+      var a=(0.25+0.55*Math.abs(Math.sin(t*1.4+fl.p)));
+      ctx.fillStyle='rgba(255,225,160,'+a.toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(fl.x,fl.y,1.8+fl.s,0,6.283); ctx.fill(); }
+  }
+  function dynNow(){ var lv=LEVELS[lvlIdx]; return dynSegs(lv, st?st.t:0); }
+  function drawWorld(t){
+    var lv=LEVELS[lvlIdx];
+    ctx.save();
+    for(var i=0;i<(lv.fans||[]).length;i++){ var f=lv.fans[i];
+      var g=ctx.createLinearGradient(0,f.y,0,f.y+f.h);
+      g.addColorStop(0,'rgba(200,240,235,0.05)');
+      g.addColorStop(0.5,'rgba(200,240,235,0.20)');
+      g.addColorStop(1,'rgba(200,240,235,0.05)');
+      ctx.fillStyle=g; ctx.fillRect(f.x,f.y,f.w,f.h);
+      ctx.strokeStyle='rgba(225,250,245,0.5)'; ctx.lineWidth=3; ctx.lineCap='round';
+      for(var k=0;k<5;k++){ var yy=f.y+f.h - (((t*90 + k*75) % (f.h+60)) - 30);
+        var cx=f.x+f.w/2 + Math.sin(t*2+k)*14;
+        if(yy>f.y+8 && yy<f.y+f.h-8){
+          line(cx-12,yy+9,cx,yy-6); line(cx+12,yy+9,cx,yy-6); } } }
+    var dyn=dynNow();
+    for(i=0;i<dyn.length;i++){ var s=dyn[i];
+      if(s.kind==='mover'){
+        ctx.lineCap='round';
+        ctx.strokeStyle='#4a4058'; ctx.lineWidth=12; line(s.x1,s.y1,s.x2,s.y2);
+        ctx.strokeStyle='#6f6288'; ctx.lineWidth=4;
+        var mx=(s.x1+s.x2)/2, my=(s.y1+s.y2)/2;
+        var dx=s.x2-s.x1, dy=s.y2-s.y1, L=Math.hypot(dx,dy)||1;
+        var nx=-dy/L*4, ny=dx/L*4; if(ny>0){nx=-nx;ny=-ny;}
+        line(s.x1+nx,s.y1+ny,s.x2+nx,s.y2+ny);
+      } }
+    if(lv.movers && lv.movers.length){
+      var m=lv.movers[0], o=moverOff(m,st?st.t:0);
+      if(lv.arrive && lv.arrive.cx===0){
+        ctx.save(); ctx.globalAlpha=0.5; ctx.strokeStyle='#7a6a4a'; ctx.lineWidth=3;
+        for(var wx=-20; wx<=20; wx+=40){
+          ctx.beginPath(); ctx.arc(m.bx+o+wx, m.by+58, 11, 0, 6.283); ctx.stroke(); }
+        ctx.restore();
+        var lg=ctx.createRadialGradient(m.bx+o,m.by+22,4,m.bx+o,m.by+22,50);
+        lg.addColorStop(0,'rgba(255,215,130,0.55)'); lg.addColorStop(1,'rgba(255,215,130,0)');
+        ctx.fillStyle=lg; ctx.beginPath(); ctx.arc(m.bx+o,m.by+22,50,0,6.283); ctx.fill();
+      } else {
+        var px=m.bx+m.amp+(lv.arrive?lv.arrive.cx:100);
+        ctx.fillStyle='rgba(122,104,78,0.5)';
+        rr(px-30, m.by+44, 60, 10, 5); ctx.fill();
+        rr(px-22, m.by+52, 8, 96, 4); ctx.fill();
+        rr(px+14, m.by+52, 8, 96, 4); ctx.fill();
+      }
+    }
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    for(i=0;i<lv.segs.length;i++){ var w=lv.segs[i];
+      if(w.kind==='spike'){
+        ctx.strokeStyle='#c04b5c'; ctx.lineWidth=4;
+        ctx.shadowColor='rgba(192,75,92,0.6)'; ctx.shadowBlur=6;
+        line(w.x1,w.y1,w.x2,w.y2); ctx.shadowBlur=0;
+      } else if(w.kind==='pad'){
+        ctx.strokeStyle='#2fb8a6'; ctx.lineWidth=11;
+        ctx.shadowColor='rgba(60,220,200,0.7)'; ctx.shadowBlur=16;
+        line(w.x1,w.y1,w.x2,w.y2); ctx.shadowBlur=0;
+        ctx.strokeStyle='rgba(220,255,250,0.75)'; ctx.lineWidth=3;
+        line(w.x1,w.y1,w.x2,w.y2);
+      } else {
+        ctx.strokeStyle='#453f58'; ctx.lineWidth=13;
+        line(w.x1,w.y1,w.x2,w.y2);
+        var ddx=w.x2-w.x1, ddy=w.y2-w.y1, LL=Math.hypot(ddx,ddy)||1;
+        var nX=-ddy/LL*5, nY=ddx/LL*5; if(nY>0){nX=-nX;nY=-nY;}
+        ctx.strokeStyle='#71688a'; ctx.lineWidth=3.5;
+        line(w.x1+nX,w.y1+nY,w.x2+nX,w.y2+nY);
+      } }
+    var bs=lv.berries||[];
+    for(i=0;i<bs.length;i++){ if(st && st.berry[i]) continue;
+      var bx=bs[i][0], by=bs[i][1]+Math.sin(t*2+i)*2;
+      ctx.shadowColor='rgba(255,165,50,0.9)'; ctx.shadowBlur=14;
+      ctx.fillStyle='#f4a83c'; ctx.beginPath(); ctx.arc(bx,by,7.5,0,6.283); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(255,240,200,0.9)';
+      ctx.beginPath(); ctx.arc(bx-2.4,by-2.4,2.4,0,6.283); ctx.fill();
+      ctx.strokeStyle='#79a05a'; ctx.lineWidth=2; line(bx,by-7,bx+4,by-12); }
+    var goalP = lv.goal;
+    if(lv.arrive && lv.arrive.cx===0){
+      var mm=lv.movers[lv.arrive.mover], oo=moverOff(mm,st?st.t:0);
+      goalP=[mm.bx+oo, mm.by+22];
+    }
+    var pulse=0.75+0.25*Math.sin(t*2.4);
+    var gg=ctx.createRadialGradient(goalP[0],goalP[1],4,goalP[0],goalP[1],60*pulse);
+    gg.addColorStop(0,'rgba(255,225,150,0.75)'); gg.addColorStop(1,'rgba(255,225,150,0)');
+    ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(goalP[0],goalP[1],60*pulse,0,6.283); ctx.fill();
+    ctx.strokeStyle='rgba(120,95,60,0.9)'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(goalP[0],goalP[1],13,0,6.283); ctx.stroke();
+    ctx.fillStyle='rgba(255,232,170,0.95)';
+    ctx.beginPath(); ctx.arc(goalP[0],goalP[1],8.5,0,6.283); ctx.fill();
+    ctx.strokeStyle='rgba(120,95,60,0.8)'; ctx.lineWidth=2;
+    line(goalP[0]-13,goalP[1],goalP[0]+13,goalP[1]);
+    line(goalP[0],goalP[1]-13,goalP[0],goalP[1]+13);
+    for(i=0;i<strokes.length;i++) drawStroke(strokes[i],1);
+    if(drawing) drawStroke(drawing,1);
+  }
+  function drawStroke(p,a){
+    if(p.length<2) return;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.strokeStyle='rgba(45,41,60,'+(0.85*a)+')'; ctx.lineWidth=7;
+    ctx.beginPath(); ctx.moveTo(p[0].x,p[0].y);
+    for(var i=1;i<p.length;i++) ctx.lineTo(p[i].x,p[i].y);
+    ctx.stroke();
+    ctx.strokeStyle='rgba(90,82,112,'+(0.5*a)+')'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(p[0].x,p[0].y-1.6);
+    for(i=1;i<p.length;i++) ctx.lineTo(p[i].x,p[i].y-1.6);
+    ctx.stroke();
+  }
+  function drawBall(t){
+    if(mode==='title'||mode==='won') return;
+    if(mode==='dying') return;
+    if(mode==='ready'){
+      var bob=Math.sin(t*2.2)*3.5;
+      ctx.save(); ctx.globalAlpha=0.35;
+      ctx.strokeStyle='#ffe9b8'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(st.x,st.y+bob,R+5+Math.sin(t*3)*2,0,6.283); ctx.stroke();
+      ctx.restore();
+      paintBall(st.x, st.y+bob);
+    } else {
+      paintBall(st.x, st.y);
+    }
+  }
+  function paintBall(x,y){
+    var g=ctx.createRadialGradient(x-4,y-5,2,x,y,R);
+    g.addColorStop(0,'#fdfaf2'); g.addColorStop(0.7,'#ded2bd'); g.addColorStop(1,'#b3a48c');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,R,0,6.283); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.arc(x-3.6,y-4.4,2.6,0,6.283); ctx.fill();
+  }
+  function drawFx(dt,t){
+    if(mode==='flying'){ trail.push({x:st.x,y:st.y,a:1});
+      if(Math.random()<0.5) particles.push({x:st.x+(Math.random()-.5)*6,y:st.y+(Math.random()-.5)*6,
+        vx:0,vy:0,life:0.35,age:0,c:'255,205,130',s:1.6}); }
+    for(var i=trail.length-1;i>=0;i--){ trail[i].a-=dt*2.6;
+      if(trail[i].a<=0) trail.splice(i,1); }
+    for(i=0;i<trail.length;i++){ var tr=trail[i];
+      ctx.fillStyle='rgba(255,195,110,'+(tr.a*0.4).toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(tr.x,tr.y,R*tr.a*0.8,0,6.283); ctx.fill(); }
+    for(i=particles.length-1;i>=0;i--){ var p=particles[i];
+      p.age+=dt; if(p.age>=p.life){ particles.splice(i,1); continue; }
+      p.vy+=260*dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
+      var a=1-p.age/p.life;
+      ctx.fillStyle='rgba('+p.c+','+(a*0.85).toFixed(3)+')';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.s*a+0.4,0,6.283); ctx.fill(); }
+  }
+  var acc=0, last=performance.now();
+  function frame(now){
+    var dt=Math.min(0.05,(now-last)/1000); last=now;
+    var t=now/1000;
+    ctx.setTransform(1,0,0,1,0,0);
+    if(shakeT>0){ shakeT-=dt;
+      var env=Math.max(0,shakeT/0.35);
+      shX=(Math.random()-0.5)*shakeMag*env*2; shY=(Math.random()-0.5)*shakeMag*env*2; }
+    else { shX=0; shY=0; }
+    ctx.translate(shX, shY);
+    drawSky(t);
+    if(mode!=='title') drawWorld(t);
+    drawBall(t);
+    drawFx(dt,t);
+    ctx.setTransform(1,0,0,1,0,0);
+    if(flash>0){ flash-=dt;
+      ctx.fillStyle='rgba('+flashColor+','+(Math.max(0,flash)*0.8).toFixed(3)+')';
+      ctx.fillRect(0,0,W,H); }
+    if(mode==='flying'){
+      acc+=dt; var sdt=1/240;
+      while(acc>1/240 && mode==='flying'){ step(st,LEVELS[lvlIdx],drawnSegs(),sdt); acc-=sdt; onEvent(); syncHud(); }
+    }
+    if(mode==='dying'){ respawnT-=dt;
+      if(respawnT<=0){ newBall(); mode='ready'; syncHud(); } }
+    if(hintT>0){ hintT-=dt; if(hintT<=0){ document.getElementById('hint').style.opacity=0; } }
+    requestAnimationFrame(frame);
+  }
+  showTitle();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

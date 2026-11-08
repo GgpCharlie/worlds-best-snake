@@ -1,0 +1,3337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#07051a">
+<link rel="icon" href="data:,">
+<title>Prism Path — bend light, mix colour</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    height:100%; width:100%;
+    background:#07051a;
+    overflow:hidden;
+    font-family:'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+    color:#e9e6ff;
+    -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none;
+    touch-action:manipulation;
+    overscroll-behavior:none;
+  }
+  #cv { position:absolute; inset:0; display:block; }
+
+  /* ---------- shared chrome ---------- */
+  .chip {
+    font-family:inherit; font-size:14px; color:#dfe6ff;
+    background:rgba(28,24,62,.72);
+    border:1px solid rgba(150,170,255,.24);
+    border-radius:999px; padding:9px 15px; min-height:44px;
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    cursor:pointer; letter-spacing:.03em;
+    transition:transform .12s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  }
+  .chip.icon { width:44px; padding:0; font-size:17px; }
+  .chip:hover { background:rgba(56,48,116,.85); border-color:rgba(180,200,255,.5); transform:translateY(-1px); }
+  .chip:active { transform:translateY(0) scale(.96); }
+  .chip[disabled] { opacity:.38; cursor:default; transform:none; }
+  .chip.primary {
+    background:linear-gradient(135deg,#7fe3ff,#8aa6ff); color:#08122a; font-weight:700;
+    border-color:transparent; box-shadow:0 8px 26px rgba(110,190,255,.28);
+  }
+  .chip.primary:hover { box-shadow:0 12px 34px rgba(110,190,255,.42); }
+  .chip.ghost { background:rgba(255,255,255,.05); }
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline:2px solid #9be8ff; outline-offset:3px;
+  }
+  input { font-family:inherit; }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position:fixed; left:0; right:0; top:0;
+    padding:calc(8px + env(safe-area-inset-top)) 10px 0;
+    display:flex; align-items:center; gap:8px;
+    z-index:5; pointer-events:none;
+    opacity:0; transform:translateY(-14px);
+    transition:opacity .3s ease, transform .3s ease;
+  }
+  #hud > * { pointer-events:auto; }
+  #hud.on { opacity:1; transform:none; }
+  #hudCard {
+    flex:1; min-width:0; text-align:center;
+    background:rgba(16,13,40,.66); border:1px solid rgba(150,170,255,.2);
+    border-radius:14px; padding:6px 10px; backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+  }
+  #hudName { font-size:14px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:#cfe3ff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #hudStats { font-size:12.5px; color:#9fb0e0; letter-spacing:.05em; margin-top:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #hudStats b { color:#ffe9b0; font-weight:700; }
+
+  #legend {
+    position:fixed; left:50%; transform:translateX(-50%);
+    display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:center;
+    z-index:4; pointer-events:none; opacity:0; transition:opacity .3s ease;
+    max-width:calc(100vw - 16px);
+  }
+  #legend.on { opacity:1; }
+  .leg {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:11.5px; letter-spacing:.04em; color:#c9d4f5;
+    background:rgba(14,12,36,.62); border:1px solid rgba(140,160,240,.18);
+    border-radius:999px; padding:3px 9px; white-space:nowrap;
+  }
+  .leg i, .mix i { width:9px; height:9px; border-radius:50%; display:inline-block; box-shadow:0 0 7px currentColor; }
+
+  #tools {
+    position:fixed; left:0; right:0; bottom:0;
+    padding:0 10px calc(10px + env(safe-area-inset-bottom));
+    display:flex; gap:8px; justify-content:center; z-index:5;
+    opacity:0; transform:translateY(16px); pointer-events:none;
+    transition:opacity .3s ease, transform .3s ease;
+  }
+  #tools.on { opacity:1; transform:none; pointer-events:auto; }
+  #tools .chip { flex:0 1 auto; }
+
+  #toast {
+    position:fixed; left:50%; bottom:calc(56px + env(safe-area-inset-bottom));
+    transform:translate(-50%,0);
+    background:rgba(20,16,48,.92); border:1px solid rgba(160,180,255,.3);
+    color:#e6ecff; font-size:13px; padding:9px 16px; border-radius:999px;
+    z-index:30; opacity:0; transition:opacity .25s ease, transform .25s ease;
+    pointer-events:none; max-width:calc(100vw - 24px); text-align:center;
+  }
+  #toast.on { opacity:1; transform:translate(-50%,-6px); }
+  #toast.top.on { transform:translate(-50%,6px); }
+
+  /* ---------- screens ---------- */
+  .screen {
+    position:fixed; inset:0; z-index:10;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom));
+    background:radial-gradient(120% 90% at 50% 12%, rgba(30,22,72,.86) 0%, rgba(6,5,20,.94) 60%, rgba(4,3,14,.97) 100%);
+    backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    opacity:0; visibility:hidden; transform:scale(.985);
+    transition:opacity .28s ease, transform .28s ease, visibility .28s;
+    overflow:hidden;
+  }
+  .screen.on { opacity:1; visibility:visible; transform:none; }
+  /* a panel that is fading out must not swallow a tap meant for the hall */
+  .screen:not(.on) { pointer-events:none; }
+  .screen.sheet { justify-content:flex-end; background:rgba(5,4,16,.72); }
+  .card {
+    width:min(560px, 100%);
+    background:linear-gradient(180deg, rgba(30,26,66,.94), rgba(15,13,38,.96));
+    border:1px solid rgba(150,170,255,.22); border-radius:22px;
+    padding:20px 18px; text-align:center;
+    box-shadow:0 26px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  .sheet .card { border-radius:26px 26px 18px 18px; }
+  #s-free {
+    justify-content:flex-end; background:none;
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+    pointer-events:none; padding-bottom:calc(54px + env(safe-area-inset-bottom));
+  }
+  #s-free:not(.on) .card { pointer-events:none; }
+  #s-free .card {
+    pointer-events:auto; border-radius:24px 24px 14px 14px;
+    max-height:56vh; overflow:auto; overscroll-behavior:contain;
+  }
+  #palette { flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; overscroll-behavior:contain; scrollbar-width:none; }
+  #palette::-webkit-scrollbar { display:none; }
+  /* faded ends say "there is more this way" once the row has to scroll */
+  #palette.scrollable {
+    -webkit-mask-image:linear-gradient(90deg,rgba(0,0,0,.22),#000 24px,#000 calc(100% - 38px),rgba(0,0,0,.22));
+    mask-image:linear-gradient(90deg,rgba(0,0,0,.22),#000 24px,#000 calc(100% - 38px),rgba(0,0,0,.22));
+  }
+  @media (max-width:480px) {
+    #legend { gap:4px; width:calc(100vw - 16px); }
+    .leg { flex:0 0 calc(50% - 2px); justify-content:center; font-size:10px; padding:2px 6px; gap:3px; }
+    .leg i, .mix i { width:7px; height:7px; }
+    #hudStats { font-size:11.5px; letter-spacing:.02em; }
+    #s-free .card { padding:11px 12px; }
+    #s-free .body { display:none; }
+    #s-free .t2 { display:none; }   /* the hall already says Free Play up top */
+    #s-free .row { gap:6px; }
+  }
+  /* the title screen is a window onto the live hall, so no opaque panel here */
+  #s-title {
+    background:none;
+    backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);
+  }
+  #s-title::before {
+    content:''; position:absolute; left:0; right:0; top:0; height:64%; pointer-events:none;
+    background:linear-gradient(180deg,rgba(6,5,20,.62),rgba(6,5,20,.18) 58%,rgba(6,5,20,0));
+  }
+  #s-title .chip { box-shadow:0 6px 22px rgba(4,3,14,.62); }
+  #s-title .chip.ghost { background:rgba(13,11,32,.82); }
+  #titleTotals { background:rgba(8,7,22,.62); border-radius:999px; padding:4px 14px; }
+  #s-title .t3 { text-shadow:0 2px 16px rgba(4,3,14,.95); }
+  /* a solved hall is the reward, so it keeps glowing behind these cards */
+  #s-win { background:radial-gradient(120% 92% at 50% 14%,rgba(30,22,72,.4),rgba(6,5,20,.76) 62%,rgba(4,3,14,.85)); }
+  #s-pause { background:radial-gradient(120% 92% at 50% 14%,rgba(30,22,72,.5),rgba(6,5,20,.8) 62%,rgba(4,3,14,.88)); }
+  .t1 { font-size:clamp(38px,10vw,66px); font-weight:800; letter-spacing:.1em; line-height:1;
+    background:linear-gradient(100deg,#ff7d7d 0%,#ffd47a 26%,#8affb4 50%,#7fd6ff 74%,#e08bff 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 6px 26px rgba(150,160,255,.35)); }
+  .t2 { font-size:clamp(19px,4.6vw,27px); font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#e8edff; }
+  .t3 { font-size:13px; letter-spacing:.22em; text-transform:uppercase; color:#8ea0d8; }
+  .body { font-size:14px; line-height:1.55; color:#c3cdef; }
+  .row { display:flex; gap:9px; justify-content:center; flex-wrap:wrap; }
+  .col { display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .divider { height:1px; background:linear-gradient(90deg,transparent,rgba(160,180,255,.28),transparent); margin:12px 0; }
+  .how { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .how > div {
+    flex:1 1 130px; max-width:170px; background:rgba(255,255,255,.045);
+    border:1px solid rgba(150,170,255,.16); border-radius:16px; padding:12px 10px;
+  }
+  .how canvas { display:block; margin:0 auto 8px; }
+  .how h4 { font-size:13px; letter-spacing:.06em; color:#fff; margin-bottom:4px; }
+  .how p { font-size:12px; color:#a9b6e2; line-height:1.45; }
+  .mixrow { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+  .mix { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#d5ddfa;
+    background:rgba(255,255,255,.05); border:1px solid rgba(150,170,255,.16); border-radius:999px; padding:5px 10px; }
+  .dot { width:11px; height:11px; border-radius:50%; display:inline-block; box-shadow:0 0 8px currentColor; }
+
+  /* difficulty cards */
+  .diffs { display:flex; flex-direction:column; gap:9px; width:100%; }
+  .diff {
+    text-align:left; cursor:pointer; font-family:inherit; color:#e9ecff;
+    background:rgba(255,255,255,.045); border:1px solid rgba(150,170,255,.2);
+    border-radius:16px; padding:11px 14px; min-height:44px; width:100%;
+    transition:background .16s ease, transform .12s ease, border-color .16s ease;
+  }
+  .diff:hover { background:rgba(90,110,220,.22); transform:translateY(-1px); border-color:rgba(180,200,255,.44); }
+  .diff.sel { border-color:#9be8ff; background:rgba(70,120,200,.26); box-shadow:0 0 0 1px rgba(155,232,255,.4) inset; }
+  .diff b { display:block; font-size:15px; letter-spacing:.05em; }
+  .diff span { display:block; font-size:12px; color:#a7b4e0; line-height:1.45; margin-top:3px; }
+
+  /* level grid */
+  .lvGrid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin:5px 0 1px; }
+  .lv {
+    position:relative; font-family:inherit; cursor:pointer; color:#eaf0ff;
+    border:1px solid rgba(150,170,255,.2); background:rgba(255,255,255,.05);
+    border-radius:13px; min-height:44px; padding:4px 2px 3px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    transition:transform .12s ease, background .16s ease, border-color .16s ease;
+  }
+  .lv b { font-size:15px; line-height:1; }
+  .lv i { font-size:10px; line-height:1; letter-spacing:-1px; color:#5f5a8e; font-style:normal; }
+  .lv.done { border-color:rgba(255,210,120,.42); background:rgba(255,190,90,.1); }
+  .lv.next { border-color:#9be8ff; box-shadow:0 0 0 1px rgba(155,232,255,.5) inset, 0 0 18px rgba(110,190,255,.22); }
+  .lv:hover { transform:translateY(-2px); background:rgba(120,140,240,.22); }
+  .lv[disabled] { opacity:.34; cursor:default; transform:none; }
+  .chapterHead { display:flex; align-items:baseline; gap:8px; margin:9px 0 1px; justify-content:flex-start; }
+  .chapterHead b { font-size:14px; letter-spacing:.1em; text-transform:uppercase; color:#ffe0a8; }
+  .chapterHead span { font-size:12px; color:#8ea0d8; }
+  #lvScroll { width:100%; max-height:min(70vh, 620px); overflow-y:auto; overflow-x:hidden; padding:2px 4px 4px;
+    scrollbar-width:thin; scrollbar-color:rgba(150,170,255,.4) transparent; -webkit-overflow-scrolling:touch; }
+  #lvScroll::-webkit-scrollbar { width:6px; }
+  /* the list is tall on small screens: fade the bottom so it reads as scrollable */
+  #lvScroll.scrollable {
+    -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 46px),rgba(0,0,0,.3));
+    mask-image:linear-gradient(180deg,#000 calc(100% - 46px),rgba(0,0,0,.3));
+  }
+  #lvScroll::-webkit-scrollbar-thumb { background:rgba(150,170,255,.35); border-radius:6px; }
+
+  /* settings */
+  .setRow { display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:7px 2px; font-size:14px; color:#dbe2ff; }
+  .setRow small { display:block; font-size:11.5px; color:#8ea0d8; }
+  .tog { min-width:76px; }
+  .tog[aria-pressed="true"] { background:rgba(90,200,160,.24); border-color:rgba(120,255,200,.5); color:#d7ffe9; }
+  .codeIn {
+    flex:1; min-width:0; background:rgba(8,10,28,.9); color:#d8e6ff; font-size:12.5px;
+    border:1px solid rgba(150,170,255,.26); border-radius:12px; padding:11px 12px; min-height:44px;
+    letter-spacing:.05em; -webkit-user-select:text; user-select:text;
+  }
+
+  /* win panel */
+  #winStars { font-size:46px; letter-spacing:.16em; height:56px; line-height:56px; }
+  #winStars span { display:inline-block; color:#4a4370; transform:scale(.3); opacity:0; }
+  #winStars span.lit { color:#ffd06e; text-shadow:0 0 22px rgba(255,200,90,.85); transform:scale(1); opacity:1;
+    transition:transform .34s cubic-bezier(.2,1.7,.4,1), opacity .2s ease; }
+  #winPanel, #pauseCard { transform:translateY(26px); opacity:0; transition:transform .4s cubic-bezier(.2,.9,.3,1), opacity .4s ease; }
+  #s-win.on #winPanel, #s-pause.on #pauseCard { transform:none; opacity:1; }
+  #winStats { font-size:13.5px; color:#b9c4ea; margin-top:2px; }
+  #winStats b { color:#fff; }
+  .badge { display:inline-block; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:#ffe9b0; border:1px solid rgba(255,210,130,.4); border-radius:999px; padding:4px 11px; }
+  .lockline { font-size:12.5px; color:#ff9fb2; letter-spacing:.06em; }
+
+  .hidden { display:none !important; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+  body.contrast .screen { background:#000; }
+  body.contrast .card { background:#101018; border-color:#7f8bff; }
+  body.contrast .chip { background:#161624; border-color:#9aa6ff; color:#fff; }
+  body.contrast #hudCard { background:#0b0b16; border-color:#9aa6ff; }
+  body.contrast #legend { background:rgba(0,0,0,.85); border-radius:12px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration:.01ms !important; animation-duration:.01ms !important; }
+  }
+  @media (max-height:470px) {
+    .card { padding:14px 14px; border-radius:18px; }
+    .t1 { font-size:clamp(30px,7vh,44px); }
+    .how > div { padding:8px; }
+    #winStars { font-size:34px; height:42px; line-height:42px; }
+    .setRow { padding:5px 2px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="Prism Path puzzle board"></canvas>
+
+<header id="hud" aria-hidden="true">
+  <button class="chip icon" id="bMenu" aria-label="Menu">☰</button>
+  <div id="hudCard">
+    <div id="hudName">Prism Path</div>
+    <div id="hudStats"></div>
+  </div>
+  <button class="chip icon" id="bUndoTop" aria-label="Undo last rotation">↺</button>
+  <button class="chip icon" id="bHint" aria-label="Hint">✧</button>
+</header>
+
+<div id="legend" aria-hidden="true"></div>
+
+<nav id="tools" aria-label="Puzzle controls">
+  <button class="chip" id="bUndo" aria-label="Undo last rotation">↺ Undo</button>
+  <button class="chip" id="bRestart" aria-label="Restart level">⟳ Restart</button>
+  <button class="chip" id="bLevels" aria-label="Back to level select">▦ Levels</button>
+</nav>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- TITLE -->
+<section class="screen" id="s-title" aria-label="Title screen">
+  <div class="t1">PRISM&nbsp;PATH</div>
+  <div class="t3">bend light · mix colour · light every jewel</div>
+  <div class="col" style="margin-top:14px">
+    <button class="chip primary" id="bPlay" aria-label="Play Prism Path" style="min-width:220px">▶ Play</button>
+    <button class="chip" id="bDaily" aria-label="Play the Path of the Day" style="min-width:220px">☄ Path of the Day</button>
+    <button class="chip" id="bFree" aria-label="Open the Free Play sandbox" style="min-width:220px">⬡ Free Play</button>
+    <div class="row">
+      <button class="chip ghost" id="bHow" aria-label="How to play">? How to play</button>
+      <button class="chip ghost" id="bSet1" aria-label="Settings">⚙ Settings</button>
+    </div>
+  </div>
+  <div class="t3" id="titleTotals" style="margin-top:10px"></div>
+</section>
+
+<!-- HOW TO -->
+<section class="screen" id="s-howto" aria-label="How to play">
+  <div class="card">
+    <div class="t2">How to play</div>
+    <div class="how" id="howRow"></div>
+    <div class="divider"></div>
+    <div class="t3" style="margin-bottom:6px">Light mixing — additive</div>
+    <div class="mixrow" id="mixLegend"></div>
+    <p class="body" style="margin-top:10px;font-size:12.5px">
+      Gels <i>add</i> their colour to any beam. A jewel only lights for the exact colour it asks for.
+      Every colour has its own shape, so you never have to guess by hue.
+    </p>
+    <div class="divider"></div>
+    <div class="row">
+      <button class="chip primary" id="bHowNext" aria-label="Choose difficulty">Choose difficulty →</button>
+      <button class="chip ghost" id="bHowBack" aria-label="Back to title">← Back</button>
+    </div>
+  </div>
+</section>
+
+<!-- DIFFICULTY -->
+<section class="screen" id="s-diff" aria-label="Choose difficulty">
+  <div class="card">
+    <div class="t2">Choose your path</div>
+    <p class="body" style="margin:6px 0 12px">Difficulty changes help, target moves and light — pick again any time from Levels.</p>
+    <div class="diffs" id="diffRow"></div>
+    <div class="divider"></div>
+    <div class="row">
+      <button class="chip primary" id="bDiffGo" aria-label="Continue to level select">Continue →</button>
+      <button class="chip ghost" id="bDiffBack" aria-label="Back">← Back</button>
+    </div>
+  </div>
+</section>
+
+<!-- LEVELS -->
+<section class="screen" id="s-levels" aria-label="Level select">
+  <div class="card" style="width:min(620px,100%)">
+    <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+      <div class="t2" style="font-size:clamp(16px,4vw,22px)">Levels</div>
+      <button class="chip" id="bDiffPill" aria-label="Change difficulty">🔦 Artisan</button>
+    </div>
+    <div id="lvScroll"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="chip" id="bDaily2" aria-label="Play the Path of the Day">☄ Path of the Day</button>
+      <button class="chip ghost" id="bFree2" aria-label="Open Free Play">⬡ Free Play</button>
+      <button class="chip ghost" id="bLevBack" aria-label="Back to title">← Title</button>
+    </div>
+  </div>
+</section>
+
+<!-- PAUSE / MENU SHEET -->
+<section class="screen sheet" id="s-pause" aria-label="Menu">
+  <div class="card" id="pauseCard">
+    <div class="t2" id="pauseTitle">Paused</div>
+    <div class="col" style="margin-top:12px;gap:10px">
+      <button class="chip primary" id="bResume" aria-label="Resume playing" style="min-width:230px">▶ Resume</button>
+      <div class="row" style="width:100%">
+        <button class="chip" id="bRestart2" aria-label="Restart this level" style="flex:1 1 44%;min-width:0">⟳ Restart</button>
+        <button class="chip" id="bLevels2" aria-label="Level select" style="flex:1 1 44%;min-width:0">▦ Levels</button>
+        <button class="chip" id="bSet2" aria-label="Settings" style="flex:1 1 44%;min-width:0">⚙ Settings</button>
+        <button class="chip ghost" id="bQuit" aria-label="Quit to title" style="flex:1 1 44%;min-width:0">⏹ Quit</button>
+      </div>
+    </div>
+    <div id="shareBox" class="hidden" style="margin-top:12px">
+      <div class="divider"></div>
+      <div class="t3" style="margin-bottom:7px">Share this board</div>
+      <div class="row" style="gap:7px">
+        <input class="codeIn" id="shareOut" readonly aria-label="Share code for this board" spellcheck="false">
+        <button class="chip" id="bCopy" aria-label="Copy share code">Copy</button>
+      </div>
+      <div class="row" style="gap:7px;margin-top:7px">
+        <input class="codeIn" id="shareIn" placeholder="paste a share code" aria-label="Paste a share code to import" spellcheck="false">
+        <button class="chip" id="bImport" aria-label="Import share code">Import</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section class="screen" id="s-settings" aria-label="Settings">
+  <div class="card">
+    <div class="t2">Settings</div>
+    <div style="margin-top:10px;text-align:left" id="setRows"></div>
+    <div class="divider"></div>
+    <div class="row">
+      <button class="chip ghost" id="bResetAll" aria-label="Reset all progress">🗑 Reset progress</button>
+      <button class="chip primary" id="bSetBack" aria-label="Close settings">Done</button>
+    </div>
+    <p class="body" style="font-size:11.5px;margin-top:10px;color:#7f8bc0">Progress saves on this device only. Prism Path makes no network requests.</p>
+  </div>
+</section>
+
+<!-- WIN -->
+<section class="screen" id="s-win" aria-label="Level complete">
+  <div class="card" id="winPanel">
+    <div class="badge" id="winBadge">Solved</div>
+    <div id="winStars" aria-label="Stars earned"><span>★</span><span>★</span><span>★</span></div>
+    <div class="t2" id="winName">Level</div>
+    <div id="winStats"></div>
+    <div class="divider"></div>
+    <div class="row" id="winBtns">
+      <button class="chip primary" id="bNext" aria-label="Next level">Next →</button>
+      <button class="chip" id="bReplay" aria-label="Replay this level">⟳ Replay</button>
+      <button class="chip ghost" id="bWinLevels" aria-label="Level select">▦ Levels</button>
+    </div>
+  </div>
+</section>
+
+<!-- FREE PLAY palette -->
+<section class="screen" id="s-free" aria-label="Free Play palette">
+  <div class="card" style="padding:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div class="t2" style="font-size:17px">Free Play</div>
+      <div class="row" style="gap:7px">
+        <button class="chip" id="bFreeRand" aria-label="Generate a random board">⚄ Random</button>
+        <button class="chip" id="bFreeClear" aria-label="Clear the board">Clear</button>
+        <button class="chip ghost" id="bFreeDone" aria-label="Leave Free Play">Done</button>
+      </div>
+    </div>
+    <div id="palette" class="row" style="margin-top:10px;gap:6px"></div>
+    <div class="row" style="margin-top:9px;gap:7px">
+      <input class="codeIn" id="fpOut" readonly aria-label="Share code for this board" spellcheck="false">
+      <button class="chip" id="bFreeCopy" aria-label="Copy share code">Copy</button>
+    </div>
+    <div class="row" style="margin-top:7px;gap:7px">
+      <input class="codeIn" id="fpIn" placeholder="paste a share code" aria-label="Paste a share code to import" spellcheck="false">
+      <button class="chip" id="bFreeImport" aria-label="Import share code">Import</button>
+    </div>
+    <p class="body" id="fpHint" style="font-size:11.5px;margin-top:8px;color:#8ea0d8">Pick a tile, tap the grid to place it, tap again to rotate. Share codes hold any board — no internet needed.</p>
+  </div>
+</section>
+
+<script>
+/* ============================================================================
+   PRISM PATH — bend light, mix colour, light every jewel.
+   Single file, no network, no assets. Sections:
+     1 utilities  2 preferences  3 audio  4 colours+tiles  5 levels
+     6 beam engine  7 run state  8 share codes + daily  9 effects
+    10 renderer   11 layout     12 input   13 screens     14 free play
+    15 __qa       16 boot
+   ============================================================================ */
+(function () {
+'use strict';
+
+/* ── 1 ─ utilities ────────────────────────────────────────────────────────── */
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = (t) => 1 - Math.pow(1 - t, 3);
+const TAU = Math.PI * 2;
+const RM = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+
+function hashStr(s) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+function rngFrom(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function dayKey() {
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+
+/* ── 2 ─ preferences ──────────────────────────────────────────────────────── */
+const PKEY = 'prism.v1.progress';
+const DEFAULTS = {
+  stars: {}, best: {}, diff: 'artisan', seen: false,
+  sound: true, music: true, motion: 'auto', contrast: false, cbr: false,
+};
+let prefs = {};
+function loadPrefs() {
+  prefs = {};
+  for (const k in DEFAULTS) prefs[k] = DEFAULTS[k];
+  try {
+    const raw = localStorage.getItem(PKEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        for (const k in DEFAULTS) if (obj[k] !== undefined) prefs[k] = obj[k];
+        if (!prefs.stars || typeof prefs.stars !== 'object') prefs.stars = {};
+      }
+    }
+  } catch (e) { /* storage unavailable — play unsaved */ }
+  if (!DIFFS[prefs.diff]) prefs.diff = 'artisan';
+}
+function savePrefs() {
+  try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch (e) { /* ignore */ }
+}
+const reducedMotion = () => prefs.motion === 'off' || (prefs.motion === 'auto' && RM.matches);
+
+/* ── 3 ─ audio ───────────────────────────────────────────────────────────── */
+const SCALE = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99, 880.0, 987.77, 1046.5];
+const COLPITCH = { 0: 0, 1: 0, 2: 2, 4: 3, 3: 5, 5: 6, 6: 7, 7: 9 };
+
+const A = {
+  ctx: null, master: null, padGain: null, padBase: [], layers: {}, ready: false,
+  init() {
+    if (A.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      A.ctx = new AC();
+      A.master = A.ctx.createGain();
+      A.master.gain.value = prefs.sound || prefs.music ? 0.9 : 0;
+      A.master.connect(A.ctx.destination);
+      A.padGain = A.ctx.createGain();
+      A.padGain.gain.value = 0;
+      const filt = A.ctx.createBiquadFilter();
+      filt.type = 'lowpass'; filt.frequency.value = 620; filt.Q.value = 2.5;
+      A.padGain.connect(filt); filt.connect(A.master);
+      const lfo = A.ctx.createOscillator(), lg = A.ctx.createGain();
+      lfo.frequency.value = 0.07; lg.gain.value = 190;
+      lfo.connect(lg); lg.connect(filt.frequency); lfo.start();
+      [55, 82.5, 110, 164.8].forEach((f, i) => {
+        const o = A.ctx.createOscillator(), g = A.ctx.createGain();
+        o.type = i % 2 ? 'triangle' : 'sawtooth';
+        o.frequency.value = f * (1 + (i - 1.5) * 0.002);
+        g.gain.value = i === 3 ? 0.05 : 0.16;
+        o.connect(g); g.connect(A.padGain); o.start();
+        A.padBase.push(o);
+      });
+      A.padFilter = filt;
+      A.ready = true;
+      A.pad(prefs.music ? 1 : 0);
+    } catch (e) { A.ctx = null; }
+  },
+  resume() { if (A.ctx && A.ctx.state === 'suspended') { try { A.ctx.resume(); } catch (e) {} } },
+  pad(on) {
+    if (!A.ready) return;
+    const t = A.ctx.currentTime;
+    A.padGain.gain.cancelScheduledValues(t);
+    A.padGain.gain.setTargetAtTime(on ? (prefs.music ? 0.1 : 0) : 0, t, 0.6);
+  },
+  layer(i, freq, on) {
+    if (!A.ready || !prefs.music) return;
+    const key = 'L' + i;
+    let L = A.layers[key];
+    if (!L) {
+      if (!on) return;
+      const o = A.ctx.createOscillator(), g = A.ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = freq;
+      g.gain.value = 0; o.connect(g); g.connect(A.padGain); o.start();
+      L = A.layers[key] = { o, g };
+    }
+    const t = A.ctx.currentTime;
+    if (on && Math.abs(L.o.frequency.value - freq) > 0.5) L.o.frequency.setTargetAtTime(freq, t, 0.2);
+    L.g.gain.setTargetAtTime(on ? 0.075 : 0, t, on ? 0.25 : 0.5);
+  },
+  voice(freq, type, dur, peak, delay, glideTo) {
+    if (!A.ready || !prefs.sound) return;
+    const t = A.ctx.currentTime + (delay || 0);
+    const o = A.ctx.createOscillator(), g = A.ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + Math.min(0.02, dur * 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(A.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  },
+  tink(freq) {
+    A.voice(freq, 'triangle', 0.14, 0.16, 0);
+    A.voice(freq * 2.02, 'sine', 0.1, 0.07, 0.005);
+    A.voice(freq * 3.9, 'sine', 0.05, 0.03, 0);
+  },
+  bell(freq) {
+    A.voice(freq, 'sine', 1.0, 0.2, 0);
+    A.voice(freq * 2.01, 'sine', 0.55, 0.07, 0.01);
+    A.voice(freq * 3.02, 'sine', 0.3, 0.035, 0.02);
+  },
+  buzz() {
+    if (!A.ready || !prefs.sound) return;
+    A.voice(132, 'sawtooth', 0.16, 0.06, 0, 96);
+    A.voice(88, 'square', 0.12, 0.03, 0.02);
+  },
+  chord(freqs) {
+    for (let i = 0; i < freqs.length; i++) A.voice(freqs[i], 'triangle', 1.5, 0.11, i * 0.07);
+    A.voice(freqs[0] / 2, 'sine', 2.0, 0.1, 0.02);
+  },
+  sparkle() {
+    for (let i = 0; i < 5; i++) A.voice(SCALE[5 + (i % 6)], 'sine', 0.5, 0.05, i * 0.06);
+  },
+  ui(kind) {
+    if (kind === 'tap') A.tink(SCALE[2]);
+    else if (kind === 'back') A.tink(SCALE[0]);
+    else if (kind === 'place') A.tink(SCALE[4]);
+  },
+};
+const pitchOf = (col) => SCALE[COLPITCH[col & 7] || 0];
+
+/* ── 4 ─ colours + tiles ─────────────────────────────────────────────────── */
+const RED = 1, GRN = 2, BLU = 4, WHT = 7;
+const COLHEX = { 1: '#ff5a6e', 2: '#57e08a', 4: '#5aa2ff', 3: '#ffb648', 5: '#ff7ae0', 6: '#4fe4ff', 7: '#f4f0ff' };
+const COLDIM = { 1: '#4a1620', 2: '#123a24', 4: '#16264c', 3: '#4a3110', 5: '#45183c', 6: '#113c45', 7: '#3a3a52' };
+const COLNAME = { 1: 'RED', 2: 'GREEN', 4: 'BLUE', 3: 'AMBER', 5: 'MAGENTA', 6: 'CYAN', 7: 'WHITE' };
+const MIXFACTS = [
+  [RED, GRN, 3], [RED, BLU, 5], [GRN, BLU, 6], [RED, GRN, BLU, 7],
+];
+const SHAPE = { 1: '○', 2: '△', 4: '□', 3: '○△', 5: '○□', 6: '△□', 7: '✷' };
+
+const N = 0, E = 1, S = 2, W = 3;
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+const DIRCH = { U: N, R: E, D: S, L: W };
+const opposite = (d) => (d ^ 2);
+
+const KIT = {
+  empty: { name: 'Space', states: 1 },
+  block: { name: 'Void brick', states: 1, info: 'Swallows light' },
+  source: { name: 'Source', states: 1, info: 'Fires a beam' },
+  mirror: { name: 'Mirror', states: 2, info: 'Reflects 90°' },
+  twin: { name: 'Twin glass', states: 2, info: '✕ splits · + lets through' },
+  split: { name: 'Splitter', states: 2, info: '3 beams, 2 open faces' },
+  prism: { name: 'Prism', states: 4, info: 'White → R + G + B' },
+  gel: { name: 'Gel', states: 1, info: 'Adds its colour' },
+  mixer: { name: 'Mixer', states: 1, info: 'Combines, exits open faces' },
+  filter: { name: 'Filter', states: 4, info: 'Passes one colour only' },
+  valve: { name: 'Valve', states: 4, info: 'One-way, one direction' },
+  lumen: { name: 'Lumen', states: 1, info: 'Beam must pass through' },
+  secret: { name: 'Secret lumen', states: 1, info: 'Hidden — Luminary only' },
+  receptor: { name: 'Jewel', states: 1, info: 'Wants its exact colour' },
+};
+const FILTER_COLS = [RED, GRN, BLU, WHT];
+
+/* ── 5 ─ levels ──────────────────────────────────────────────────────────── */
+/* Maps are authored in the SOLVED arrangement. Tokens are space separated:
+   . space   # brick   / \ mirror   X twin✕ Y twin+   S split↔ T split↕
+   P0..P3 prism   R G B gel   M mixer   F0..F3 filter   V0..V3 valve
+   o lumen  O secret lumen  1..7 jewel (colour = red1 green2 blue4)
+   > < ^ v source (colour suffix r g b w)   "!" prefix = locked tile
+   Field p: path chains "x,y,inc,UDLR…" that auto-place the turn mirrors. */
+const LV = (n, name, ch, w, h, rows, extra) => Object.assign({ n, name, ch, w, h, rows }, extra || {});
+
+const LEVELS = [
+  /* ── Chapter One · Glassworks — mirrors, twin glass, void bricks ─────── */
+  LV(1, 'First Light', 1, 5, 5, [
+    '. . 7 . .',
+    '. . . . .',
+    '>w . . . .',
+    '. . . . .',
+    '. . . . .'], { p: ['0,2,-,R2U2'],
+      tip: 'Tap the mirror to spin it. Hold, right-click or Shift+Enter spin it back.' }),
+
+  LV(2, 'Two Turns', 1, 6, 5, [
+    '. . . . . .',
+    '>w . . . . .',
+    '. . . . . .',
+    '. . . . . 7',
+    '. . . . . .'], { p: ['0,1,-,R3D2R2'],
+      tip: 'Two mirrors, one beam. Every turn you touch costs a move.' }),
+
+  LV(3, 'Dead Glass', 1, 6, 5, [
+    '. . . . . 7',
+    '. . . . # .',
+    '>w . . # . .',
+    '. . . . . .',
+    '. . . . . .'], { p: ['0,2,-,R2U2R3'],
+      tip: 'Void brick swallows light. Steer around it.' }),
+
+  LV(4, 'Twin Sight', 1, 6, 5, [
+    '. . . . . .',
+    '. . . . . .',
+    '7 . X . . 7',
+    '. . . . . .',
+    '>w . . . . .'], { p: ['0,4,-,R2U2L2', '0,4,-,R2U2R3'],
+      scr: ['2,2,1'],
+      tip: 'Twin glass splits a beam down the middle. Tap it to turn the split.' }),
+
+  LV(5, 'Crossed Beams', 1, 6, 6, [
+    '. . . . . .',
+    '>w . . . . .',
+    '. . . . . .',
+    '7 . . . . <w',
+    '. . . . 7 .',
+    '. . . . . .'], { p: ['0,1,-,R2D3R2', '5,3,-,L5'],
+      tip: 'Two beams cross in empty air and never disturb each other.' }),
+
+  LV(6, 'Dead End', 1, 5, 5, [
+    '>w . . . .',
+    '. . . . .',
+    '7 . X . 7',
+    '. . . . .',
+    '>w . # . .'], { p: ['0,0,-,R2D2', '0,0,-,R2D2R2', '0,0,-,R2D2L2'],
+      scr: ['2,2,1'],
+      tip: 'Light that finds nothing is harmless. Feed both jewels.' }),
+
+  LV(7, 'Star Cell', 1, 5, 5, [
+    '. . 7 . .',
+    '>w . X . .',
+    '. . o . .',
+    '. . . . 7',
+    '. . . . .'], { p: ['0,1,-,R2', '0,1,-,R2U', '0,1,-,R2D2R2'],
+      scr: ['2,1,1'],
+      tip: 'Star cells are bonus light. Light them all for a third star.' }),
+
+  LV(8, 'Glassworks', 1, 7, 7, [
+    '. . . . . . .',
+    '. . . . . . 7',
+    '. . . o . . .',
+    '>w . . X . . .',
+    '. . . o . . .',
+    '. . 7 . . . .',
+    '. . . . . . .'], { p: ['0,3,-,R3', '0,3,-,R3U2R3', '0,3,-,R3D2L'],
+      scr: ['3,3,1'],
+      tip: 'Everything at once: split, turn, feed both jewels.' }),
+
+  /* ── Chapter Two · Chromatica — colour, gels and mixers ─────────────── */
+  LV(9, 'First Colour', 2, 6, 4, [
+    '>r . . . . .',
+    '. . o . . .',
+    '. . G . . .',
+    '. . . . . 3'], { p: ['0,0,-,R2D3R3'],
+      tip: 'A gel stains the beam passing through it. Red plus green makes amber.' }),
+
+  LV(10, 'Stack Colours', 2, 5, 5, [
+    '>r . . B .',
+    '. . . . .',
+    '. . . . o',
+    '. . . . .',
+    '. . . . 5'], { p: ['0,0,-,R4D4'],
+      tip: 'Colours stack. Red plus blue makes magenta.' }),
+
+  LV(11, 'Two Rivers', 2, 6, 6, [
+    '>r . G . . .',
+    '. . . . . .',
+    '. 6 . . 3 .',
+    '. . . . . .',
+    '. . . . . .',
+    '. . G . . <b'], { p: ['0,0,-,R4D2', '5,5,-,L4U3'],
+      tip: 'Every jewel wants one exact colour. Green plus blue makes cyan.' }),
+
+  LV(12, 'Threefold', 2, 7, 6, [
+    '. . . . . . 3',
+    '. . R . . . .',
+    '>g . X . . . .',
+    '. . B . . . .',
+    '. . . . . . 6',
+    '. . . . . . .'], { p: ['0,2,-,R2', '0,2,-,R2U2R4', '0,2,-,R2D2R4'],
+      scr: ['2,2,1'],
+      tip: 'One green beam, two gels, two mixed jewels.' }),
+
+  LV(13, 'Green Room', 2, 6, 7, [
+    '. . 3 . . .',
+    '. . G . . .',
+    '. . o . . .',
+    '>r . X . . .',
+    '. . o . . .',
+    '. . . . 1 .',
+    '. . . . . .'], { p: ['0,3,-,R2U3', '0,3,-,R2D2R2'],
+      scr: ['2,3,1'],
+      tip: 'One branch is stained on the way up. Mind both jewels.' }),
+
+  LV(14, 'White Out', 2, 7, 6, [
+    '>g . . . . . .',
+    '>r . . . . . .',
+    '. . . . . . .',
+    '. . . M . . 7',
+    '. . . . . . <b',
+    '. . . . . . .'], { p: ['0,1,-,R2D2R', '0,0,-,R3D3', '6,4,-,L3U', '3,3,-,R3'],
+      tip: 'A mixer joins every beam that enters it. Red, green and blue make white.' }),
+
+  LV(15, 'Four Jewels', 2, 7, 7, [
+    '. . . . . . .',
+    '1 . X . B . 5',
+    '. . o . . . .',
+    '>r . X . . . .',
+    '1 . X . B . 5',
+    '. . . . . . .',
+    '. . . . . . .'], { p: ['0,3,-,R2', '0,3,-,R2U2', '0,3,-,R2U2L2', '0,3,-,R2U2R4',
+      '0,3,-,R2D', '0,3,-,R2DR4', '0,3,-,R2DL2'],
+      scr: ['2,3,1', '2,1,1', '2,4,1'],
+      tip: 'Three twin glasses in series, four jewels, one source.' }),
+
+  LV(16, 'Chromatica', 2, 7, 7, [
+    '. . . 7 7 . .',
+    '. . . . . . .',
+    '>r . G M X . .',
+    '. . . . o . .',
+    '. . . . . . 7',
+    '. . . . . . .',
+    '. . . ^b . . .'], { p: ['0,2,-,R3', '3,6,-,U4', '3,2,-,U2', '3,2,-,R', '3,2,-,RUU',
+      '3,2,-,RDDR2'],
+      scr: ['4,2,1'],
+      tip: 'Amber and blue make white. The mixer decides who meets whom.' }),
+
+  /* ── Chapter Three · Labyrinth — splitters, prisms, filters, valves ─── */
+  LV(17, 'Split Three', 3, 7, 5, [
+    '. . 7 . . . .',
+    '. . . . . . .',
+    '7 . T . . . 7',
+    '. . o . . . .',
+    '>w . . . . . .'], { p: ['0,4,-,R2U4', '0,4,-,R2U2R4', '0,4,-,R2U2L2'],
+      scr: ['2,2,1'],
+      tip: 'A splitter throws light straight on and off both sides — never backwards.' }),
+
+  LV(18, 'Prism Break', 3, 6, 6, [
+    '. . . 1 . .',
+    '. . . . . .',
+    '. . . . . .',
+    '. . . P . 2',
+    '. . . . . .',
+    '>w . . 4 . .'], { p: ['0,5,-,R2U2R', '0,5,-,R2U2RU3', '0,5,-,R2U2R3', '0,5,-,R2U2RD2'],
+      scr: ['3,3,1'],
+      tip: 'A prism breaks white into red, green and blue. Only white splits.' }),
+
+  LV(19, 'Filter Room', 3, 6, 7, [
+    '>r . . . . .',
+    '. . . . . .',
+    '. . . . 7 .',
+    '. . F . . .',
+    '. . . F3 . .',
+    '. . . o . .',
+    '. . 1 . . <w'], { p: ['0,0,-,R2D6', '5,6,-,L2U4R'],
+      scr: ['2,3,3', '3,4,3'],
+      tip: 'A filter passes only its own exact colour — nothing stronger, nothing weaker.' }),
+
+  LV(20, 'One Way', 3, 7, 6, [
+    '. . . 7 . . .',
+    '. . . V0 . . .',
+    '. . . o . . .',
+    '7 V3 o T V1 . 7',
+    '. . . . . . .',
+    '>w . . . . . .'], { p: ['0,5,-,R3U2', '0,5,-,R3U5', '0,5,-,R3U2R3', '0,5,-,R3U2L3'],
+      scr: ['3,3,1', '3,1,3', '1,3,3', '4,3,3'],
+      tip: 'A valve is a one-way door: light passes only the way it points.' }),
+
+  LV(21, 'Locked Glass', 3, 7, 5, [
+    '. . !/ . o . 1',
+    '. . . . . . .',
+    '>r . S o . 1L .',
+    '. . o . . . .',
+    '. . o . . . .'], { p: ['0,2,-,R2', '0,2,-,R2U2R4', '0,2,-,R2R3', '0,2,-,R2D'],
+      scr: ['2,2,1'],
+      tip: 'Locked glass will not turn. Light the keyed jewel first.' }),
+
+  LV(22, 'Feedback', 3, 7, 7, [
+    '. . . . . . .',
+    '. . . . . . .',
+    '. . o . . . .',
+    '>w . S o . . .',
+    '. . . . . . .',
+    '. . 7 . . . .',
+    '. . . . . 7 .'], { p: ['0,3,-,R2', '0,3,-,R2U2R3D2L2', '0,3,-,R5', '0,3,-,R2D2',
+      '2,3,-,R3D3'],
+      scr: ['2,3,1'],
+      tip: 'Light may come back around. The hall never floods — loops are safe.' }),
+
+  LV(23, 'Prism Split', 3, 7, 7, [
+    '. . . 1 . . .',
+    '. . . . . . .',
+    '. . o . . . .',
+    '>w . S P . . 2',
+    '. . o . F2 . .',
+    '. . . . . . .',
+    '. . . 4 . . .'], { p: ['0,3,-,R2', '0,3,-,R2U', '0,3,-,R3', '0,3,-,R2D',
+      '3,3,-,U3', '3,3,-,R3', '3,3,-,D3'],
+      scr: ['2,3,1', '3,3,3', '3,4,3'],
+      tip: 'Splitter, then prism, then a filter guarding the blue road.' }),
+
+  LV(24, 'Labyrinth', 3, 8, 7, [
+    '>w . . o . . . .',
+    '. . . . . . o .',
+    '# . . o . . . .',
+    '. . # . . . . #',
+    '# . . . # . . #',
+    '. . o o o . . .',
+    '. . # . . . 7 .'], { p: ['0,0,-,R6D2L5D3R5D1'],
+      tip: 'One long road, five mirrors, six star cells. Follow the light.' }),
+
+  /* ── Chapter Four · Starwell — big boards, many sources ────────────── */
+  LV(25, 'Starwell', 4, 8, 7, [
+    '. . . . . . . .',
+    '. . o . o . . 7',
+    '. . . . . . . .',
+    '>w S o . o . . 7',
+    '. . . . . . . .',
+    '. . o . o . . 7',
+    '. . . . . . . .'], { p: ['0,3,-,R', '0,3,-,RU2R6', '0,3,-,R7', '0,3,-,RD2R6'],
+      scr: ['1,3,1'],
+      tip: 'Three jewelled balconies, one splitter, six star cells.' }),
+
+  LV(26, 'Threefold Well', 4, 8, 7, [
+    '>r . . . . . . <g',
+    '. . . . . . . .',
+    '. . . M . o . 3',
+    '. . . o . . . .',
+    '. . . V2 . . . .',
+    '>b . . M . o . 7',
+    '. . . 7 . . . .'], { p: ['0,0,-,RD2R2', '7,0,-,L4D2', '3,2,-,D3', '0,5,-,R3',
+      '3,2,-,R4', '3,5,-,R4', '3,5,-,D'],
+      scr: ['3,4,3'],
+      tip: 'Two mixers in series — amber joins blue and turns white.' }),
+
+  LV(27, 'Lockwell', 4, 8, 7, [
+    '. . . . . . . .',
+    '. . !/ . o . . 1',
+    '. . . . . . . .',
+    '>r . S . o . . 1L',
+    '. . . . . . . .',
+    '. . !X . 1 . . .',
+    '. . . . . . . .'], { p: ['0,3,-,R2', '0,3,-,R2U2R5', '0,3,-,R7', '0,3,-,R2D2',
+      '0,3,-,R2D2R2'],
+      scr: ['2,3,1', '2,5,1'],
+      tip: 'Two locked panes, one key jewel sitting on the plain road.' }),
+
+  LV(28, 'Deep Well', 4, 8, 8, [
+    '. . . . 1 . . .',
+    '. . . o . o . 7',
+    '. . . . . . . .',
+    '. . . . o . . .',
+    '>w S . . P . o 2',
+    '. . . . o . . .',
+    '. . . . 4 . . .',
+    '. . . o . o . 7'], { p: ['0,4,-,R', '0,4,-,RU3R6', '0,4,-,RD3R6', '0,4,-,R4',
+      '4,4,-,U4', '4,4,-,R3', '4,4,-,D2'],
+      scr: ['1,4,1', '4,4,3'],
+      tip: 'A splitter, a prism, six star cells and five jewels deep.' }),
+
+  LV(29, 'Prismwell', 4, 8, 8, [
+    '. . 1 . . . . .',
+    '. . . . . . . .',
+    '. . F . . . . .',
+    '. . o . . . . .',
+    '. . P . F1 . o 2',
+    '. . o . . . . .',
+    '>w . F2 . . . . .',
+    '. . 4 . . . . .'], { p: ['0,6,-,RU2R', '2,4,-,U4', '2,4,-,R5', '2,4,-,D3'],
+      scr: ['2,4,3', '2,2,3', '4,4,3', '2,6,3'],
+      tip: 'Three filters guard the three colours of the prism.' }),
+
+  LV(30, 'Prism Path', 4, 8, 8, [
+    '. 1 . 1 . . 2 .',
+    '. P . . . . !/ .',
+    '. o . . . . . .',
+    '7L M . S . . . <r',
+    '. o . . . . . .',
+    '. . . o . . . 1',
+    '. . . . . . . .',
+    '>w . . . . . . .'], { p: ['0,7,-,RU4', '7,3,-,L6', '1,3,-,L', '1,3,-,U2', '1,1,-,U',
+      '1,1,-,R5U', '3,3,-,U3', '3,3,-,D2R4'],
+      scr: ['3,3,1', '1,1,3'],
+      tip: 'The full hall: mixer, prism, splitter and locked glass in one path.' }),
+];
+
+const CHAPTERS = [
+  { n: 1, name: 'Glassworks', about: 'mirrors, twin glass, void bricks' },
+  { n: 2, name: 'Chromatica', about: 'colour, gels and mixers' },
+  { n: 3, name: 'Labyrinth', about: 'splitters, prisms, filters, valves' },
+  { n: 4, name: 'Starwell', about: 'big boards, many sources' },
+];
+
+const DIFFS = {
+  gentle: { icon: '🕯️', name: 'Gentle', par: 2, dark: false, hint: 'auto', cap: 3,
+    blurb: 'Big forgiving move targets. A ghost beam shows the way after 15 s of no moves, and hints are unlimited.' },
+  artisan: { icon: '🔦', name: 'Artisan', par: 1, dark: false, hint: 'ask', cap: 2,
+    blurb: 'The designed targets. Hints are free to ask for but cap your rating at two stars.' },
+  luminary: { icon: '🌑', name: 'Luminary', par: 0.8, dark: true, hint: 'off', cap: 3,
+    blurb: 'The hall is dark — you only see what your light touches. Tightest targets, no hints, and a secret lumen hides on every board.' },
+};
+/* ── 6 ─ beam engine ─────────────────────────────────────────────────────── */
+const MIR = [[E, N, W, S], [W, S, E, N]];   /* state 0 = "/"  state 1 = "\" */
+const PRISM_COL = [RED, GRN, BLU];
+const MAXSEG = 240;
+
+function newEngine(w, h) {
+  const n = w * h;
+  return {
+    edge: new Uint8Array(n * 4), edist: new Uint16Array(n * 4),
+    rec: new Uint8Array(n), lum: new Uint8Array(n), src: new Uint8Array(n),
+    litc: new Uint8Array(n),
+    mixIn: new Uint8Array(n), mixFace: new Uint8Array(n), mixDist: new Uint16Array(n),
+    seen: new Uint8Array(n * 32), q: [],
+  };
+}
+
+/* Trace every beam from scratch: deterministic, instant, loop-safe. */
+function trace(b, eng) {
+  const w = b.w, h = b.h, cells = b.cells, e = eng;
+  const q = e.q;
+  let processed = 0, loop = false, capped = false, maxDist = 1;
+  const secret = b.secretOn;
+
+  function mark(i, face, col, dist) {
+    const k = i * 4 + face;
+    e.edge[k] |= col;
+    if (!e.edist[k] || dist < e.edist[k]) e.edist[k] = dist;
+    if (dist > maxDist) maxDist = dist;
+    e.litc[i] = 1;
+  }
+  function emit(i, d, col, dist, branched) {
+    mark(i, d, col, dist);
+    const x = i % w, y = (i - x) / w;
+    const nx = x + DX[d], ny = y + DY[d];
+    if (nx < 0 || ny < 0 || nx >= w || ny >= h) return;
+    const ni = ny * w + nx;
+    mark(ni, opposite(d), col, dist);
+    const key = (ni * 4 + d) * 8 + col;
+    if (e.seen[key]) {
+      const k = cells[ni].k;
+      if (k === 'split' || k === 'twin' || k === 'prism') loop = true;
+      return;
+    }
+    e.seen[key] = 1;
+    q.push(ni, d, col, dist + 1, branched);
+  }
+
+  /* Mixers re-emit the union of their inputs out every face that takes no
+     input. Which faces take input is only known once every beam has arrived,
+     so the whole hall is re-traced generation by generation, feeding each
+     generation with the previous mixer output, until that settles. */
+  let prevMix = null;
+  for (let gen = 0; gen < 6; gen++) {
+    e.edge.fill(0); e.edist.fill(0); e.rec.fill(0); e.lum.fill(0); e.src.fill(0); e.litc.fill(0);
+    e.mixIn.fill(0); e.mixFace.fill(0); e.mixDist.fill(0); e.seen.fill(0);
+    q.length = 0;
+    let head = 0;
+    processed = 0; capped = false; maxDist = 1;
+    for (let s = 0; s < b.srcs.length; s++) {
+      const i = b.srcs[s], c = cells[i];
+      e.src[i] = c.c; e.litc[i] = 1;
+      emit(i, c.d, c.c, 1, 0);
+    }
+    if (prevMix) {
+      for (let m = 0; m < b.mixes.length; m++) {
+        const i = b.mixes[m], g = prevMix[m];
+        if (!g.col) continue;
+        for (let d = 0; d < 4; d++) if (!(g.face & (1 << d))) emit(i, d, g.col, g.dist);
+      }
+    }
+    while (head * 5 < q.length) {
+      if (processed++ > MAXSEG) { capped = true; break; }
+      const i = q[head * 5], d = q[head * 5 + 1], col = q[head * 5 + 2],
+        dist = q[head * 5 + 3];
+      head++;
+      const c = cells[i];
+      switch (c.k) {
+        case 'empty': emit(i, d, col, dist); break;
+        case 'lumen': e.lum[i] = 1; emit(i, d, col, dist); break;
+        case 'secret': if (secret) e.lum[i] = 1; emit(i, d, col, dist); break;
+        case 'gel': emit(i, d, col | c.c, dist); break;
+        case 'mirror': emit(i, MIR[c.s & 1][d], col, dist); break;
+        case 'twin':
+          if (c.s & 1) emit(i, d, col, dist);
+          else { emit(i, (d + 1) & 3, col, dist); emit(i, (d + 3) & 3, col, dist); }
+          break;
+        case 'split': {
+          const ok = (c.s & 1) ? (d === N || d === S) : (d === E || d === W);
+          if (ok) { emit(i, d, col, dist); emit(i, (d + 1) & 3, col, dist); emit(i, (d + 3) & 3, col, dist); }
+          break;
+        }
+        case 'prism':
+          if (col === WHT) {
+            const entry = opposite(d);
+            for (let f = 0; f < 3; f++) { const dir = (f + (c.s & 3)) & 3; if (dir !== entry) emit(i, dir, PRISM_COL[f], dist); }
+          } else emit(i, d, col, dist);
+          break;
+        case 'filter': if (col === FILTER_COLS[c.s & 3]) emit(i, d, col, dist); break;
+        case 'valve': if (d === (c.s & 3)) emit(i, d, col, dist); break;
+        case 'mixer':
+          e.mixIn[i] |= col; e.mixFace[i] |= 1 << opposite(d);
+          if (dist > e.mixDist[i]) e.mixDist[i] = dist;
+          break;
+        case 'receptor': e.rec[i] |= col; break;
+        default: break;   /* bricks and jewels absorb; sources are opaque */
+        }
+      }
+      if (capped) break;
+      if (!b.mixes.length) break;
+    let changed = prevMix === null;
+    const snap = [];
+    for (let m = 0; m < b.mixes.length; m++) {
+      const i = b.mixes[m];
+      const col = e.mixIn[i], face = e.mixFace[i], dist = e.mixDist[i];
+      if (prevMix) {
+        const o = prevMix[m];
+        if (o.col !== col || o.face !== face || o.dist !== dist) changed = true;
+      }
+      snap.push({ col, face, dist });
+    }
+    prevMix = snap;
+    if (!changed) break;
+  }
+
+  let lit = 0, wrong = 0, wrongAt = -1;
+  for (let r = 0; r < b.recs.length; r++) {
+    const i = b.recs[r];
+    if (e.rec[i] === cells[i].c) lit++;
+    else if (e.rec[i]) { wrong++; if (wrongAt < 0) wrongAt = i; }
+  }
+  let lumLit = 0;
+  for (let l = 0; l < b.lums.length; l++) if (e.lum[b.lums[l]]) lumLit++;
+  return {
+    lit, total: b.recs.length, wrong, wrongAt, lumLit, lumNeed: b.lumNeed,
+    solved: b.recs.length > 0 && lit === b.recs.length, loop, capped, maxDist,
+  };
+}
+
+/* ── 7 ─ level building + run state ──────────────────────────────────────── */
+const KINDIDX = ['empty', 'block', 'source', 'mirror', 'twin', 'split', 'prism',
+  'gel', 'mixer', 'filter', 'valve', 'lumen', 'secret', 'receptor'];
+const KINDNAME = { empty: 'Space', block: 'Void brick', source: 'Source', mirror: 'Mirror', twin: 'Twin glass', split: 'Splitter', prism: 'Prism', gel: 'Gel', mixer: 'Mixer', filter: 'Filter', valve: 'Valve', lumen: 'Lumen', secret: 'Secret lumen', receptor: 'Jewel' };
+
+function tokenCell(tok) {
+  const c = { k: 'empty', s: 0, c: WHT, d: E, lever: false, locked: false, auto: false };
+  if (!tok || tok === 'undefined') return c;
+  let t = tok;
+  if (t[0] === '!') { c.locked = true; t = t.slice(1); }
+  const head = t[0], arg = t.slice(1);
+  const num = parseInt(arg, 10);
+  switch (head) {
+    case '.': break;
+    case '#': c.k = 'block'; break;
+    case '/': c.k = 'mirror'; break;
+    case '\\': c.k = 'mirror'; c.s = 1; break;
+    case 'X': c.k = 'twin'; break;
+    case 'Y': c.k = 'twin'; c.s = 1; break;
+    case 'S': c.k = 'split'; break;
+    case 'T': c.k = 'split'; c.s = 1; break;
+    case 'P': c.k = 'prism'; c.s = isNaN(num) ? 0 : num & 3; break;
+    case 'R': c.k = 'gel'; c.c = RED; break;
+    case 'G': c.k = 'gel'; c.c = GRN; break;
+    case 'B': c.k = 'gel'; c.c = BLU; break;
+    case 'M': c.k = 'mixer'; break;
+    case 'F': c.k = 'filter'; c.s = isNaN(num) ? 0 : num & 3; break;
+    case 'V': c.k = 'valve'; c.s = isNaN(num) ? 0 : num & 3; break;
+    case 'o': c.k = 'lumen'; break;
+    case 'O': c.k = 'secret'; break;
+    case '>': c.k = 'source'; c.d = E; c.c = srcCol(arg); break;
+    case '<': c.k = 'source'; c.d = W; c.c = srcCol(arg); break;
+    case '^': c.k = 'source'; c.d = N; c.c = srcCol(arg); break;
+    case 'v': c.k = 'source'; c.d = S; c.c = srcCol(arg); break;
+    default:
+      if (head >= '1' && head <= '7') {
+        c.k = 'receptor'; c.c = +head; c.lever = arg.toUpperCase().indexOf('L') >= 0;
+      }
+  }
+  return c;
+}
+function srcCol(a) { return a === 'r' ? RED : a === 'g' ? GRN : a === 'b' ? BLU : WHT; }
+function srcLetter(c) { return c === RED ? 'r' : c === GRN ? 'g' : c === BLU ? 'b' : 'w'; }
+
+function mirrorFor(prev, out) {
+  return ((out - prev) & 3) === ((prev & 1) ? 3 : 1) ? 0 : 1;
+}
+
+/* Auto-place the mirrors a light path needs, so authored boards stay honest. */
+function applyPath(cells, w, h, chain, report) {
+  const parts = chain.split(',');
+  let x = +parts[0], y = +parts[1];
+  let prev = parts[2] === '-' ? -1 : DIRCH[parts[2].toUpperCase()];
+  const raw = parts[3] || '';
+  const steps = [];
+  for (let k = 0; k < raw.length; k++) {
+    const ch = raw[k];
+    if (ch >= '0' && ch <= '9' && steps.length) {
+      const last = steps[steps.length - 1];
+      last.n = last.dig ? last.n * 10 + +ch : +ch;
+      last.dig = true;
+      continue;
+    }
+    steps.push({ c: ch, n: 1, dig: false });
+  }
+  const seq = [];
+  for (const s of steps) for (let r = 0; r < s.n; r++) seq.push(s.c);
+  for (let k = 0; k < seq.length; k++) {
+    if (x < 0 || y < 0 || x >= w || y >= h) { report.push('path leaves the grid: ' + chain); return; }
+    const i = y * w + x, cell = cells[i], out = DIRCH[seq[k].toUpperCase()];
+    if (out === undefined) { report.push('bad path letter: ' + chain); return; }
+    if (prev >= 0 && out !== prev) {
+      const open = cell.k === 'empty' || cell.k === 'lumen' || cell.k === 'secret';
+      if (open) {
+        cells[i] = { k: 'mirror', s: mirrorFor(prev, out), c: WHT, d: E, lever: false, locked: cell.locked, auto: true };
+      } else if (cell.k === 'mirror') {
+        cell.s = mirrorFor(prev, out); cell.auto = true;
+      } else if (cell.k !== 'source' && cell.k !== 'receptor' && cell.k !== 'mixer' &&
+                 cell.k !== 'twin' && cell.k !== 'split' && cell.k !== 'prism' && cell.k !== 'valve' &&
+                 cell.k !== 'filter' && cell.k !== 'gel') {
+        report.push('path turns on a ' + cell.k + ' at ' + x + ',' + y);
+      }
+    }
+    prev = out;
+    x += DX[out]; y += DY[out];
+  }
+  if (x < 0 || y < 0 || x >= w || y >= h) { report.push('path ends off-grid: ' + chain); return; }
+  const endK = cells[y * w + x].k;
+  if (endK === 'empty' || endK === 'source') report.push('path ends on ' + endK + ' at ' + x + ',' + y + ' [' + chain + ']');
+}
+
+function buildBoard(def, diffKey, opts) {
+  const o = opts || {};
+  const diff = DIFFS[diffKey] || DIFFS.artisan;
+  const w = def.w, h = def.h, n = w * h;
+  const report = []; report.lv = def.name;
+  const cells = new Array(n);
+  for (let y = 0; y < h; y++) {
+    const row = String(def.rows[y] || '').trim().split(/\s+/);
+    for (let x = 0; x < w; x++) cells[y * w + x] = tokenCell(row[x]);
+  }
+  const paths = def.p || [];
+  for (let i = 0; i < paths.length; i++) applyPath(cells, w, h, paths[i], report);
+
+  const srcs = [], recs = [], lums = [], lumVis = [], levers = [], mixes = [];
+  for (let i = 0; i < n; i++) {
+    const c = cells[i];
+    if (c.k === 'mixer') mixes.push(i);
+    if (c.k === 'source') srcs.push(i);
+    else if (c.k === 'receptor') { recs.push(i); if (c.lever) levers.push(i); }
+    else if (c.k === 'lumen' || c.k === 'secret') {
+      lums.push(i); if (c.k !== 'secret') lumVis.push(i);
+    }
+  }
+
+  const start = new Int8Array(n), sol = [];
+  for (let i = 0; i < n; i++) start[i] = cells[i].s;
+  const scrMap = {};
+  if (def.scr) for (const s of def.scr) { const p = s.split(','); scrMap[+p[0] + ',' + +p[1]] = +p[2]; }
+  let taps = 0;
+  if (!o.pristine) {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, st = KIT[cells[i].k].states;
+      if (st < 2) continue;
+      const key = x + ',' + y;
+      let by = scrMap[key] !== undefined ? scrMap[key] : (cells[i].auto ? 1 : 0);
+      by = ((by % st) + st) % st;
+      if (by) {
+        sol.push({ i, s: start[i] });
+        taps += (st - by) % st || st;
+        cells[i].s = (start[i] + by) % st;
+      }
+    }
+  }
+
+  const secretOn = !!diff.dark && def.secrets !== false;
+  const lumNeed = secretOn ? lums.length : lumVis.length;
+  const parBase = def.par || Math.max(1, lums.length ? taps : Math.ceil(taps / 0.7));
+  const parMoves = Math.max(o.pristine ? 0 : 1, Math.round(parBase * diff.par));
+  const b = {
+    def, name: def.name, n: def.n || 0, ch: def.ch || 1, tip: def.tip || '',
+    w, h, cells, srcs, recs, lums, lumNeed, levers, mixes, sol, taps, start,
+    parBase, parMoves, diffKey, secretOn,
+    eng: newEngine(w, h), rotV: new Float32Array(n), rotT: new Float32Array(n),
+    pop: new Float32Array(n), shake: new Float32Array(n),
+    moves: 0, undo: [], hintUsed: false, ghost: new Uint8Array(n * 4), ghostOn: false,
+    reveal: 0, solvedAt: 0, res: null, free: !!def.free, daily: !!def.daily, report,
+  };
+  for (let i = 0; i < n; i++) b.rotV[i] = b.rotT[i] = cells[i].s;
+  b.res = trace(b, b.eng);
+  return b;
+}
+
+function statesOf(cell, free) {
+  if (cell.k === 'source') return free ? 4 : 1;
+  return KIT[cell.k].states;
+}
+function unlocked(b, i) {
+  const c = b.cells[i];
+  if (!c.locked) return true;
+  if (!b.levers.length) return false;
+  for (const l of b.levers) if (b.eng.rec[l] === b.cells[l].c) return true;
+  return false;
+}
+function rotatable(b, i) {
+  const c = b.cells[i];
+  if (statesOf(c, b.free) < 2) return false;
+  return unlocked(b, i);
+}
+
+function rotateCell(b, x, y, rev) {
+  if (x < 0 || y < 0 || x >= b.w || y >= b.h) return { ok: false, why: 'off' };
+  const i = y * b.w + x, c = b.cells[i];
+  if (!rotatable(b, i)) return { ok: false, why: c.locked && !unlocked(b, i) ? 'locked' : 'fixed' };
+  const st = statesOf(c, b.free);
+  const from = c.s;
+  c.s = (c.s + (rev ? st - 1 : 1)) % st;
+  if (c.k === 'source') c.d = c.s;
+  b.rotT[i] += rev ? -1 : 1;
+  b.moves++;
+  b.undo.push({ i, from, to: c.s });
+  b.res = trace(b, b.eng);
+  b.reveal = 0;
+  return { ok: true, i, cell: c };
+}
+
+function starAward(b) {
+  const d = DIFFS[b.diffKey];
+  let s = 1;
+  if (b.moves <= b.parMoves) s++;
+  const lumenLevel = b.lumNeed > 0;
+  const perfect = lumenLevel ? b.res.lumLit >= b.lumNeed : b.moves <= Math.max(1, Math.round(b.parMoves * 0.7));
+  if (perfect) s++;
+  if (d.hint === 'ask' && b.hintUsed) s = Math.min(s, 2);
+  return clamp(s, 1, 3);
+}
+
+/* Brute-force proof of the shortest solve — QA checks par is actually reachable. */
+function minTapsFor(def, diffKey, budget) {
+  const b = buildBoard(def, diffKey);
+  const spots = [];
+  for (let i = 0; i < b.cells.length; i++) {
+    const st = KIT[b.cells[i].k].states;
+    if (st > 1) spots.push({ i, st, s: b.cells[i].s });
+  }
+  let total = 1;
+  for (const s of spots) total *= s.st;
+  if (total > (budget || 60000)) return { taps: b.taps, combos: total, skipped: true };
+  let best = Infinity;
+  const cur = new Array(spots.length);
+  for (let mask = 0; mask < total; mask++) {
+    let rem = mask, cost = 0, skip = false;
+    for (let k = 0; k < spots.length; k++) {
+      const st = spots[k].st;
+      cur[k] = rem % st; rem = (rem - cur[k]) / st;
+      cost += (cur[k] - spots[k].s + st) % st;
+      if (cost >= best) { skip = true; break; }
+    }
+    if (skip) continue;
+    for (let k = 0; k < spots.length; k++) b.cells[spots[k].i].s = cur[k];
+    if (trace(b, b.eng).solved) best = cost;
+  }
+  return { taps: best === Infinity ? -1 : best, combos: total, skipped: false };
+}
+
+/* ── 8 ─ share codes ────────────────────────────────────────────────────── */
+function encodeBoard(b) {
+  const bytes = [1, b.w, b.h];
+  const n = b.w * b.h;
+  let i = 0;
+  while (i < n) {
+    const c = b.cells[i];
+    const ki = KINDIDX.indexOf(c.k);
+    let run = 1;
+    while (i + run < n && run < 250) {
+      const d = b.cells[i + run];
+      if (d.k !== c.k || d.s !== c.s || d.c !== c.c || d.d !== c.d ||
+          d.lever !== c.lever || d.locked !== c.locked) break;
+      run++;
+    }
+    let pack = (c.s & 3) << 3;
+    if (c.k === 'source') pack = ((c.d & 3) << 3) | (c.c & 7);
+    else if (c.k === 'gel' || c.k === 'receptor') pack = (c.c & 7);
+    if (c.lever) pack |= 32;
+    if (c.locked) pack |= 64;
+    bytes.push(ki, pack, run);
+    i += run;
+  }
+  let hex = '';
+  for (const by of bytes) hex += by.toString(16).padStart(2, '0');
+  return BigInt('0x' + hex).toString(36);
+}
+function decodeBoard(str) {
+  try {
+    const s = String(str || '').trim().toLowerCase().replace(/[^0-9a-z]/g, '');
+    if (!s || s.length > 400) return null;
+    let v = BigInt(0);
+    const base = BigInt(36);
+    for (let i = 0; i < s.length; i++) {
+      const d = parseInt(s[i], 36);
+      if (isNaN(d)) return null;
+      v = v * base + BigInt(d);
+    }
+    let hex = v.toString(16);
+    if (hex.length % 2) hex = '0' + hex;
+    const bytes = [];
+    for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.substr(i, 2), 16));
+    if (bytes.length < 3 || bytes[0] !== 1) return null;
+    const w = bytes[1], h = bytes[2];
+    if (w < 3 || h < 3 || w > 14 || h > 14) return null;
+    const rows = [];
+    let i = 3, y = 0, x = 0, line = [];
+    while (i + 2 < bytes.length && y < h) {
+      const kind = KINDIDX[bytes[i]];
+      const pack = bytes[i + 1];
+      const run = Math.max(1, bytes[i + 2]);
+      const st = (pack >> 3) & 3;
+      let tok = '.';
+      if (kind === 'source') tok = ['^', '>', 'v', '<'][st] + srcLetter(pack & 7) + (pack & 32 ? 'L' : '');
+      else if (kind === 'mirror') tok = st ? '\\' : '/';
+      else if (kind === 'twin') tok = st ? 'Y' : 'X';
+      else if (kind === 'split') tok = st ? 'T' : 'S';
+      else if (kind === 'prism') tok = 'P' + st;
+      else if (kind === 'filter') tok = 'F' + st;
+      else if (kind === 'valve') tok = 'V' + st;
+      else if (kind === 'gel') tok = pack & 4 ? 'B' : pack & 2 ? 'G' : 'R';
+      else if (kind === 'block') tok = '#';
+      else if (kind === 'lumen') tok = 'o';
+      else if (kind === 'secret') tok = 'O';
+      else if (kind === 'mixer') tok = 'M';
+      else if (kind === 'receptor') tok = '' + (pack & 7) + (pack & 32 ? 'L' : '');
+      if (pack & 64) tok = '!' + tok;
+      for (let r = 0; r < run && y < h; r++) {
+        line.push(tok); x++;
+        if (x >= w) { rows.push(line.join(' ')); line = []; x = 0; y++; }
+      }
+      i += 3;
+    }
+    while (y < h) { rows.push(line.join(' ')); line = []; y++; }
+    if (!rows.length || rows.length !== h) return null;
+    return { w, h, rows };
+  } catch (e) { return null; }
+}
+/* ── 9 ─ run state + screens ────────────────────────────────────────────── */
+const G = {
+  mode: 'boot', prev: 'title', board: null, li: 0, daily: false,
+  t: 0, last: 0, winAt: 0, hintAt: 0, idleAt: 0, fails: 0,
+  cursor: { x: 0, y: 0, shown: false }, hover: -1,
+  freeSel: 'mirror', freeOpen: true, demo: null, demoNext: 0, demoPick: 0,
+  legendPin: false,
+};
+const SCREENS = ['s-title', 's-howto', 's-diff', 's-levels', 's-pause', 's-settings', 's-win', 's-free'];
+const MODE_SCREEN = {
+  title: 's-title', howto: 's-howto', diff: 's-diff', levels: 's-levels',
+  pause: 's-pause', settings: 's-settings', win: 's-win', free: 's-free', play: '',
+};
+let toastAt = -9;
+let toastText = '';
+
+/* the menu card owns the bottom of the screen, so notes go to the top there */
+function placeToast() {
+  const el = $('toast');
+  if (G.mode === 'pause') {
+    el.style.top = 'calc(8px + env(safe-area-inset-top))';
+    el.style.bottom = 'auto';
+    el.classList.add('top');
+    return;
+  }
+  const sheet = (G.mode === 'free' && G.freeOpen) ? L.freeH + L.toolsH + 12 : 56;
+  el.style.top = 'auto';
+  el.style.bottom = 'calc(' + sheet + 'px + env(safe-area-inset-bottom))';
+  el.classList.remove('top');
+}
+function toast(msg, ms) {
+  toastText = msg; toastAt = G.t;
+  const el = $('toast');
+  placeToast();
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('on'), ms || 2200);
+}
+
+function go(mode) {
+  if (G.mode !== mode) G.prev = G.mode;
+  G.mode = mode;
+  for (const id of SCREENS) $(id).classList.toggle('on', MODE_SCREEN[mode] === id);
+  if (mode === 'levels') buildLevelSelect();   // the list can never be stale
+  const playing = mode === 'play' || mode === 'win' || mode === 'pause' || mode === 'free';
+  $('hud').classList.toggle('on', playing);
+  $('hud').setAttribute('aria-hidden', playing ? 'false' : 'true');
+  $('tools').classList.toggle('on', mode === 'play' || mode === 'free');
+  $('legend').classList.toggle('on', playing && !(mode === 'free' && G.freeOpen));
+  $('s-free').classList.toggle('on', mode === 'free' && G.freeOpen);
+  $('bRestart2').classList.toggle('hidden', !playing || !!(G.board && G.board.free));
+  layout();
+  syncHud();
+}
+
+function starsOf(key) { return prefs.stars[key] || 0; }
+function totalStars() {
+  let s = 0;
+  for (const lv of LEVELS) s += starsOf('L' + lv.n);
+  return s;
+}
+function unlockedLevel(idx) {
+  if (idx <= 0) return true;
+  return starsOf('L' + LEVELS[idx - 1].n) > 0;
+}
+
+function startLevel(idx, diffKey) {
+  G.daily = false;
+  G.li = clamp(idx, 0, LEVELS.length - 1);
+  G.board = buildBoard(LEVELS[G.li], diffKey || prefs.diff);
+  beginBoard();
+}
+function startDaily() {
+  G.daily = true;
+  G.board = buildBoard(dailyDef(), prefs.diff);
+  beginBoard();
+}
+function beginBoard() {
+  G.hintAt = -9; G.winAt = 0; G.fails = 0;
+  G.cursor = { x: G.board.srcs.length ? G.board.srcs[0] % G.board.w : 0, y: 0, shown: false };
+  const b = G.board;
+  if (b.srcs.length) G.cursor.y = Math.floor(b.srcs[0] / b.w);
+  b.prevLit = new Uint8Array(b.w * b.h);
+  for (const i of b.recs) b.prevLit[i] = b.eng.rec[i] === b.cells[i].c ? 1 : 0;
+  go('play');
+  if (b.tip) toast(b.tip, 4200);
+  A.pad(1);
+  refreshPad();
+}
+
+function refreshPad() {
+  const b = G.board;
+  if (!b) return;
+  for (let r = 0; r < b.recs.length; r++) {
+    const i = b.recs[r];
+    A.layer(i, pitchOf(b.cells[i].c) * (r % 2 ? 1 : 0.5), b.eng.rec[i] === b.cells[i].c);
+  }
+}
+
+/* what happens after a rotate: juice, staging, sound */
+function afterRotate(i, rev, ok, why) {
+  const b = G.board;
+  const cx = L.bx + (i % b.w + 0.5) * L.cell, cy = L.by + (((i - i % b.w) / b.w) + 0.5) * L.cell;
+  if (!ok) {
+    const c = b.cells[i];
+    if (why === 'locked') { A.buzz(); toast('🔒 Locked — light its key jewel first'); b.shake[i] = 1; }
+    else if (c.k !== 'empty') { A.voice(220, 'sine', 0.08, 0.05, 0); }
+    return;
+  }
+  const c = b.cells[i];
+  const tint = (c.k === 'gel' || c.k === 'source' || c.k === 'receptor') ? c.c : 0;
+  const pitch = tint ? pitchOf(tint) : SCALE[(i % b.w + Math.floor(i / b.w) * 2) % 8 + 2];
+  A.tink(pitch * (rev ? 0.75 : 1));
+  FX.burst(cx, cy, tint || WHT, reducedMotion() ? 0 : 7);
+  b.pop[i] = 1;
+  if (!reducedMotion()) FX.shakeScreen(1.4);
+
+  /* receptor reactions */
+  let newly = 0, badAt = -1, newlyPitch = SCALE[4];
+  for (const r of b.recs) {
+    const now = b.eng.rec[r] === b.cells[r].c ? 1 : 0;
+    if (now && !b.prevLit[r]) {
+      newly++; newlyPitch = pitchOf(b.cells[r].c);
+      const rx = L.bx + (r % b.w + 0.5) * L.cell, ry = L.by + (((r - r % b.w) / b.w) + 0.5) * L.cell;
+      FX.ring(rx, ry, b.cells[r].c, L.cell * 1.5);
+      b.pop[r] = 1;
+    } else if (!now && !b.prevLit[r] && b.eng.rec[r]) badAt = r;
+    b.prevLit[r] = now;
+  }
+  if (newly) A.bell(newlyPitch);
+  if (!newly && badAt >= 0 && b.res.wrong) {
+    A.buzz();
+    b.shake[badAt] = 1;
+    if (!reducedMotion()) FX.shakeScreen(2);
+  }
+  refreshPad();
+
+  if (b.res.solved && !b.solvedAt) {
+    b.solvedAt = G.t;
+    const notes = b.recs.map((r) => pitchOf(b.cells[r].c));
+    A.chord(notes.length ? notes : [SCALE[4]]);
+    A.sparkle();
+    if (!reducedMotion()) { FX.moteStorm(); FX.shakeScreen(5); }
+    G.winAt = G.t + (reducedMotion() ? 0.5 : 1.35);
+    if (b.res.loop) toast('✷ feedback! The beam is chasing its own tail');
+  } else if (!b.res.solved) {
+    if (b.solvedAt) { b.solvedAt = 0; G.winAt = 0; }
+    if (b.res.loop && !b.loopShown) { b.loopShown = true; toast('✷ feedback! A splitter loop is chasing itself — harmless, but nothing new lights'); }
+    G.idleAt = G.t;
+  }
+  syncHud();
+}
+
+/* one place every tap goes through: pointer, keyboard and the QA harness */
+function applyTap(x, y, rev) {
+  const b = G.board;
+  if (!b || G.mode !== 'play' && G.mode !== 'free') return;
+  if (x < 0 || y < 0 || x >= b.w || y >= b.h) return;
+  const r = b.free ? freePlace(b, x, y, rev) : rotateCell(b, x, y, rev);
+  if (r.ok && rebuildLists(b)) { b.res = trace(b, b.eng); b.reveal = 0; b.moves++; }
+  afterRotate(y * b.w + x, rev, r.ok, r.why);
+}
+
+function hintNow() {
+  const b = G.board;
+  const d = DIFFS[b.diffKey];
+  if (d.hint === 'off') { toast('Luminary gives no hints. Follow the light.'); return; }
+  if (!b.sol.length) { toast('This board has no stored solution'); return; }
+  b.hintUsed = true;
+  computeGhost(b);
+  const next = b.sol.find((s) => b.cells[s.i].s !== s.s);
+  if (next !== undefined) {
+    const x = next.i % b.w, y = Math.floor(next.i / b.w);
+    toast('✧ Ghost shows one solved path. The pulsing glass at ' + (x + 1) + ',' + (y + 1) + ' still needs you.');
+  } else toast('✧ Ghost shows one solved path.');
+  if (d.hint === 'ask') syncHud();
+}
+
+function computeGhost(b) {
+  const keep = new Int8Array(b.cells.length);
+  for (let i = 0; i < b.cells.length; i++) keep[i] = b.cells[i].s;
+  for (const s of b.sol) b.cells[s.i].s = s.s;
+  const e = tmpEngine(b);
+  trace(b, e);
+  for (let i = 0; i < b.ghost.length; i++) b.ghost[i] = e.edge[i];
+  b.ghostOn = true;
+  for (let i = 0; i < b.cells.length; i++) b.cells[i].s = keep[i];
+  trace(b, b.eng);
+}
+const TMP = {};
+function tmpEngine(b) {
+  const k = b.w + 'x' + b.h;
+  if (!TMP[k]) TMP[k] = newEngine(b.w, b.h);
+  return TMP[k];
+}
+
+function showWin() {
+  const b = G.board;
+  const stars = starAward(b);
+  const key = b.daily ? 'D' + dayKey() : 'L' + b.n;
+  const best = b.free ? 0 : (prefs.stars[key] || 0);
+  if (!b.free && stars > best) { prefs.stars[key] = stars; }
+  if (!b.free && !b.daily && b.moves < (prefs.best && prefs.best[b.n] || 999)) {
+    prefs.best = prefs.best || {}; prefs.best[b.n] = b.moves;
+  }
+  savePrefs();
+  const spans = $('winStars').children;
+  for (let i = 0; i < 3; i++) spans[i].classList.remove('lit');
+  $('winName').textContent = (b.daily ? '☄ ' : '') + b.name + (b.free ? '' : ' · ' + CHAPTERS[b.ch - 1].name);
+  $('winBadge').textContent = b.free ? 'Board complete' : stars === 3 ? 'Flawless' : 'Solved';
+  $('winStats').innerHTML =
+    'Moves <b>' + b.moves + '</b> / par <b>' + b.parMoves + '</b> · Jewels <b>' + b.res.lit + '/' + b.res.total + '</b>' +
+    (b.lumNeed ? ' · Lumens <b>' + b.res.lumLit + '/' + b.lumNeed + '</b>' : '') +
+    (stars > best ? '' : best ? ' · Best <b>' + stars + '★</b>' : '') +
+    (DIFFS[b.diffKey].dark ? '<br><span class="lockline">🌑 Luminary</span>' : '');
+  const last = !b.daily && G.li >= LEVELS.length - 1;
+  $('bNext').textContent = b.free ? 'Keep building' : last ? '▦ Level select' : 'Next →';
+  $('bNext').setAttribute('aria-label', b.free ? 'Keep building' : last ? 'Open level select' : 'Next level');
+  go('win');
+  let shown = 0;
+  for (let i = 0; i < stars; i++) setTimeout(((el) => () => { el.classList.add('lit'); A.voice(SCALE[5 + shown * 2], 'triangle', 0.5, 0.12, 0); shown++; })(spans[i]), 160 + i * 240);
+}
+
+function nextLevel() {
+  const b = G.board;
+  if (b.free) { go('free'); return; }
+  if (b.daily || G.li >= LEVELS.length - 1) { buildLevelSelect(); go('levels'); return; }
+  startLevel(G.li + 1);
+}
+function restartLevel() {
+  const b = G.board;
+  if (!b) return;
+  const fresh = buildBoard(b.def, b.diffKey);
+  fresh.daily = b.daily; G.board = fresh;
+  beginBoard();
+}
+
+function syncHud() {
+  const b = G.board;
+  if (!b) return;
+  $('hudName').textContent = (b.daily ? '☄ Path of the Day' : b.free ? 'Free Play' : b.n + ' · ' + b.name);
+  const d = DIFFS[b.diffKey];
+  if (b.free) {
+    $('hudStats').innerHTML = 'Sandbox · taps rotate · <b>∞</b> undo';
+  } else if (window.innerWidth < 470) {
+    $('hudStats').innerHTML = '◆ <b>' + b.res.lit + '/' + b.res.total + '</b>' +
+      (b.lumNeed ? ' ✷<b>' + b.res.lumLit + '/' + b.lumNeed + '</b>' : '') +
+      ' ↻<b>' + b.moves + '</b>/' + b.parMoves + ' · ' + d.icon + ' ' + d.name;
+  } else {
+    $('hudStats').innerHTML = 'Jewels <b>' + b.res.lit + '/' + b.res.total + '</b>' +
+      (b.lumNeed ? ' · ✷ <b>' + b.res.lumLit + '/' + b.lumNeed + '</b>' : '') +
+      ' · Moves <b>' + b.moves + '</b>/par ' + b.parMoves + ' · ' + d.icon + ' ' + d.name;
+  }
+  $('bUndo').disabled = !b.undo.length;
+  $('bUndoTop').disabled = !b.undo.length;
+  $('bHint').style.opacity = DIFFS[b.diffKey].hint === 'off' ? '.45' : '1';
+}
+
+function doUndo(n) {
+  const b = G.board;
+  if (!b) return;
+  let count = 0;
+  while (b.undo.length && count < (n || 1)) {
+    const u = b.undo.pop();
+    const c = b.cells[u.i];
+    if (u.tok !== undefined) {
+      b.cells[u.i] = tokenCell(u.tok);
+      b.rotT[u.i] = b.cells[u.i].s; b.rotV[u.i] = b.cells[u.i].s;
+      b.rebuild = true;
+    } else {
+      c.s = u.from;
+      if (c.k === 'source') c.d = c.s;
+      b.rotT[u.i] -= 1;
+    }
+    b.moves = Math.max(0, b.moves - 1);
+    count++;
+  }
+  if (count) {
+    rebuildLists(b);
+    b.res = trace(b, b.eng);
+    b.reveal = 0; b.solvedAt = 0; G.winAt = 0;
+    A.tink(SCALE[1]);
+    for (const r of b.recs) b.prevLit[r] = b.eng.rec[r] === b.cells[r].c ? 1 : 0;
+    refreshPad(); syncHud();
+  }
+}
+
+/* ── 10 ─ path of the day ───────────────────────────────────────────────── */
+function dailyDef() {
+  const key = 'daily-' + dayKey();
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const def = makeDaily(key + '#' + attempt);
+    if (def) return def;
+  }
+  const safe = Object.assign({}, LEVELS[3]);
+  safe.name = 'Path of the Day'; safe.daily = true; safe.tip = 'A fresh board, minted from today’s date.';
+  return safe;
+}
+function makeDaily(seedStr) {
+  const rnd = rngFrom(hashStr(seedStr));
+  const w = 6 + Math.floor(rnd() * 2), h = 6 + Math.floor(rnd() * 2);
+  const dir0 = rnd() < 0.55 ? E : S;
+  const sx = dir0 === E ? 0 : Math.floor(rnd() * w);
+  const sy = dir0 === E ? Math.floor(rnd() * h) : 0;
+  const seen = {}; seen[sx + ',' + sy] = 1;
+  const path = [];
+  let x = sx, y = sy, d = dir0;
+  const len = 6 + Math.floor(rnd() * 4);
+  for (let k = 0; k < len; k++) {
+    const turnFirst = rnd() < 0.45;
+    const cand = turnFirst ? [(d + 1) & 3, (d + 3) & 3, d] : [d, (d + 1) & 3, (d + 3) & 3];
+    let moved = false;
+    for (const c of cand) {
+      if (canMove(x, y, c, w, h, seen)) { d = c; moved = true; break; }
+    }
+    if (!moved) break;
+    x += DX[d]; y += DY[d];
+    seen[x + ',' + y] = 1;
+    path.push('UDLR'[d]);
+  }
+  if (path.length < 5) return null;
+
+  const tok = [];
+  for (let i = 0; i < w * h; i++) tok.push('.');
+  tok[sy * w + sx] = ['^', '>', 'v', '<'][dir0] + 'w';
+  /* straight legs are the only places a gel or lumen can sit */
+  const legs = [];
+  let cx = sx, cy = sy;
+  for (let k = 0; k < path.length; k++) {
+    cx += DX[DIRCH[path[k]]]; cy += DY[DIRCH[path[k]]];
+    const isTurn = k + 1 < path.length && path[k + 1] !== path[k];
+    if (!isTurn && k + 1 < path.length) legs.push(cy * w + cx);
+  }
+  let col = WHT;
+  const gels = [RED, GRN, BLU].filter(() => rnd() < 0.8);
+  if (!gels.length) gels.push(RED);
+  const nGel = Math.min(gels.length, 1 + Math.floor(rnd() * 2));
+  for (let g = 0; g < nGel && legs.length; g++) {
+    const pick = legs.splice(Math.floor(rnd() * legs.length), 1)[0];
+    const gc = gels[g];
+    tok[pick] = gc === RED ? 'R' : gc === GRN ? 'G' : 'B';
+    col |= gc;
+  }
+  for (let g = 0; g < 2 && legs.length; g++) {
+    const pick = legs.splice(Math.floor(rnd() * legs.length), 1)[0];
+    if (tok[pick] === '.') tok[pick] = 'o';
+  }
+  tok[y * w + x] = '' + col;
+  let decoy = 2 + Math.floor(rnd() * 3), guard = 0;
+  while (decoy > 0 && guard++ < 80) {
+    decoy--;
+    const rx = Math.floor(rnd() * w), ry = Math.floor(rnd() * h);
+    if (tok[ry * w + rx] !== '.' || seen[rx + ',' + ry]) continue;
+    const pick = rnd();
+    tok[ry * w + rx] = pick < 0.4 ? '#' : pick < 0.75 ? (rnd() < 0.5 ? '/' : '\\') : 'Y';
+  }
+  const rows = [];
+  for (let yy = 0; yy < h; yy++) rows.push(tok.slice(yy * w, yy * w + w).join(' '));
+  const def = {
+    n: 0, name: 'Path of the Day', ch: 0, w, h, rows, daily: true, scr: [],
+    p: [sx + ',' + sy + ',-,' + path.join('')],
+    tip: 'Minted from today’s date — one board, the same for everyone.',
+  };
+  const probe = buildBoard(def, prefs.diff, { pristine: true });
+  if (probe.report.length || !probe.res.solved) return null;
+  const live = buildBoard(def, prefs.diff);
+  if (live.res.solved || !live.sol.length) return null;
+  return def;
+}
+function canMove(x, y, d, w, h, seen) {
+  const nx = x + DX[d], ny = y + DY[d];
+  return nx >= 0 && ny >= 0 && nx < w && ny < h && !seen[nx + ',' + ny];
+}
+
+/* ── 11 ─ free play ─────────────────────────────────────────────────────── */
+const PALETTE = [
+  ['erase', '⌫', 'Erase'], ['source', '☀', 'Source'], ['mirror', '╱', 'Mirror'],
+  ['twin', '✕', 'Twin'], ['split', '⊹', 'Splitter'], ['prism', '◭', 'Prism'],
+  ['gelR', '●', 'Red gel'], ['gelG', '●', 'Green gel'], ['gelB', '●', 'Blue gel'],
+  ['mixer', '◉', 'Mixer'], ['filter', '◐', 'Filter'], ['valve', '➤', 'Valve'],
+  ['lumen', '✷', 'Lumen'], ['receptor', '◆', 'Jewel'], ['block', '▩', 'Brick'],
+];
+const FP_DEFAULT = {
+  n: 0, name: 'Free Play', ch: 0, w: 7, h: 7, free: true, scr: [], p: [],
+  rows: ['>w . . . . . .', '. . . . . . .', '. . . . . . .', '. . . . . . .', '. . . . . o .', '. . . . . . .', '. . . . . . 7'],
+  tip: 'Pick a tile below, then tap the grid. Tap placed glass to rotate it.',
+};
+function paletteTok() {
+  switch (G.freeSel) {
+    case 'source': return '>w';
+    case 'mirror': return '/';
+    case 'twin': return 'X';
+    case 'split': return 'S';
+    case 'prism': return 'P0';
+    case 'gelR': return 'R';
+    case 'gelG': return 'G';
+    case 'gelB': return 'B';
+    case 'mixer': return 'M';
+    case 'filter': return 'F0';
+    case 'valve': return 'V1';
+    case 'lumen': return 'o';
+    case 'receptor': return '7';
+    case 'block': return '#';
+    default: return '.';
+  }
+}
+function freePlace(b, x, y, rev) {
+  const i = y * b.w + x;
+  const cur = b.cells[i];
+  if (G.freeSel === 'erase') {
+    if (cur.k === 'empty') return { ok: false, why: 'fixed' };
+    b.undo.push({ i, from: 0, to: 0, tok: '.' });
+    b.cells[i] = tokenCell('.');
+    b.rebuild = true;
+    return { ok: true, i, cell: b.cells[i] };
+  }
+  const want = paletteTok();
+  if (cur.k !== 'empty' && boardTok(b, i) === want) return rotateCell(b, x, y, rev);
+  if (cur.k !== 'empty' && rev) return rotateCell(b, x, y, rev);
+  b.undo.push({ i, from: 0, to: 0, tok: boardTok(b, i) });
+  b.cells[i] = tokenCell(want);
+  b.rotT[i] = b.cells[i].s; b.rotV[i] = b.cells[i].s;
+  b.rebuild = true;
+  return { ok: true, i, cell: b.cells[i] };
+}
+function boardTok(b, i) {
+  const c = b.cells[i];
+  switch (c.k) {
+    case 'empty': return '.';
+    case 'block': return '#';
+    case 'mirror': return c.s ? '\\' : '/';
+    case 'twin': return c.s ? 'Y' : 'X';
+    case 'split': return c.s ? 'T' : 'S';
+    case 'prism': return 'P' + c.s;
+    case 'gel': return c.c === RED ? 'R' : c.c === GRN ? 'G' : 'B';
+    case 'mixer': return 'M';
+    case 'filter': return 'F' + c.s;
+    case 'valve': return 'V' + c.s;
+    case 'lumen': return 'o';
+    case 'secret': return 'O';
+    case 'source': return ['^', '>', 'v', '<'][c.d] + (c.c === RED ? 'r' : c.c === GRN ? 'g' : c.c === BLU ? 'b' : 'w');
+    case 'receptor': return '' + c.c;
+    default: return '.';
+  }
+}
+function boardDef(b, name) {
+  const rows = [];
+  for (let y = 0; y < b.h; y++) {
+    const line = [];
+    for (let x = 0; x < b.w; x++) line.push(boardTok(b, y * b.w + x));
+    rows.push(line.join(' '));
+  }
+  return { n: 0, name: name || 'Shared board', ch: 0, w: b.w, h: b.h, rows, p: [], scr: [], free: true, tip: '' };
+}
+/* Re-read the structural lists after a paint/erase. */
+function rebuildLists(b) {
+  if (!b.rebuild) return false;
+  b.rebuild = false;
+  b.srcs = []; b.recs = []; b.lums = []; b.lumNeed = 0; b.levers = []; b.mixes = [];
+  for (let i = 0; i < b.cells.length; i++) {
+    const c = b.cells[i];
+    if (c.k === 'mixer') b.mixes.push(i);
+    else if (c.k === 'source') b.srcs.push(i);
+    else if (c.k === 'receptor') { b.recs.push(i); if (c.lever) b.levers.push(i); }
+    else if (c.k === 'lumen' || c.k === 'secret') b.lums.push(i);
+  }
+  b.lumNeed = b.lums.length;
+  b.prevLit = new Uint8Array(b.cells.length);
+  return true;
+}
+function openFree(def) {
+  G.daily = false;
+  G.board = buildBoard(def || FP_DEFAULT, prefs.diff, {});
+  G.board.free = true;
+  G.board.prevLit = new Uint8Array(G.board.cells.length);
+  for (const i of G.board.recs) G.board.prevLit[i] = G.board.eng.rec[i] === G.board.cells[i].c ? 1 : 0;
+  G.freeOpen = true;
+  G.hintAt = -9; G.winAt = 0;
+  buildPalette();
+  go('free');
+  updateShare();
+  if (def && def.tip) toast(def.tip, 3600);
+}
+function updateShare() {
+  const b = G.board;
+  if (!b) return;
+  const code = encodeBoard(b);
+  if ($('fpOut')) $('fpOut').value = code;
+  if ($('shareOut')) $('shareOut').value = code;
+}
+/* ── 12 ─ effects ───────────────────────────────────────────────────────── */
+const FX = {
+  parts: [], rings: [], motes: [], shake: 0, sx: 0, sy: 0,
+  init() {
+    for (let i = 0; i < 260; i++) FX.parts.push({ on: 0, x: 0, y: 0, vx: 0, vy: 0, life: 0, max: 1, col: 7, r: 2 });
+    for (let i = 0; i < 24; i++) FX.rings.push({ on: 0, x: 0, y: 0, r: 0, r0: 0, life: 0, col: 7 });
+  },
+  burst(x, y, col, n) {
+    let made = 0;
+    for (let i = 0; i < FX.parts.length && made < n; i++) {
+      const p = FX.parts[i];
+      if (p.on) continue;
+      const a = Math.random() * TAU, sp = 26 + Math.random() * 96;
+      p.on = 1; p.x = x; p.y = y; p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - 14;
+      p.max = 0.35 + Math.random() * 0.5; p.life = p.max; p.col = col; p.r = 1.2 + Math.random() * 2.4;
+      made++;
+    }
+  },
+  ring(x, y, col, r0) {
+    for (let i = 0; i < FX.rings.length; i++) {
+      const r = FX.rings[i];
+      if (r.on) continue;
+      r.on = 1; r.x = x; r.y = y; r.r = L.cell * 0.18; r.r0 = r0; r.life = 1; r.col = col;
+      return;
+    }
+  },
+  moteStorm() {
+    for (let i = 0; i < 60; i++) FX.motes.push({
+      x: Math.random() * L.vw, y: L.vh + Math.random() * 90, vy: -(12 + Math.random() * 34),
+      drift: (Math.random() - 0.5) * 16, r: 1 + Math.random() * 2.6, col: [1, 2, 4, 3, 6, 7][i % 6],
+      life: 4 + Math.random() * 4, max: 8,
+    });
+  },
+  shakeScreen(mag) { FX.shake = Math.min(9, FX.shake + mag); },
+  step(dt) {
+    for (let i = 0; i < FX.parts.length; i++) {
+      const p = FX.parts[i];
+      if (!p.on) continue;
+      p.life -= dt;
+      if (p.life <= 0) { p.on = 0; continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 62 * dt; p.vx *= 0.985; p.vy *= 0.985;
+    }
+    for (let i = 0; i < FX.rings.length; i++) {
+      const r = FX.rings[i];
+      if (!r.on) continue;
+      r.life -= dt * 1.5;
+      r.r = lerp(r.r, r.r0, Math.min(1, dt * 6));
+      if (r.life <= 0) r.on = 0;
+    }
+    for (let i = FX.motes.length - 1; i >= 0; i--) {
+      const m = FX.motes[i];
+      m.y += m.vy * dt; m.x += Math.sin((G.t + i) * 0.8) * m.drift * dt; m.life -= dt;
+      if (m.life <= 0 || m.y < -20) FX.motes.splice(i, 1);
+    }
+    if (FX.shake > 0.01) {
+      FX.shake *= Math.pow(0.0025, dt);
+      FX.sx = (Math.random() - 0.5) * FX.shake; FX.sy = (Math.random() - 0.5) * FX.shake;
+    } else { FX.shake = 0; FX.sx = 0; FX.sy = 0; }
+  },
+  draw(ctx) {
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < FX.parts.length; i++) {
+      const p = FX.parts[i];
+      if (!p.on) continue;
+      const a = p.life / p.max;
+      ctx.fillStyle = RA(p.col, a * 0.9);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.4 + a), 0, TAU); ctx.fill();
+    }
+    for (let i = 0; i < FX.rings.length; i++) {
+      const r = FX.rings[i];
+      if (!r.on) continue;
+      ctx.strokeStyle = RA(r.col, r.life * 0.75);
+      ctx.lineWidth = 2 + r.life * 3;
+      ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
+    }
+    for (let i = 0; i < FX.motes.length; i++) {
+      const m = FX.motes[i];
+      const a = Math.min(1, m.life / 2) * 0.7;
+      ctx.fillStyle = RA(m.col, a);
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, TAU); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  },
+};
+
+/* ── 13 ─ DOM chrome builders ───────────────────────────────────────────── */
+function buildLegend() {
+  const el = $('legend');
+  el.innerHTML = '';
+  for (const fact of MIXFACTS) {
+    const s = document.createElement('span');
+    s.className = 'leg';
+    let html = '';
+    for (let i = 0; i < fact.length - 1; i++) {
+      html += dotSpan(fact[i]) + (i < fact.length - 2 ? '<span style="color:#6f7bb0">+</span>' : '');
+    }
+    html += '<span style="color:#6f7bb0">→</span>' + dotSpanMix(fact[fact.length - 1]) +
+      '<b style="color:#fff;font-weight:600">' + COLNAME[fact[fact.length - 1]] + '</b>';
+    s.innerHTML = html;
+    el.appendChild(s);
+  }
+}
+/* the arrow's right hand side is one dot in the colour you actually get */
+function dotSpanMix(bits) {
+  return '<i style="color:' + PAL(bits) + ';background:' + PAL(bits) + '"></i>';
+}
+function dotSpan(bits) {
+  let out = '';
+  for (const bit of [RED, GRN, BLU]) if (bits & bit) out += '<i style="color:' + PAL(bit) + ';background:' + PAL(bit) + '"></i>';
+  return out;
+}
+function PAL(bit) {
+  const t = prefs.cbr ? CBPAL : COLHEX;
+  return t[bit] || COLHEX[7];
+}
+const CBPAL = { 1: '#ff9d3d', 2: '#5ad1ff', 4: '#c46bff', 3: '#ffe066', 5: '#ffa6ff', 6: '#9ef6ff', 7: '#ffffff' };
+
+function buildHowTo() {
+  const row = $('howRow');
+  row.innerHTML = '';
+  const cards = [
+    ['rotate', 'Tap glass', 'Tap any glass to spin it clockwise. Right-click, shift-click or long-press spins it back.'],
+    ['mix', 'Mix light', 'Gels add colour. Overlap red and green and you get amber — a jewel only lights for its exact colour.'],
+    ['jewel', 'Light every jewel', 'Every jewel shows the colour it wants as a shape and a name. Light them all at once to clear the board.'],
+  ];
+  for (const c of cards) {
+    const d = document.createElement('div');
+    const cv = document.createElement('canvas');
+    cv.width = 84 * 2; cv.height = 60 * 2; cv.style.width = '84px'; cv.style.height = '60px';
+    d.appendChild(cv);
+    const h = document.createElement('h4'); h.textContent = c[1]; d.appendChild(h);
+    const p = document.createElement('p'); p.textContent = c[2]; d.appendChild(p);
+    row.appendChild(d);
+    howIcon(cv.getContext('2d'), c[0]);
+  }
+  const mx = $('mixLegend');
+  mx.innerHTML = '';
+  for (const fact of MIXFACTS) {
+    const s = document.createElement('span');
+    s.className = 'mix';
+    let html = '';
+    for (let i = 0; i < fact.length - 1; i++) html += dotSpan(fact[i]) + (i < fact.length - 2 ? '<span style="color:#7f8bc0">+</span>' : '');
+    html += '<span style="color:#7f8bc0">→</span>' + dotSpanMix(fact[fact.length - 1]) +
+      '<b style="color:#fff">' + COLNAME[fact[fact.length - 1]] + '</b>';
+    s.innerHTML = html;
+    mx.appendChild(s);
+  }
+}
+function howIcon(ctx, kind) {
+  ctx.scale(2, 2);
+  ctx.lineCap = 'round';
+  const box = (x, y, w, h) => {
+    ctx.strokeStyle = 'rgba(160,180,255,.35)'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+  };
+  if (kind === 'rotate') {
+    box(6, 6, 48, 48);
+    ctx.strokeStyle = '#cfe0ff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(16, 44); ctx.lineTo(44, 16); ctx.stroke();
+    ctx.strokeStyle = '#8ab8ff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(30, 30, 20, -0.4, 2.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(50, 34); ctx.lineTo(49, 26); ctx.lineTo(42, 30); ctx.closePath();
+    ctx.fillStyle = '#8ab8ff'; ctx.fill();
+  } else if (kind === 'mix') {
+    ctx.strokeStyle = 'rgba(160,180,255,.35)'; ctx.lineWidth = 1; ctx.strokeRect(6, 6, 72, 48);
+    ctx.lineWidth = 4; ctx.lineCap = 'butt';
+    ctx.strokeStyle = PAL(RED); ctx.beginPath(); ctx.moveTo(8, 20); ctx.lineTo(46, 20); ctx.stroke();
+    ctx.strokeStyle = PAL(GRN); ctx.beginPath(); ctx.moveTo(8, 40); ctx.lineTo(46, 40); ctx.stroke();
+    ctx.strokeStyle = PAL(3); ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(48, 30); ctx.lineTo(76, 30); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(46, 30, 4, 0, TAU); ctx.fill();
+  } else {
+    ctx.strokeStyle = 'rgba(160,180,255,.35)'; ctx.lineWidth = 1; ctx.strokeRect(6, 6, 72, 48);
+    const gems = [[20, 20, RED], [42, 20, GRN], [64, 20, BLU], [20, 42, 3], [42, 42, 5], [64, 42, 6]];
+    for (const g of gems) {
+      ctx.fillStyle = PAL(g[2]); ctx.shadowColor = PAL(g[2]); ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.arc(g[0], g[1], 4.5, 0, TAU); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+function buildDiffs() {
+  const row = $('diffRow');
+  row.innerHTML = '';
+  for (const key of ['gentle', 'artisan', 'luminary']) {
+    const d = DIFFS[key];
+    const b = document.createElement('button');
+    b.className = 'diff' + (prefs.diff === key ? ' sel' : '');
+    b.setAttribute('aria-pressed', prefs.diff === key ? 'true' : 'false');
+    b.innerHTML = '<b>' + d.icon + ' ' + d.name + '</b><span>' + d.blurb + ' · par moves ×' + d.par + '</span>';
+    b.addEventListener('click', () => {
+      prefs.diff = key; savePrefs(); buildDiffs(); pickDiff(key);
+    });
+    b.setAttribute('aria-label', 'Difficulty ' + d.name + '. ' + d.blurb);
+    row.appendChild(b);
+  }
+  $('bDiffPill').textContent = DIFFS[prefs.diff].icon + ' ' + DIFFS[prefs.diff].name;
+}
+function pickDiff(key) {
+  if (G.board && !G.board.free) startLevel(G.li, key);
+  else if (G.board && G.board.free) { G.board.diffKey = key; }
+  toast('Difficulty: ' + DIFFS[key].icon + ' ' + DIFFS[key].name);
+}
+
+function buildLevelSelect() {
+  const box = $('lvScroll');
+  box.innerHTML = '';
+  for (const chp of CHAPTERS) {
+    const head = document.createElement('div');
+    head.className = 'chapterHead';
+    head.innerHTML = '<b>' + chp.n + ' · ' + chp.name + '</b><span>' + chp.about + '</span>';
+    box.appendChild(head);
+    const grid = document.createElement('div');
+    grid.className = 'lvGrid';
+    let got = 0;
+    for (let idx = 0; idx < LEVELS.length; idx++) {
+      const lv = LEVELS[idx];
+      if (lv.ch !== chp.n) continue;
+      got += starsOf('L' + lv.n);
+      const open = unlockedLevel(idx);
+      const btn = document.createElement('button');
+      const st = starsOf('L' + lv.n);
+      btn.className = 'lv' + (st ? ' done' : '') + (open && !st && !G.board ? '' : '');
+      if (open && st === 0) btn.classList.add('next');
+      btn.disabled = !open;
+      btn.setAttribute('aria-label', 'Level ' + lv.n + ' ' + lv.name +
+        (open ? (st ? ', ' + st + ' stars' : ', not solved') : ', locked'));
+      btn.innerHTML = '<b>' + (open ? lv.n : '🔒') + '</b><i>' + (st ? '★'.repeat(st) : '☆☆☆') + '</i>';
+      btn.addEventListener('click', () => { A.ui('tap'); startLevel(idx); });
+      grid.appendChild(btn);
+    }
+    const tail = document.createElement('span');
+    tail.style.cssText = 'font-size:11.5px;color:#7f8bc0;margin-left:auto;white-space:nowrap';
+    tail.textContent = got + '/' + (LEVELS.filter((l) => l.ch === chp.n).length * 3) + '★';
+    box.appendChild(grid);
+    head.appendChild(tail);   /* rides the header line so it never lands on a tile */
+  }
+  requestAnimationFrame(() => box.classList.toggle('scrollable', box.scrollHeight > box.clientHeight + 6));
+  const d = $('bDaily2');
+  if (d) d.textContent = '☄ Path of the Day' + (starsOf('D' + dayKey()) ? ' ✓' + starsOf('D' + dayKey()) + '★' : '');
+}
+
+function buildPalette() {
+  const box = $('palette');
+  if (!box || box.childElementCount) return;
+  for (const p of PALETTE) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.style.cssText = 'min-width:44px;padding:7px 9px;font-size:15px;flex:0 0 auto';
+    b.setAttribute('aria-label', 'Place ' + p[2]);
+    const tint = p[0] === 'gelR' ? PAL(RED) : p[0] === 'gelG' ? PAL(GRN) : p[0] === 'gelB' ? PAL(BLU) : null;
+    b.innerHTML = '<span' + (tint ? ' style="color:' + tint + '"' : '') + '>' + p[1] + '</span>';
+    b.dataset.kind = p[0];
+    b.addEventListener('click', () => {
+      G.freeSel = p[0];
+      for (const el of box.children) el.style.outline = 'none';
+      b.style.outline = '2px solid #9be8ff';
+      b.scrollIntoView({ inline: 'center', block: 'nearest' });
+      A.ui('place');
+      freeHint(p[2]);
+    });
+    if (p[0] === G.freeSel) b.style.outline = '2px solid #9be8ff';
+    box.appendChild(b);
+  }
+  fitPalette();
+}
+/* a centred flex row pushes its first tiles past the unreachable left edge */
+function fitPalette() {
+  const box = $('palette');
+  if (!box) return;
+  const over = box.scrollWidth > box.clientWidth + 4;
+  box.style.justifyContent = over ? 'flex-start' : 'center';
+  box.classList.toggle('scrollable', over);
+}
+function freeHint(name) {
+  const el = $('fpHint');
+  if (!el) return;
+  el.textContent = (G.freeSel === 'erase'
+    ? 'Erase — tap a placed tile to remove it.'
+    : name + ' — tap the grid to place it, tap a placed tile to rotate it.') +
+    ' Share codes hold any board, no internet needed.';
+}
+
+const SETTING_ROWS = [
+  ['sound', 'Sound effects', 'Glass tink, bells and the solve chord'],
+  ['music', 'Ambient music', 'A pad that gains a voice for every lit jewel'],
+  ['contrast', 'High contrast', 'Flatter panels, stronger outlines'],
+  ['cbr', 'Colour-blind palette', 'Blue/orange palette plus patterned beams'],
+];
+function buildSettings() {
+  const box = $('setRows');
+  box.innerHTML = '';
+  for (const row of SETTING_ROWS) {
+    box.appendChild(settingRow(row[0], row[1], row[2], !!prefs[row[0]]));
+  }
+  const motion = document.createElement('div');
+  motion.className = 'setRow';
+  motion.innerHTML = '<span>Motion<small>Auto follows your system setting</small></span>';
+  const mb = document.createElement('button');
+  mb.className = 'chip tog';
+  mb.setAttribute('aria-pressed', prefs.motion === 'off' ? 'true' : 'false');
+  const setMotionLabel = () => { mb.textContent = prefs.motion === 'off' ? 'Reduced' : 'Full'; };
+  setMotionLabel();
+  mb.setAttribute('aria-label', 'Toggle reduced motion');
+  mb.addEventListener('click', () => {
+    prefs.motion = prefs.motion === 'off' ? 'auto' : 'off';
+    mb.setAttribute('aria-pressed', prefs.motion === 'off' ? 'true' : 'false');
+    setMotionLabel(); savePrefs(); A.pad(1);
+  });
+  motion.appendChild(mb);
+  box.appendChild(motion);
+}
+function settingRow(key, label, sub, val) {
+  const row = document.createElement('div');
+  row.className = 'setRow';
+  row.innerHTML = '<span>' + label + '<small>' + sub + '</small></span>';
+  const b = document.createElement('button');
+  b.className = 'chip tog';
+  b.setAttribute('aria-pressed', val ? 'true' : 'false');
+  b.setAttribute('aria-label', label);
+  b.textContent = val ? 'On' : 'Off';
+  b.addEventListener('click', () => {
+    prefs[key] = !prefs[key];
+    b.setAttribute('aria-pressed', prefs[key] ? 'true' : 'false');
+    b.textContent = prefs[key] ? 'On' : 'Off';
+    savePrefs();
+    document.body.classList.toggle('contrast', !!prefs.contrast);
+    if (key === 'sound' || key === 'music') { A.init(); A.pad(1); A.ui('tap'); }
+    if (key === 'cbr') { buildLegend(); buildHowTo(); }
+  });
+  row.appendChild(b);
+  return row;
+}
+/* ── 14 ─ layout + sprites ──────────────────────────────────────────────── */
+const CV = $('cv');
+const CTX = CV.getContext('2d');
+const MASK = document.createElement('canvas');
+const MCTX = MASK.getContext('2d');
+const L = { vw: 0, vh: 0, dpr: 1, cell: 48, bx: 0, by: 0, bw: 0, bh: 0, hudH: 6, freeH: 0, toolsH: 4, top: 6 };
+const SP = { plate: null, block: null, glow: {}, size: 0 };
+
+/* colour strings pre-baked so the frame loop allocates nothing */
+const COLRGB = { 1: [255, 90, 110], 2: [87, 224, 138], 4: [90, 162, 255], 3: [255, 182, 72],
+  5: [255, 122, 224], 6: [79, 228, 255], 7: [246, 244, 255], 0: [120, 130, 170] };
+let RA_TABLE = {};
+function bakePalette() {
+  RA_TABLE = {};
+  const src = prefs.cbr
+    ? { 1: [255, 157, 61], 2: [90, 209, 255], 4: [196, 107, 255], 3: [255, 224, 102],
+        5: [255, 166, 255], 6: [158, 246, 255], 7: [255, 255, 255], 0: [140, 150, 190] }
+    : COLRGB;
+  for (const k in src) {
+    const c = src[k];
+    const arr = [];
+    for (let i = 0; i <= 10; i++) arr.push('rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (i / 10).toFixed(2) + ')');
+    RA_TABLE[k] = arr;
+    RA_TABLE[k + '_core'] = 'rgba(' + Math.min(255, c[0] + 90) + ',' + Math.min(255, c[1] + 90) + ',' + Math.min(255, c[2] + 90) + ',1)';
+  }
+}
+function RA(col, a) {
+  const arr = RA_TABLE[col] || RA_TABLE[0];
+  return arr[clamp(Math.round(a * 10), 0, 10)];
+}
+function COLCORE(col) { return (RA_TABLE[col] && RA_TABLE[col + '_core']) || '#fff'; }
+
+function layout() {
+  L.dpr = Math.min(2, window.devicePixelRatio || 1);
+  L.vw = Math.max(280, window.innerWidth);
+  L.vh = Math.max(320, window.innerHeight);
+  CV.width = Math.round(L.vw * L.dpr); CV.height = Math.round(L.vh * L.dpr);
+  CV.style.width = L.vw + 'px'; CV.style.height = L.vh + 'px';
+  MASK.width = L.vw; MASK.height = L.vh;
+  document.body.classList.toggle('short', L.vh < 470);
+  if (!BD || BD.width !== Math.round(L.vw) || BD.height !== Math.round(L.vh)) buildBackdrop();
+
+  const playing = G.mode === 'play' || G.mode === 'win' || G.mode === 'pause' || G.mode === 'free';
+  L.hudH = playing ? $('hud').offsetHeight + 4 : 8;
+  $('legend').style.top = (L.hudH + 3) + 'px';
+  const legH = (playing && !(G.mode === 'free' && G.freeOpen)) ? $('legend').offsetHeight + 5 : 0;
+  L.toolsH = (G.mode === 'play' || G.mode === 'free') ? $('tools').offsetHeight + 4 : 6;
+  L.freeH = 0;
+  if (G.mode === 'free' && G.freeOpen) {
+    const card = $('s-free').firstElementChild;
+    L.freeH = card ? card.offsetHeight + 8 : 0;
+  }
+  L.top = L.hudH + legH + 4;
+  const bottom = L.vh - L.toolsH - L.freeH - 8;
+  const b = G.board;
+  if (b) {
+    const availW = L.vw - 14, availH = Math.max(90, bottom - L.top);
+    L.cell = clamp(Math.floor(Math.min(availW / b.w, availH / b.h)), 20, 104);
+    L.bw = L.cell * b.w; L.bh = L.cell * b.h;
+    L.bx = Math.round((L.vw - L.bw) / 2);
+    L.by = Math.round(L.top + Math.max(0, (availH - L.bh) / 2));
+  }
+  fitPalette();
+  placeToast();      /* a note already on screen must dodge whatever card just appeared */
+  buildSprites();
+}
+
+function rr(ctx, x, y, w, h, r) {
+  const rad = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.lineTo(x + w - rad, y); ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+  ctx.lineTo(x + w, y + h - rad); ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+  ctx.lineTo(x + rad, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+  ctx.lineTo(x, y + rad); ctx.quadraticCurveTo(x, y, x + rad, y);
+  ctx.closePath();
+}
+
+function sprite(size, draw) {
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(size)); c.height = Math.max(1, Math.round(size));
+  const g = c.getContext('2d');
+  draw(g, size);
+  return c;
+}
+function buildSprites() {
+  const s = L.cell;
+  if (SP.size === s && SP.plate) return;
+  SP.size = s;
+  const pad = Math.max(2, s * 0.055);
+  SP.plate = sprite(s, (g, sz) => {
+    const r = sz * 0.24;
+    rr(g, pad, pad, sz - pad * 2, sz - pad * 2, r);
+    g.fillStyle = 'rgba(150,170,235,0.075)'; g.fill();
+    g.strokeStyle = 'rgba(200,220,255,0.16)'; g.lineWidth = 1; g.stroke();
+    rr(g, pad + 1.5, pad + 1.5, sz - pad * 2 - 3, (sz - pad * 2) * 0.42, r * 0.8);
+    g.fillStyle = 'rgba(255,255,255,0.05)'; g.fill();
+    g.beginPath();
+    g.moveTo(pad + r * 0.5, pad + sz * 0.34); g.lineTo(pad + sz * 0.34, pad + r * 0.4);
+    g.strokeStyle = 'rgba(255,255,255,0.30)'; g.lineWidth = Math.max(1, sz * 0.028); g.stroke();
+  });
+  SP.block = sprite(s, (g, sz) => {
+    const pad = sz * 0.06, r = sz * 0.2;
+    rr(g, pad, pad, sz - pad * 2, sz - pad * 2, r);
+    g.fillStyle = 'rgba(8,8,20,0.92)'; g.fill();
+    g.strokeStyle = 'rgba(120,130,190,0.22)'; g.lineWidth = 1; g.stroke();
+    g.save(); g.clip();
+    g.strokeStyle = 'rgba(120,140,210,0.13)'; g.lineWidth = Math.max(1, sz * 0.05);
+    for (let i = -sz; i < sz * 2; i += sz * 0.26) {
+      g.beginPath(); g.moveTo(i, 0); g.lineTo(i + sz, sz); g.stroke();
+    }
+    g.restore();
+  });
+  for (const bit in COLRGB) {
+    SP.glow[bit] = sprite(Math.max(8, Math.round(s * 2.2)), (g, sz) => {
+      const grd = g.createRadialGradient(sz / 2, sz / 2, 0, sz / 2, sz / 2, sz / 2);
+      grd.addColorStop(0, RA(bit, 0.85)); grd.addColorStop(0.35, RA(bit, 0.3));
+      grd.addColorStop(1, RA(bit, 0));
+      g.fillStyle = grd; g.fillRect(0, 0, sz, sz);
+    });
+  }
+}
+let BD = null;
+function buildBackdrop() {
+  const w = Math.round(L.vw), h = Math.round(L.vh);
+  BD = document.createElement('canvas');
+  BD.width = w; BD.height = h;
+  const g = BD.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, h);
+  grd.addColorStop(0, '#0b0a22'); grd.addColorStop(0.45, '#0a0819'); grd.addColorStop(1, '#05040e');
+  g.fillStyle = grd; g.fillRect(0, 0, w, h);
+  const rnd = rngFrom(4711);
+  for (let i = 0; i < 26; i++) {
+    const cx = rnd() * w, cy = rnd() * h, r = 60 + rnd() * 260;
+    g.beginPath();
+    const sides = 3 + Math.floor(rnd() * 3);
+    for (let k = 0; k < sides; k++) {
+      const a = (k / sides) * TAU + rnd() * 0.5;
+      const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+      if (k === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.closePath();
+    g.fillStyle = 'rgba(' + (24 + rnd() * 30 | 0) + ',' + (22 + rnd() * 26 | 0) + ',' + (58 + rnd() * 44 | 0) + ',' + (0.10 + rnd() * 0.10).toFixed(3) + ')';
+    g.fill();
+    g.strokeStyle = 'rgba(160,175,255,0.035)'; g.lineWidth = 1; g.stroke();
+  }
+  const halo = g.createRadialGradient(w * 0.5, h * 0.18, 0, w * 0.5, h * 0.18, Math.max(w, h) * 0.62);
+  halo.addColorStop(0, 'rgba(96,110,220,0.16)'); halo.addColorStop(1, 'rgba(96,110,220,0)');
+  g.fillStyle = halo; g.fillRect(0, 0, w, h);
+}
+
+/* ── 15 ─ board rendering ───────────────────────────────────────────────── */
+function drawBoard(ctx, b, ox, oy, cell, dim) {
+  const D = reducedMotion();
+  const reveal = D ? 99 : b.reveal;
+  const perCell = Math.min(0.085, 0.36 / Math.max(1, b.res.maxDist));
+  const head = reveal / Math.max(0.0001, perCell);
+  const eng = b.eng;
+  const t = G.t;
+
+  /* plate under the whole grid */
+  ctx.save();
+  rr(ctx, ox - 7, oy - 7, L.bwOf(cell, b) + 14, L.bhOf(cell, b) + 14, 18);
+  ctx.fillStyle = 'rgba(10,9,26,0.72)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150,170,255,0.20)';
+  ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
+
+  /* in the sandbox every socket is a target, so empty cells ask to be filled */
+  if (b.free) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(150,170,255,' + (0.13 * dim).toFixed(3) + ')';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < b.cells.length; i++) {
+      if (b.cells[i].k !== 'empty') continue;
+      const x = ox + (i % b.w) * cell, y = oy + Math.floor(i / b.w) * cell;
+      rr(ctx, x + cell * 0.13, y + cell * 0.13, cell * 0.74, cell * 0.74, cell * 0.2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* cell plates */
+  for (let i = 0; i < b.cells.length; i++) {
+    const c = b.cells[i];
+    if (c.k === 'empty') continue;
+    const x = ox + (i % b.w) * cell, y = oy + Math.floor(i / b.w) * cell;
+    const pop = b.pop[i];
+    if (c.k === 'block') ctx.drawImage(SP.block, x, y, cell, cell);
+    else {
+      if (pop > 0.02) {
+        const k = 1 + pop * 0.06;
+        ctx.save(); ctx.translate(x + cell / 2, y + cell / 2); ctx.scale(k, k); ctx.translate(-x - cell / 2, -y - cell / 2);
+      }
+      ctx.drawImage(SP.plate, x, y, cell, cell);
+    }
+    /* refraction shimmer */
+    if (!D && c.k !== 'block') {
+      const ph = (t * 0.35 + i * 0.37) % 1;
+      ctx.save();
+      rr(ctx, x + 2, y + 2, cell - 4, cell - 4, cell * 0.24);
+      ctx.clip();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgba(180,200,255,' + (0.05 * Math.sin(ph * TAU)).toFixed(3) + ')';
+      ctx.fillRect(x, y, cell, cell);
+      ctx.restore();
+    }
+    if (pop > 0.02) ctx.restore();
+  }
+
+  /* caustic pools under lit cells */
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < b.cells.length; i++) {
+    let cb = 0;
+    for (let f = 0; f < 4; f++) cb |= eng.edge[i * 4 + f];
+    if (eng.src[i]) cb |= eng.src[i];
+    if (!cb) continue;
+    const cx = ox + (i % b.w + 0.5) * cell, cy = oy + (Math.floor(i / b.w) + 0.5) * cell;
+    const bit = cb & -cb;
+    const g = SP.glow[bit] || SP.glow[7];
+    ctx.globalAlpha = 0.16 * dim;
+    ctx.drawImage(g, cx - cell * 1.1, cy - cell * 1.1, cell * 2.2, cell * 2.2);
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+
+  /* hint ghost */
+  if (b.ghostOn && !b.solvedAt) drawGhost(ctx, b, ox, oy, cell);
+
+  /* beams */
+  ctx.save();
+  /* light stops at the wall: a stray beam must not bleed over the frame */
+  rr(ctx, ox - 1, oy - 1, L.bwOf(cell, b) + 2, L.bhOf(cell, b) + 2, 8);
+  ctx.clip();
+  ctx.lineCap = 'round';
+  ctx.globalCompositeOperation = 'lighter';
+  const paths = { 1: new Path2D(), 2: new Path2D(), 4: new Path2D() };
+  for (let i = 0; i < b.cells.length; i++) {
+    const cx = ox + (i % b.w + 0.5) * cell, cy = oy + (Math.floor(i / b.w) + 0.5) * cell;
+    for (let f = 0; f < 4; f++) {
+      const k = i * 4 + f;
+      const cb = eng.edge[k];
+      if (!cb) continue;
+      const dist = eng.edist[k];
+      if (dist > head) continue;
+      const ex = cx + DX[f] * cell * 0.5, ey = cy + DY[f] * cell * 0.5;
+      for (const bit of [1, 2, 4]) {
+        if (!(cb & bit)) continue;
+        const p = paths[bit];
+        p.moveTo(cx, cy); p.lineTo(ex, ey);
+      }
+      /* travelling pulse wave */
+      if (!D) {
+        const wv = t * 1.9 - dist * 0.55;
+        const ph = wv - Math.floor(wv);
+        const a = Math.pow(1 - ph, 3) * 0.5 * dim;
+        if (a > 0.01) {
+          ctx.fillStyle = RA(cb & -cb, a);
+          ctx.beginPath();
+          ctx.arc(cx + DX[f] * cell * 0.5 * (1 - ph * 0.2), cy + DY[f] * cell * 0.5 * (1 - ph * 0.2), cell * 0.1 * (1 + ph), 0, TAU);
+          ctx.fill();
+        }
+      }
+      /* streak head */
+      if (!D && head - dist < 0.9) {
+        ctx.fillStyle = RA(7, 0.7);
+        ctx.beginPath(); ctx.arc(ex, ey, cell * 0.14, 0, TAU); ctx.fill();
+      }
+    }
+  }
+  for (const bit of [1, 2, 4]) {
+    ctx.strokeStyle = RA(bit, 0.10 * dim); ctx.lineWidth = cell * 0.62; ctx.stroke(paths[bit]);
+    ctx.strokeStyle = RA(bit, 0.30 * dim); ctx.lineWidth = cell * 0.24; ctx.stroke(paths[bit]);
+    ctx.strokeStyle = COLCORE(bit); ctx.globalAlpha = 0.85 * dim; ctx.lineWidth = Math.max(2, cell * 0.075);
+    ctx.stroke(paths[bit]);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+
+  /* tiles + jewels */
+  for (let i = 0; i < b.cells.length; i++) {
+    const c = b.cells[i];
+    if (c.k === 'empty' || c.k === 'block') continue;
+    drawTile(ctx, b, i, c, ox + (i % b.w) * cell, oy + Math.floor(i / b.w) * cell, cell, dim);
+  }
+
+  /* locked markers, focus ring, hover */
+  for (const i of b.cells.keys()) {
+    const c = b.cells[i];
+    if (!c.locked) continue;
+    const x = ox + (i % b.w) * cell, y = oy + Math.floor(i / b.w) * cell;
+    if (unlocked(b, i)) continue;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = '#ff9fb2'; ctx.lineWidth = 1.6;
+    const pw = cell * 0.3, ph = cell * 0.24, px = x + cell / 2, py = y + cell * 0.66;
+    ctx.beginPath(); ctx.arc(px, py - ph * 0.5, pw * 0.34, Math.PI, 0); ctx.stroke();
+    rr(ctx, px - pw / 2, py - ph * 0.5, pw, ph, 3); ctx.fillStyle = 'rgba(255,159,178,0.9)'; ctx.fill();
+    ctx.restore();
+  }
+  if (G.mode === 'play' && G.cursor.shown) {
+    const gx = ox + G.cursor.x * cell, gy = oy + G.cursor.y * cell;
+    ctx.save();
+    ctx.strokeStyle = '#9be8ff'; ctx.lineWidth = 2.5;
+    rr(ctx, gx + 2, gy + 2, cell - 4, cell - 4, cell * 0.24);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+L.bwOf = (cell, b) => cell * b.w;
+L.bhOf = (cell, b) => cell * b.h;
+
+function drawGhost(ctx, b, ox, oy, cell) {
+  ctx.save();
+  ctx.setLineDash([Math.max(3, cell * 0.1), Math.max(3, cell * 0.09)]);
+  ctx.lineWidth = Math.max(2, cell * 0.09);
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.32 + Math.sin(G.t * 2.2) * 0.08;
+  for (let i = 0; i < b.cells.length; i++) {
+    const cx = ox + (i % b.w + 0.5) * cell, cy = oy + (Math.floor(i / b.w) + 0.5) * cell;
+    for (let f = 0; f < 4; f++) {
+      const cb = b.ghost[i * 4 + f];
+      if (!cb) continue;
+      ctx.strokeStyle = COLCORE(cb & -cb);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + DX[f] * cell * 0.5, cy + DY[f] * cell * 0.5);
+      ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);
+  /* pulse the glass that still needs turning */
+  for (const s of b.sol) {
+    if (b.cells[s.i].s === s.s) continue;
+    const x = ox + (s.i % b.w) * cell, y = oy + Math.floor(s.i / b.w) * cell;
+    const k = 0.5 + 0.5 * Math.sin(G.t * 3.4);
+    ctx.strokeStyle = 'rgba(255,236,160,' + (0.35 + k * 0.5).toFixed(2) + ')';
+    ctx.lineWidth = 2 + k * 2;
+    rr(ctx, x + 3, y + 3, cell - 6, cell - 6, cell * 0.24);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* glyph shapes so colour is never the only cue */
+function shapeAt(ctx, x, y, r, kind, col, fill) {
+  ctx.fillStyle = fill ? col : 'transparent';
+  ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.2, r * 0.28);
+  ctx.beginPath();
+  if (kind === 'circle') ctx.arc(x, y, r, 0, TAU);
+  else if (kind === 'tri') { ctx.moveTo(x, y - r * 1.15); ctx.lineTo(x + r * 1.05, y + r * 0.8); ctx.lineTo(x - r * 1.05, y + r * 0.8); ctx.closePath(); }
+  else ctx.rect(x - r * 0.9, y - r * 0.9, r * 1.8, r * 1.8);
+  if (fill) ctx.fill(); else ctx.stroke();
+}
+const SHAPES = { 1: ['circle'], 2: ['tri'], 4: ['sq'], 3: ['circle', 'tri'], 5: ['circle', 'sq'], 6: ['tri', 'sq'], 7: ['star'] };
+function drawShapes(ctx, col, cx, cy, r) {
+  const list = SHAPES[col] || ['circle'];
+  if (list.length === 1) {
+    if (list[0] === 'star') star(ctx, cx, cy, r * 1.15, COLCORE(col));
+    else shapeAt(ctx, cx, cy, r, list[0], COLCORE(col), true);
+    return;
+  }
+  shapeAt(ctx, cx - r * 0.62, cy, r * 0.72, list[0], COLCORE(col), true);
+  shapeAt(ctx, cx + r * 0.62, cy, r * 0.72, list[1], COLCORE(col), true);
+}
+function star(ctx, x, y, r, col) {
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * TAU - Math.PI / 2;
+    const rad = i % 2 ? r * 0.38 : r;
+    const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+}
+
+function drawTile(ctx, b, i, c, x, y, s, dim) {
+  const cx = x + s / 2, cy = y + s / 2;
+  const spring = b.rotV[i];
+  const shake = b.shake[i];
+  if (shake > 0.01) x += Math.sin(G.t * 60) * shake * 3;
+  const pop = 1 + b.pop[i] * 0.08;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(pop, pop); ctx.translate(-cx, -cy);
+  switch (c.k) {
+    case 'source': {
+      const pulse = 0.75 + 0.25 * Math.sin(G.t * 2.4 + i);
+      const g = SP.glow[c.c & -c.c] || SP.glow[7];
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.5 * pulse * dim;
+      ctx.drawImage(g, cx - s, cy - s, s * 2, s * 2);
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      rr(ctx, x + s * 0.2, y + s * 0.2, s * 0.6, s * 0.6, s * 0.16);
+      ctx.fillStyle = 'rgba(12,10,26,0.9)'; ctx.fill();
+      ctx.strokeStyle = COLCORE(c.c); ctx.lineWidth = Math.max(1.5, s * 0.045); ctx.stroke();
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(c.d * Math.PI / 2);
+      ctx.fillStyle = COLCORE(c.c);
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.26); ctx.lineTo(s * 0.13, -s * 0.02); ctx.lineTo(-s * 0.13, -s * 0.02);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = RA(c.c, 0.95);
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.1, 0, TAU); ctx.fill();
+      break;
+    }
+    case 'mirror': {
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(spring * Math.PI / 2);
+      const g = ctx.createLinearGradient(-s * 0.3, -s * 0.3, s * 0.3, s * 0.3);
+      g.addColorStop(0, '#f2f7ff'); g.addColorStop(0.5, '#9fd0ff'); g.addColorStop(1, '#5f7fb8');
+      ctx.strokeStyle = g; ctx.lineWidth = Math.max(3, s * 0.14); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-s * 0.28, s * 0.28); ctx.lineTo(s * 0.28, -s * 0.28); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = Math.max(1, s * 0.04);
+      ctx.beginPath(); ctx.moveTo(-s * 0.26, s * 0.22); ctx.lineTo(s * 0.22, -s * 0.26); ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'twin': {
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(spring * Math.PI / 4);
+      const ax = 0.5 + 0.5 * Math.cos(spring * Math.PI);
+      const bx = 1 - ax;
+      ctx.lineCap = 'round'; ctx.lineWidth = Math.max(2.5, s * 0.1);
+      ctx.strokeStyle = 'rgba(190,225,255,' + (0.28 + ax * 0.6).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.26, s * 0.26); ctx.lineTo(s * 0.26, -s * 0.26);
+      ctx.moveTo(-s * 0.26, -s * 0.26); ctx.lineTo(s * 0.26, s * 0.26);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.15 + bx * 0.7).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.3); ctx.lineTo(0, s * 0.3);
+      ctx.moveTo(-s * 0.3, 0); ctx.lineTo(s * 0.3, 0);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'split': {
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(spring * Math.PI / 2);
+      ctx.fillStyle = 'rgba(150,205,255,0.30)';
+      rr(ctx, -s * 0.06, -s * 0.32, s * 0.12, s * 0.64, s * 0.05); ctx.fill();
+      ctx.strokeStyle = 'rgba(210,235,255,0.7)'; ctx.lineWidth = 1.4;
+      rr(ctx, -s * 0.06, -s * 0.32, s * 0.12, s * 0.64, s * 0.05); ctx.stroke();
+      ctx.fillStyle = 'rgba(150,205,255,0.75)';
+      ctx.beginPath(); ctx.arc(0, -s * 0.32, s * 0.06, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, s * 0.32, s * 0.06, 0, TAU); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(90,110,180,0.55)'; ctx.lineWidth = Math.max(2, s * 0.07);
+      ctx.beginPath();
+      if (c.s & 1) { ctx.moveTo(x + s * 0.16, cy); ctx.lineTo(x + s * 0.84, cy); }
+      else { ctx.moveTo(cx, y + s * 0.16); ctx.lineTo(cx, y + s * 0.84); }
+      ctx.stroke();
+      break;
+    }
+    case 'prism': {
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(spring * Math.PI / 2);
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.3); ctx.lineTo(s * 0.28, s * 0.2); ctx.lineTo(-s * 0.28, s * 0.2);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(220,235,255,0.16)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(240,248,255,0.85)'; ctx.lineWidth = Math.max(1.5, s * 0.04); ctx.stroke();
+      for (let f = 0; f < 3; f++) {
+        const dir = (f + 0) & 3;
+        const a = dir * Math.PI / 2 - Math.PI / 2;
+        ctx.fillStyle = COLCORE(PRISM_COL[f]);
+        ctx.beginPath(); ctx.arc(Math.cos(a) * s * 0.36, Math.sin(a) * s * 0.36, s * 0.07, 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'gel': {
+      rr(ctx, x + s * 0.16, y + s * 0.16, s * 0.68, s * 0.68, s * 0.16);
+      ctx.fillStyle = RA(c.c, 0.34); ctx.fill();
+      ctx.strokeStyle = COLCORE(c.c); ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.save(); ctx.clip();
+      ctx.fillStyle = RA(c.c, 0.5);
+      for (let k = 0; k < 6; k++) {
+        const a = k * 1.7 + i, rr0 = s * (0.06 + 0.16 * ((k * 37) % 10) / 10);
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a) * s * 0.18, cy + Math.sin(a) * s * 0.18, Math.max(1, rr0 * 0.3), 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'mixer': {
+      ctx.strokeStyle = 'rgba(200,215,255,0.55)'; ctx.lineWidth = Math.max(1.5, s * 0.045);
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.2, 0, TAU); ctx.stroke();
+      ctx.fillStyle = 'rgba(240,245,255,' + (0.25 + 0.15 * Math.sin(G.t * 2)).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(cx, cy, s * 0.11, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(200,215,255,0.4)'; ctx.lineWidth = Math.max(1.5, s * 0.04);
+      for (let f = 0; f < 4; f++) {
+        const a = f * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * s * 0.3, cy + Math.sin(a) * s * 0.3);
+        ctx.lineTo(cx + Math.cos(a) * s * 0.4, cy + Math.sin(a) * s * 0.4);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'filter': {
+      const fc = FILTER_COLS[c.s & 3];
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(spring * Math.PI / 2);
+      ctx.strokeStyle = COLCORE(fc); ctx.lineWidth = Math.max(2, s * 0.09);
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.24, 0, TAU); ctx.stroke();
+      ctx.fillStyle = RA(fc, 0.3); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0, -s * 0.24, s * 0.06, 0, TAU); ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'valve': {
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate((c.s - 1) * Math.PI / 2);
+      ctx.strokeStyle = 'rgba(120,255,210,0.85)'; ctx.lineWidth = Math.max(2, s * 0.07);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.16, s * 0.16); ctx.lineTo(0, 0); ctx.lineTo(s * 0.16, s * 0.16);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(120,255,210,0.3)';
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.3, -0.6, 0.6); ctx.stroke();
+      ctx.restore();
+      break;
+    }
+    case 'lumen': case 'secret': {
+      const lit = b.eng.lum[i];
+      if (c.k === 'secret' && !b.secretOn) {
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = 'rgba(150,160,220,0.5)'; ctx.lineWidth = 1;
+        rr(ctx, x + s * 0.28, y + s * 0.28, s * 0.44, s * 0.44, s * 0.1); ctx.stroke();
+        ctx.globalAlpha = 1;
+        break;
+      }
+      const r = s * 0.26 * (lit ? 1.05 + 0.06 * Math.sin(G.t * 4) : 1);
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(lit ? G.t * 0.7 : 0);
+      if (lit) {
+        ctx.globalCompositeOperation = 'lighter';
+        const g = SP.glow[7];
+        ctx.globalAlpha = 0.55 * dim; ctx.drawImage(g, -s, -s, s * 2, s * 2); ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.fillStyle = lit ? '#fff7dc' : 'rgba(190,200,240,0.22)';
+      star(ctx, 0, 0, r, lit ? '#fff7dc' : 'transparent');
+      if (!lit) {
+        ctx.strokeStyle = 'rgba(200,212,255,0.6)'; ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * TAU - Math.PI / 2;
+          const rad = k % 2 ? r * 0.38 : r;
+          const px = Math.cos(a) * rad, py = Math.sin(a) * rad;
+          if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'receptor': {
+      const lit = b.eng.rec[i] === c.c;
+      const wrongHit = !lit && b.eng.rec[i] !== 0;
+      ctx.save();
+      if (lit) {
+        ctx.globalCompositeOperation = 'lighter';
+        const g = SP.glow[c.c & -c.c] || SP.glow[7];
+        ctx.globalAlpha = 0.6 * dim;
+        ctx.drawImage(g, cx - s * 1.2, cy - s * 1.2, s * 2.4, s * 2.4);
+        ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      }
+      const r = s * 0.3;
+      ctx.beginPath(); ctx.arc(cx, cy - s * 0.1, r, 0, TAU);
+      ctx.fillStyle = lit ? RA(c.c, 0.9) : COLDIM[c.c] || '#191a30';
+      ctx.fill();
+      ctx.strokeStyle = wrongHit ? '#ff6f86' : lit ? COLCORE(c.c) : 'rgba(180,195,240,0.5)';
+      ctx.lineWidth = wrongHit ? 3 : Math.max(1.5, s * 0.04);
+      ctx.stroke();
+      drawShapes(ctx, c.c, cx, cy - s * 0.11, s * 0.1);
+      const name = prefs.cbr ? (COLNAME[c.c] || '') : shortName(c.c);
+      ctx.font = '700 ' + Math.max(12, Math.round(s * 0.2)) + 'px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      const tw = ctx.measureText(name).width;
+      rr(ctx, cx - tw / 2 - s * 0.08, y + s * 0.68, tw + s * 0.16, s * 0.27, s * 0.09);
+      ctx.fillStyle = 'rgba(8,7,22,0.8)';
+      ctx.fill();
+      ctx.fillStyle = lit ? '#fff' : 'rgba(214,224,255,0.92)';
+      ctx.fillText(name, cx, y + s * 0.92);
+      ctx.restore();
+      break;
+    }
+    default: break;
+  }
+  ctx.restore();
+}
+const SHORT = { 1: 'RED', 2: 'GRN', 4: 'BLU', 3: 'AMB', 5: 'MAG', 6: 'CYA', 7: 'WHT' };
+function shortName(c) { return SHORT[c] || '???'; }
+
+/* ── Luminary darkness ─────────────────────────────────────────────────── */
+function drawDarkness(ctx, b, ox, oy, cell) {
+  MCTX.setTransform(1, 0, 0, 1, 0, 0);
+  MCTX.clearRect(0, 0, MASK.width, MASK.height);
+  MCTX.fillStyle = 'rgba(2,2,10,0.93)';
+  MCTX.fillRect(0, 0, MASK.width, MASK.height);
+  MCTX.globalCompositeOperation = 'destination-out';
+  const hole = (x, y, r, a) => {
+    const g = MCTX.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(0,0,0,' + a + ')');
+    g.addColorStop(0.6, 'rgba(0,0,0,' + (a * 0.7) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    MCTX.fillStyle = g;
+    MCTX.beginPath(); MCTX.arc(x, y, r, 0, TAU); MCTX.fill();
+  };
+  const eng = b.eng;
+  for (let i = 0; i < b.cells.length; i++) {
+    let cb = eng.src[i];
+    for (let f = 0; f < 4; f++) cb |= eng.edge[i * 4 + f];
+    if (eng.rec[i]) cb |= eng.rec[i];
+    if (!cb) continue;
+    hole(ox + (i % b.w + 0.5) * cell, oy + (Math.floor(i / b.w) + 0.5) * cell, cell * 1.05, 1);
+  }
+  for (const i of b.srcs) hole(ox + (i % b.w + 0.5) * cell, oy + (Math.floor(i / b.w) + 0.5) * cell, cell * 1.3, 1);
+  if (G.cursor.shown) hole(ox + (G.cursor.x + 0.5) * cell, oy + (G.cursor.y + 0.5) * cell, cell * 1.5, 0.95);
+  if (G.hover >= 0) hole(ox + (G.hover % b.w + 0.5) * cell, oy + (Math.floor(G.hover / b.w) + 0.5) * cell, cell * 1.4, 0.9);
+  MCTX.globalCompositeOperation = 'source-over';
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(MASK, 0, 0, CV.width, CV.height);
+  ctx.restore();
+}
+/* ── 16 ─ input ─────────────────────────────────────────────────────────── */
+function cellAtPoint(px, py) {
+  const b = G.board;
+  if (!b || (G.mode !== 'play' && G.mode !== 'free')) return -1;
+  const x = Math.floor((px - L.bx) / L.cell), y = Math.floor((py - L.by) / L.cell);
+  if (x < 0 || y < 0 || x >= b.w || y >= b.h) return -1;
+  return y * b.w + x;
+}
+const PT = { id: -1, i: -1, t0: 0, x: 0, y: 0, acc: 0, moved: false, rev: false, live: 0 };
+
+function onDown(e) {
+  A.init(); A.resume();
+  if (G.mode !== 'play' && G.mode !== 'free') return;
+  if (e.target !== CV) return;
+  const i = cellAtPoint(e.clientX, e.clientY);
+  if (i < 0) return;
+  PT.live++;
+  PT.id = e.pointerId; PT.i = i; PT.t0 = G.t; PT.x = e.clientX; PT.y = e.clientY;
+  PT.acc = 0; PT.moved = false; PT.rev = e.shiftKey || e.button === 2 || PT.live > 1;
+  G.cursor.x = i % G.board.w; G.cursor.y = Math.floor(i / G.board.w); G.cursor.shown = true;
+  try { CV.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  e.preventDefault();
+}
+function onMove(e) {
+  if (G.mode !== 'play' && G.mode !== 'free' || !G.board) return;
+  const hv = cellAtPoint(e.clientX, e.clientY);
+  G.hover = hv;
+  if (e.pointerType === 'mouse' && hv >= 0) {
+    G.cursor.x = hv % G.board.w; G.cursor.y = Math.floor(hv / G.board.w); G.cursor.shown = true;
+  }
+  if (PT.id !== e.pointerId || PT.i < 0) return;
+  const b = G.board, i = PT.i;
+  const cx = L.bx + (i % b.w + 0.5) * L.cell, cy = L.by + (Math.floor(i / b.w) + 0.5) * L.cell;
+  const a = Math.atan2(e.clientY - cy, e.clientX - cx);
+  let d = a - PT.a0;
+  if (PT.a0 === undefined) { PT.a0 = a; d = 0; }
+  while (d > Math.PI) d -= TAU;
+  while (d < -Math.PI) d += TAU;
+  if (Math.abs(e.clientX - PT.x) + Math.abs(e.clientY - PT.y) > 12) PT.moved = true;
+  PT.acc += d; PT.a0 = a;
+  const step = Math.PI / 4;
+  while (PT.acc > step) { PT.acc -= step; rotateAt(i, false); }
+  while (PT.acc < -step) { PT.acc += step; rotateAt(i, true); }
+}
+function onUp(e) {
+  if (PT.id === e.pointerId) {
+    const held = G.t - PT.t0;
+    if (!PT.moved && PT.i >= 0) {
+      if (held > 0.45) rotateAt(PT.i, true);
+      else rotateAt(PT.i, PT.rev);
+    }
+    PT.id = -1; PT.i = -1; PT.a0 = undefined;
+  }
+  PT.live = Math.max(0, PT.live - 1);
+}
+function rotateAt(i, rev) {
+  const b = G.board;
+  if (!b) return;
+  applyTap(i % b.w, Math.floor(i / b.w), rev);
+}
+
+function onKey(e) {
+  A.init(); A.resume();
+  const k = e.key;
+  const lower = k.length === 1 ? k.toLowerCase() : k;
+  if (lower === 'p' || k === 'Escape') {
+    if (G.mode === 'play' || G.mode === 'free') { pauseHere(); e.preventDefault(); }
+    else if (G.mode === 'pause') { leavePause(); e.preventDefault(); }
+    else if (G.mode === 'settings' || G.mode === 'win') { go(G.mode === 'win' ? (G.board && G.board.free ? 'free' : 'play') : 'play'); e.preventDefault(); }
+    return;
+  }
+  if (G.mode === 'title') {
+    if (k === 'Enter' || k === ' ') { $('bPlay').click(); e.preventDefault(); }
+    return;
+  }
+  if (G.mode !== 'play' && G.mode !== 'free') return;
+  const b = G.board;
+  if (!b) return;
+  let handled = true;
+  if (k === 'ArrowLeft') G.cursor.x = (G.cursor.x + b.w - 1) % b.w;
+  else if (k === 'ArrowRight') G.cursor.x = (G.cursor.x + 1) % b.w;
+  else if (k === 'ArrowUp') G.cursor.y = (G.cursor.y + b.h - 1) % b.h;
+  else if (k === 'ArrowDown') G.cursor.y = (G.cursor.y + 1) % b.h;
+  else if (k === 'Enter' || k === ' ') applyTap(G.cursor.x, G.cursor.y, e.shiftKey);
+  else if (lower === 'u') doUndo(1);
+  else if (lower === 'r') restartLevel();
+  else if (lower === 'h') hintNow();
+  else if (lower === 'l') { toggleLegend(); }
+  else handled = false;
+  if (handled) { G.cursor.shown = true; e.preventDefault(); syncHud(); }
+}
+function toggleLegend() {
+  G.legendPin = !G.legendPin;
+  $('legend').style.setProperty('opacity', G.legendPin || (G.mode === 'play' || G.mode === 'free') ? '1' : '0');
+  toast(G.legendPin ? 'Mixing legend pinned' : 'Legend unpinned');
+}
+function pauseHere() {
+  $('pauseTitle').textContent = G.mode === 'free' ? 'Free Play' : 'Paused';
+  $('shareBox').classList.toggle('hidden', !(G.board && G.board.free));
+  A.pad(0.35);
+  go('pause');
+}
+function leavePause() {
+  A.pad(1);
+  go(G.board && G.board.free ? 'free' : 'play');
+}
+
+/* ── 17 ─ title demo + main loop ───────────────────────────────────────── */
+const DEMO_POOL = [15, 17, 11, 14];   /* the first pick is the prism rainbow */
+function nextDemo() {
+  G.demoPick = (G.demoPick + 1) % DEMO_POOL.length;
+  G.demo = buildBoard(LEVELS[DEMO_POOL[G.demoPick]], 'artisan');
+  G.demoNext = G.t + 1.2;
+}
+function updateDemo() {
+  if (!G.demo) nextDemo();
+  const d = G.demo;
+  if (d.solvedAt) {
+    if (G.t - d.solvedAt > 2.4) nextDemo();
+    return;
+  }
+  if (d.res.solved) { d.solvedAt = G.t; d.reveal = 0; return; }
+  if (G.t < G.demoNext) return;
+  const s = d.sol.find((st) => d.cells[st.i].s !== st.s);
+  if (!s) { d.solvedAt = G.t; return; }
+  rotateCell(d, s.i % d.w, Math.floor(s.i / d.w), false);
+  G.demoNext = G.t + 0.65;
+}
+
+let lastT = 0;
+function frame(now) {
+  const dt = clamp((now - lastT) / 1000, 0, 0.05);
+  lastT = now;
+  G.t += dt;
+  step(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+/* one animation clock, shared by the hall in play and the one on the title */
+function animate(b, dt) {
+  b.reveal += dt;
+  const k = reducedMotion() ? 1 : Math.min(1, dt * 16);
+  for (let i = 0; i < b.cells.length; i++) {
+    const diff = b.rotT[i] - b.rotV[i];
+    b.rotV[i] += diff * (reducedMotion() ? 1 : k * 1.35);
+    if (Math.abs(diff) < 0.002) b.rotV[i] = b.rotT[i];
+    b.pop[i] *= Math.pow(0.02, dt);
+    b.shake[i] *= Math.pow(0.006, dt);
+  }
+}
+function step(dt) {
+  const b = G.board;
+  if (b) {
+    animate(b, dt);
+    if (b.solvedAt && G.winAt && G.t > G.winAt && G.mode === 'play') { G.winAt = 0; showWin(); }
+    if (DIFFS[b.diffKey].hint === 'auto' && !b.solvedAt && G.mode === 'play' && !b.ghostOn && G.t - G.idleAt > 15) {
+      computeGhost(b);
+      toast('🕯️ Gentle nudge: the dashed ghost is one way to solve this.');
+    }
+  }
+  if (G.mode === 'title') { updateDemo(); if (G.demo) animate(G.demo, dt); }
+  FX.step(dt);
+}
+
+function render() {
+  const ctx = CTX;
+  ctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
+  if (BD && BD.width > 0) ctx.drawImage(BD, 0, 0, L.vw, L.vh);
+  else { ctx.fillStyle = '#07051a'; ctx.fillRect(0, 0, L.vw, L.vh); }
+
+  if (G.mode === 'title' && G.demo) {
+    const d = G.demo;
+    const g = ctx.createRadialGradient(L.vw / 2, L.vh / 2, 0, L.vw / 2, L.vh / 2, Math.max(L.vw, L.vh) * 0.55);
+    g.addColorStop(0, 'rgba(6,5,20,0.55)'); g.addColorStop(1, 'rgba(6,5,20,0.1)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, L.vw, L.vh);
+    const cell = clamp(Math.floor(Math.min(L.vw * 0.86 / d.w, L.vh * 0.82 / d.h)), 30, 104);
+    const w = cell * d.w, h = cell * d.h;
+    const ox = Math.round((L.vw - w) / 2), oy = Math.round((L.vh - h) / 2);
+    const saveW = L.bw, saveH = L.bh;
+    L.bw = w; L.bh = h;
+    ctx.globalAlpha = 0.92;
+    drawBoard(ctx, d, ox, oy, cell, 0.86);
+    ctx.globalAlpha = 1;
+    L.bw = saveW; L.bh = saveH;
+    return;
+  }
+
+  const b = G.board;
+  if (!b || G.mode === 'levels' || G.mode === 'howto' || G.mode === 'diff' || G.mode === 'settings') return;
+  ctx.save();
+  ctx.translate(FX.sx, FX.sy);
+  drawBoard(ctx, b, L.bx, L.by, L.cell, 1);
+  ctx.restore();
+  if (b.diffKey && DIFFS[b.diffKey].dark) drawDarkness(ctx, b, L.bx, L.by, L.cell);
+  FX.draw(ctx);
+  if (b.res && b.res.loop && !reducedMotion() && b.res.lit > 0) {
+    ctx.fillStyle = 'rgba(255,232,160,' + (0.5 + 0.3 * Math.sin(G.t * 3)).toFixed(2) + ')';
+    ctx.font = '600 13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('✷ feedback', L.bx + L.bw / 2, L.by - 14);
+  }
+}
+
+/* ── 18 ─ wiring + boot ────────────────────────────────────────────────── */
+function on(id, fn) {
+  const el = $(id);
+  if (el) el.addEventListener('click', (e) => { A.init(); A.resume(); A.ui('tap'); fn(e); });
+}
+function wire() {
+  on('bPlay', () => {
+    if (!prefs.seen) { prefs.seen = true; savePrefs(); go('howto'); }
+    else { buildLevelSelect(); go('levels'); }
+  });
+  on('bHow', () => go('howto'));
+  on('bHowBack', () => go('title'));
+  on('bHowNext', () => go('diff'));
+  on('bDiffBack', () => go('howto'));
+  on('bDiffGo', () => { buildLevelSelect(); go('levels'); });
+  on('bDiffPill', () => go('diff'));
+  on('bLevBack', () => go('title'));
+  on('bLevels', () => { buildLevelSelect(); go('levels'); });
+  on('bLevels2', () => { buildLevelSelect(); go('levels'); });
+  on('bMenu', pauseHere);
+  on('bResume', leavePause);
+  on('bQuit', () => { A.pad(0); G.board = null; go('title'); });
+  on('bRestart', restartLevel);
+  on('bRestart2', () => { restartLevel(); });
+  on('bUndo', () => doUndo(1));
+  on('bUndoTop', () => doUndo(1));
+  on('bHint', hintNow);
+  on('bSet1', () => go('settings'));
+  on('bSet2', () => go('settings'));
+  on('bSetBack', () => go(G.prev === 'pause' ? 'pause' : G.mode === 'settings' && G.board ? (G.board.free ? 'free' : 'play') : 'title'));
+  on('bResetAll', () => {
+    const btn = $('bResetAll');
+    if (!btn.dataset.armed) {                 /* one fat finger should not cost 90 stars */
+      btn.dataset.armed = '1';
+      btn.textContent = '⚠ Tap again to erase';
+      toast('Tap “Tap again to erase” to wipe every star and best score');
+      setTimeout(() => {
+        if (btn.dataset.armed) { delete btn.dataset.armed; btn.textContent = '🗑 Reset progress'; }
+      }, 4000);
+      return;
+    }
+    delete btn.dataset.armed;
+    btn.textContent = '🗑 Reset progress';
+    prefs.stars = {}; prefs.best = {}; savePrefs();
+    buildLevelSelect(); buildSettings();
+    toast('Progress reset — every level is locked again');
+  });
+  on('bNext', nextLevel);
+  on('bReplay', restartLevel);
+  on('bWinLevels', () => { buildLevelSelect(); go('levels'); });
+  on('bDaily', startDaily);
+  on('bDaily2', startDaily);
+  on('bFree', () => openFree());
+  on('bFree2', () => openFree());
+  on('bFreeDone', () => { buildLevelSelect(); go('levels'); });
+  on('bFreeRand', () => {
+    const def = makeDaily('rand' + Math.random().toString(36).slice(2)) || FP_DEFAULT;
+    const code = encodeBoard(buildBoard(def, prefs.diff));
+    openFree(def);
+    toast('Random board generated · ' + code.slice(0, 12) + '…');
+  });
+  on('bFreeClear', () => {
+    const b = G.board;
+    for (let i = 0; i < b.cells.length; i++) { if (b.cells[i].k !== 'empty') { b.undo.push({ i, from: 0, to: 0, tok: '.' }); b.cells[i] = tokenCell('.'); } }
+    b.rebuild = true; rebuildLists(b); b.res = trace(b, b.eng); b.reveal = 0; layout(); syncHud(); updateShare();
+  });
+  on('bFreeCopy', () => copyCode('fpOut'));
+  on('bCopy', () => copyCode('shareOut'));
+  on('bFreeImport', () => importCode('fpIn'));
+  on('bImport', () => importCode('shareIn'));
+
+  CV.addEventListener('pointerdown', onDown);
+  CV.addEventListener('pointermove', onMove);
+  CV.addEventListener('pointerup', onUp);
+  CV.addEventListener('pointercancel', onUp);
+  CV.addEventListener('contextmenu', (e) => e.preventDefault());
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('resize', () => { layout(); });
+  window.addEventListener('orientationchange', () => setTimeout(layout, 120));
+  document.addEventListener('visibilitychange', () => { if (document.hidden && G.mode === 'play') pauseHere(); });
+}
+function copyCode(id) {
+  const el = $(id);
+  el.focus(); el.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  if (!ok && navigator.clipboard) {
+    try { navigator.clipboard.writeText(el.value); ok = true; } catch (e) { ok = false; }
+  }
+  toast(ok ? 'Share code copied' : 'Code selected — copy it manually');
+}
+function importCode(id) {
+  const el = $(id);
+  const def = decodeBoard(el.value);
+  if (!def) { A.buzz(); toast('That code did not decode — check the paste'); return; }
+  openFree(def);
+  toast('Board imported · ' + def.w + '×' + def.h);
+  el.value = '';
+}
+
+/* ── 19 ─ headless test surface ────────────────────────────────────────── */
+function summary() {
+  const b = G.board;
+  if (!b) return { mode: G.mode, board: null };
+  const d = DIFFS[b.diffKey];
+  let beams = 0;
+  for (let i = 0; i < b.cells.length; i++) if (b.eng.litc[i]) beams++;
+  return {
+    mode: G.mode, level: b.n, name: b.name, chapter: b.ch, difficulty: b.diffKey,
+    w: b.w, h: b.h, cellPx: L.cell, bx: L.bx, by: L.by, beams, lit: b.res.lit, total: b.res.total,
+    cx: G.cursor.x, cy: G.cursor.y,
+    wrong: b.res.wrong, moves: b.moves, parMoves: b.parMoves, parBase: b.parBase, taps: b.taps,
+    lumens: b.res.lumLit, lumensTotal: b.lumNeed, secret: b.secretOn, dark: !!d.dark,
+    hintMode: d.hint, parScale: d.par, solved: b.res.solved, loop: b.res.loop,
+    free: !!b.free, daily: !!b.daily, undo: b.undo.length, solLen: b.sol.length,
+  };
+}
+window.__qa = {
+  ready: false,
+  version: 'prism-path.v1',
+  info: summary,
+  levels: () => LEVELS.map((l) => ({
+    n: l.n, name: l.name, chapter: l.ch, w: l.w, h: l.h,
+    par: buildBoard(l, 'artisan').parMoves, sol: buildBoard(l, 'artisan').sol.length,
+  })),
+  solve: (i) => (LEVELS[i] ? buildBoard(LEVELS[i], 'artisan').sol.map((s) => ({ x: s.i % LEVELS[i].w, y: Math.floor(s.i / LEVELS[i].w), state: s.s })) : null),
+  verify: (i) => {
+    const def = LEVELS[i];
+    if (!def) return { solved: false, moves: 0, error: 'no level ' + i };
+    const b = buildBoard(def, 'artisan');
+    for (const s of b.sol) b.cells[s.i].s = s.s;
+    const r = trace(b, b.eng);
+    return { solved: r.solved, moves: b.taps, par: b.parMoves, lit: r.lit, total: r.total, lumens: r.lumLit, lumNeed: r.lumNeed };
+  },
+  designed: (i) => {
+    const def = LEVELS[i];
+    if (!def) return { solved: false };
+    const p = buildBoard(def, 'artisan', { pristine: true });
+    const live = buildBoard(def, 'artisan');
+    return {
+      solved: p.res.solved, report: p.report.slice(), startSolved: live.res.solved,
+      lit: p.res.lit, total: p.res.total, taps: live.taps, par: live.parMoves,
+      lumens: live.lums.length, sources: live.srcs.length,
+      minTaps: minTapsFor(def, 'artisan', 40000).taps,
+    };
+  },
+  minTaps: (i, budget) => minTapsFor(LEVELS[i], 'artisan', budget || 60000),
+  dump: (i) => {
+    const def = LEVELS[i];
+    if (!def) return { error: 'no level' };
+    const notes = [];
+    if (def.rows.length !== def.h) notes.push('rows=' + def.rows.length + ' h=' + def.h);
+    def.rows.forEach((r, y) => {
+      const t = String(r).trim().split(/\s+/);
+      if (t.length !== def.w) notes.push('row' + y + ' tokens=' + t.length + '/' + def.w);
+    });
+    const TOK = { empty: '.', block: '#', source: '>', mirror: '/', twin: 'X', split: 'S', prism: 'P',
+      gel: 'g', mixer: 'M', filter: 'F', valve: 'V', lumen: 'o', secret: 'O', receptor: 'r' };
+    const paint = (b) => {
+      const g = [];
+      for (let y = 0; y < b.h; y++) {
+        let s = '';
+        for (let x = 0; x < b.w; x++) {
+          const i = y * b.w + x, c = b.cells[i];
+          let ch = TOK[c.k] || '?';
+          if (c.k === 'receptor') ch = String(c.c);
+          else if (c.k === 'source') ch = '^>v<'[c.d];
+          else if (c.k === 'gel') ch = 'RGB'[(c.c & 4) ? 2 : (c.c & 2) ? 1 : 0];
+          else if (c.k === 'mirror' || c.k === 'twin' || c.k === 'split' || c.k === 'prism' ||
+                   c.k === 'filter' || c.k === 'valve') ch += c.s;
+          s += (b.eng.litc[i] ? ch.toLowerCase() : ch) + ' ';
+        }
+        g.push(s.trim());
+      }
+      return g;
+    };
+    const p = buildBoard(def, 'artisan', { pristine: true });
+    for (const s of p.sol) p.cells[s.i].s = s.s;
+    const pr = trace(p, p.eng);
+    const live = buildBoard(def, 'artisan');
+    return {
+      name: def.name, notes, report: p.report.slice(),
+      gridPristine: paint(p), gridStart: paint(live),
+      recs: p.recs.map((k) => ({ x: k % p.w, y: (k - k % p.w) / p.w, need: p.cells[k].c, got: p.eng.rec[k] })),
+      lums: p.lums.length, lumNeed: p.lumNeed, lumLit: pr.lumLit,
+      lit: pr.lit + '/' + pr.total, solved: pr.solved, loop: pr.loop, capped: pr.capped,
+      taps: live.taps, par: live.parMoves, startSolved: live.res.solved,
+    };
+  },
+  load: (i, diff) => {
+    if (diff && DIFFS[diff]) prefs.diff = diff;
+    startLevel(i | 0);
+    return summary();
+  },
+  tap: (x, y, rev) => { applyTap(x | 0, y | 0, !!rev); return summary(); },
+  press: (action) => {
+    const a = String(action).toLowerCase();
+    if (a === 'undo') doUndo(1);
+    else if (a === 'restart') restartLevel();
+    else if (a === 'hint') hintNow();
+    else if (a === 'pause') pauseHere();
+    else if (a === 'resume' || a === 'unpause') leavePause();
+    else if (a === 'left') onKey({ key: 'ArrowLeft', preventDefault() {} });
+    else if (a === 'right') onKey({ key: 'ArrowRight', preventDefault() {} });
+    else if (a === 'up') onKey({ key: 'ArrowUp', preventDefault() {} });
+    else if (a === 'down') onKey({ key: 'ArrowDown', preventDefault() {} });
+    else if (a === 'rotate' || a === 'fire' || a === 'enter') onKey({ key: 'Enter', preventDefault() {}, shiftKey: false });
+    return summary();
+  },
+  freeplay: (code) => {
+    const def = decodeBoard(code);
+    if (!def) return { ok: false, error: 'bad code' };
+    openFree(def);
+    return { ok: true, w: def.w, h: def.h };
+  },
+  encode: () => (G.board ? encodeBoard(G.board) : ''),
+  daily: () => { startDaily(); return summary(); },
+  go: (m) => { go(m); return G.mode; },
+  roundtrip: (code) => {
+    const def = decodeBoard(code);
+    if (!def) return { ok: false };
+    const a = buildBoard(def, 'artisan');
+    return { ok: true, w: a.w, h: a.h, kinds: a.cells.filter((c) => c.k !== 'empty').length };
+  },
+  demo: () => (G.demo ? { name: G.demo.name, moves: G.demo.moves, lit: G.demo.res.lit, total: G.demo.res.total,
+    solved: G.demo.res.solved, sol: G.demo.sol.length, t: Math.round(G.t * 100) / 100 } : null),
+  state: () => G.mode,
+};
+
+/* ── boot ──────────────────────────────────────────────────────────────── */
+function boot() {
+  loadPrefs();
+  bakePalette();
+  FX.init();
+  document.body.classList.toggle('contrast', !!prefs.contrast);
+  buildLegend(); buildHowTo(); buildDiffs(); buildSettings();
+  wire();
+  go('title');
+  G.board = null;
+  $('titleTotals').textContent = totalStars() + ' / ' + (LEVELS.length * 3) + ' stars gathered';
+  requestAnimationFrame((t) => { lastT = t; frame(t); });
+  window.__qa.ready = true;
+}
+boot();
+})();
+</script>
+</body>
+</html>
