@@ -133,7 +133,7 @@
           <button class="diffbtn" data-diff="hard">💀 HARD</button>
         </div>
         <p id="diffdesc"></p>
-        <div class="lpay">Win a match to earn 🪙 — EASY 100 · NORMAL 150 · HARD 200</div>
+        <div class="lpay">Win a match to earn 🪙 — EASY 100 · NORMAL 150 · HARD 200<br>Stack 💰 EXTRA CASH to earn even more on a win</div>
         <div class="lpay">🪂 <span id="fcount">51</span> fighters on the bus</div>
         <button id="dropBtn">DROP IN</button>
         <div class="lhelp" style="margin-top:12px">
@@ -157,6 +157,12 @@
           <div class="cn"><b>EXTRA DAMAGE</b><span>+15% damage each</span></div>
           <div class="pips" id="pipsDmg"></div>
           <button class="buy" id="buyDmg">🪙 60</button>
+        </div>
+        <div class="card" id="cardCash">
+          <div class="ci">💰</div>
+          <div class="cn"><b>EXTRA CASH</b><span>+25% win coins each</span></div>
+          <div class="pips" id="pipsCash"></div>
+          <button class="buy" id="buyCash">🪙 45</button>
         </div>
         <div class="card" id="permCard">
           <div class="ci">🔓</div>
@@ -1853,9 +1859,9 @@ function endGame(won, place, gaveUp) {
   if (!playing) return;
   playing = false;
   document.exitPointerLock();
-  // pay out: a win pays the mode's coins, a good placement pays a little
+  // pay out: a win pays the mode's coins (boosted by 💰 EXTRA CASH), a good placement pays a little
   let reward = 0;
-  if (won) reward = DIFF.coins;
+  if (won) reward = Math.round(DIFF.coins * cashUp() / 5) * 5;
   else {
     const frac = place <= 5 ? .25 : place <= 15 ? .15 : .05;
     reward = Math.round(DIFF.coins * frac / 5) * 5;
@@ -1868,9 +1874,10 @@ function endGame(won, place, gaveUp) {
     : gaveUp
       ? `<b style="color:#9fb0ff;font-size:22px">🏠 Back to the lobby</b><br>${el}`
       : `<b style="color:#ff6b6b;font-size:22px">Placement #${place || aliveCount}</b><br>${el}${orgerBoss ? ' · the ORGER got you 👹' : ''}`;
-  html += `<br><span style="color:#ffd76e;font-size:20px">+${reward.toLocaleString()} 🪙</span> <span style="color:#9fb0ff;font-size:14px">on ${DIFF.icon} ${DIFF.name}</span>`;
+  html += `<br><span style="color:#ffd76e;font-size:20px">+${reward.toLocaleString()} 🪙</span> <span style="color:#9fb0ff;font-size:14px">on ${DIFF.icon} ${DIFF.name}` +
+    (won && up.cash ? ` · 💰 EXTRA CASH +${Math.round(SHOP.cash.step * up.cash * 100)}%` : '') + `</span>`;
   // the match is over — so are the upgrades you bought for it (unless endless)
-  if (!endless) { up.hp = 0; up.dmg = 0; }
+  if (!endless) { up.hp = 0; up.dmg = 0; up.cash = 0; }
   showLobby(html);
   paintDiff();
 }
@@ -2015,8 +2022,9 @@ const PERM_COST = 50000;
 const SHOP = {
   hp: { base: 25, step: 25, label: '+25 max HP' },
   dmg: { base: 35, step: .15, label: '+15% damage' },
+  cash: { base: 45, step: .25, label: '+25% win coins' },
 };
-let coins = 0, endless = false, up = { hp: 0, dmg: 0 };
+let coins = 0, endless = false, up = { hp: 0, dmg: 0, cash: 0 };
 try {
   coins = Math.max(0, Math.round(+localStorage.getItem('bm3d-coins')) || 0);
   endless = localStorage.getItem('bm3d-endless') === '1';
@@ -2024,6 +2032,7 @@ try {
   if (endless) {
     up.hp = Math.max(0, +localStorage.getItem('bm3d-up-hp') | 0);
     up.dmg = Math.max(0, +localStorage.getItem('bm3d-up-dmg') | 0);
+    up.cash = Math.max(0, +localStorage.getItem('bm3d-up-cash') | 0);
   }
 } catch (e) {}
 function savePurse() {
@@ -2032,6 +2041,7 @@ function savePurse() {
     localStorage.setItem('bm3d-endless', endless ? '1' : '0');
     localStorage.setItem('bm3d-up-hp', endless ? up.hp : 0);
     localStorage.setItem('bm3d-up-dmg', endless ? up.dmg : 0);
+    localStorage.setItem('bm3d-up-cash', endless ? up.cash : 0);
   } catch (e) {}
 }
 function stackCap() { return endless ? Infinity : MAX_STACK; }
@@ -2042,10 +2052,12 @@ function upCost(k) {
 }
 function hpBonus() { return SHOP.hp.step * up.hp; }
 function dmgUp() { return 1 + SHOP.dmg.step * up.dmg; }
+function cashUp() { return 1 + SHOP.cash.step * up.cash; }
 function buffTxt() {
   const bits = [];
   if (up.hp) bits.push('❤️+' + hpBonus());
   if (up.dmg) bits.push('⚔️+' + Math.round(SHOP.dmg.step * up.dmg * 100) + '%');
+  if (up.cash) bits.push('💰+' + Math.round(SHOP.cash.step * up.cash * 100) + '%');
   return bits.length ? ' · ' + bits.join(' ') : '';
 }
 function shopNote(msg, good) {
@@ -2091,7 +2103,8 @@ function paintShop(bump) {
   if (bump) { const p = $('purse'); p.classList.remove('bump'); void p.offsetWidth; p.classList.add('bump'); }
   pips($('pipsHp'), up.hp);
   pips($('pipsDmg'), up.dmg);
-  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg']]) {
+  pips($('pipsCash'), up.cash);
+  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash']]) {
     const b = $(id);
     b.textContent = '🪙 ' + upCost(k);
     b.disabled = coins < upCost(k) || up[k] >= stackCap();
@@ -2108,6 +2121,7 @@ function paintShop(bump) {
 }
 $('buyHp').addEventListener('click', () => buyUp('hp'));
 $('buyDmg').addEventListener('click', () => buyUp('dmg'));
+$('buyCash').addEventListener('click', () => buyUp('cash'));
 $('buyPerm').addEventListener('click', buyEndless);
 
 function showLobby(html) {
