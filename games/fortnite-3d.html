@@ -1168,8 +1168,7 @@ function initGame() {
   buildWorld();
   preview = {};
   for (const part of PARTS) {
-    const geo = part === 'wall' ? new THREE.BoxGeometry(4, 3, .3) : new THREE.BoxGeometry(4, .25, 4);
-    preview[part] = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: .4 }));
+    preview[part] = new THREE.Mesh(partGeo(part), new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: .4 }));
     preview[part].visible = false;
     scene.add(preview[part]);
   }
@@ -1503,9 +1502,11 @@ function groundHeight(x, z) {
   let h = 0;
   for (const s of structures) {
     if (s.part === 'ramp') {
-      const along = ((s.axis === 'z' ? z - s.pos.z : x - s.pos.x) * s.riseSign + 1.414) / 2.828;
+      const along = (s.axis === 'z' ? z - s.pos.z : x - s.pos.x) * s.riseSign;
       const lat = s.axis === 'z' ? x - s.pos.x : z - s.pos.z;
-      if (along >= 0 && along <= 1 && Math.abs(lat) <= 2.1) h = Math.max(h, s.pos.y + (along - .5) * 2.83);
+      if (along >= -RAMP_RUN / 2 && along <= RAMP_RUN / 2 && Math.abs(lat) <= 2.1) {
+        h = Math.max(h, s.pos.y + along * Math.tan(RAMP_ANGLE));
+      }
     } else if (s.part === 'floor') {
       if (Math.abs(x - s.pos.x) < 2 && Math.abs(z - s.pos.z) < 2) h = Math.max(h, s.pos.y + .13);
     }
@@ -1756,12 +1757,39 @@ function cancelHeal() {
   buildFlash('Healing interrupted!');
 }
 
+// A build cell is 4 wide and a level is 3 high, so a ramp is a proper 3-4-5
+// slope: it runs the full 4 units of the cell and climbs exactly the 3 units
+// to the next floor. That is what makes ramps join up smoothly.
+const RAMP_RUN = 4, RAMP_RISE = 3;
+const RAMP_ANGLE = Math.atan(RAMP_RISE / RAMP_RUN);   // ~36.87 degrees
+const RAMP_LEN = Math.hypot(RAMP_RUN, RAMP_RISE);     // 5
+const _partGeo = {};
+function partGeo(part) {
+  if (_partGeo[part]) return _partGeo[part];   // one shared shape per part — cheaper that way
+  if (part === 'wall') _partGeo[part] = new THREE.BoxGeometry(4, 3, .3);
+  else if (part === 'ramp') {
+    const g = new THREE.BoxGeometry(4, .25, RAMP_LEN);
+    g.translate(0, -.125, 0);   // hang the plank below the walking line so tops meet flush
+    _partGeo[part] = g;
+  } else _partGeo[part] = new THREE.BoxGeometry(4, .25, 4);
+  return _partGeo[part];
+}
+
 function computePlacement() {
   const fwdX = -Math.sin(yaw), fz = -Math.cos(yaw);
   const part = PARTS[buildPart];
   const k = 4;
   const cell = v => Math.floor(v / k);
-  const level = Math.max(0, Math.round((camera.position.y - 1.7) / 3));
+  let level = Math.max(0, Math.round((camera.position.y - 1.7) / 3));
+  // Standing on a ramp? Then whatever you build next should carry on from the TOP of
+  // that ramp, not from wherever your feet happen to be — that is what makes a
+  // staircase of ramps join up instead of leaving a step.
+  for (const s of structures) {
+    if (s.part !== 'ramp' || s.level === undefined) continue;
+    const along = (s.axis === 'z' ? player.z - s.pos.z : player.x - s.pos.x) * s.riseSign;
+    const lat = s.axis === 'z' ? player.x - s.pos.x : player.z - s.pos.z;
+    if (Math.abs(along) <= RAMP_RUN / 2 && Math.abs(lat) <= 2.1) level = Math.max(level, s.level + 1);
+  }
   let pos, rotY = 0, axis = null, riseSign = 1;
   if (part === 'floor') {
     pos = new THREE.Vector3((cell(player.x) + .5) * k, level * 3 + .12, (cell(player.z) + .5) * k);
@@ -1775,10 +1803,12 @@ function computePlacement() {
     const pp = (cell(alongZ ? player.x : player.z) + .5) * k;
     const ac = pa + (riseSign > 0 ? 1 : -1);
     const a = part === 'wall' ? (riseSign > 0 ? ac * k : (ac + 1) * k) : (ac + .5) * k;
-    const y = level * 3 + (part === 'wall' ? 1.5 : 1.35);
+    // a ramp walks from this level's floor up to the next one, so its walking line
+    // sits half a level above the floor it starts from
+    const y = part === 'wall' ? level * 3 + 1.5 : level * 3 + RAMP_RISE / 2 + .25;
     pos = alongZ ? new THREE.Vector3(pp, y, a) : new THREE.Vector3(a, y, pp);
   }
-  const tilt = part === 'ramp' ? -riseSign * Math.PI / 4 : 0;
+  const tilt = part === 'ramp' ? -riseSign * RAMP_ANGLE : 0;
   let ok = Math.hypot(pos.x - player.x, pos.z - player.z) < 7
     && Math.abs(pos.x) <= HALF - 2 && Math.abs(pos.z) <= HALF - 2;
   if (ok && part !== 'floor') ok = !pointBlocked(pos.x, pos.z, part === 'wall' ? .8 : 1.2);
@@ -1817,16 +1847,15 @@ function buildFlash(text) {
 
 function tryPlace() {
   if (gameTime - lastPlace < .18) return;
-  const { pos, rotY, tilt, axis, riseSign, ok, part } = computePlacement();
+  const { pos, rotY, tilt, axis, riseSign, ok, part, level } = computePlacement();
   if (!ok) { buildFlash('Can\'t build here'); return; }
   if (wood < BUILD_COST) { buildFlash('Not enough wood!'); return; }
   lastPlace = gameTime;
   wood -= BUILD_COST;
-  const geo = part === 'wall' ? new THREE.BoxGeometry(4, 3, .3) : new THREE.BoxGeometry(4, .25, 4);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0xb5895a }));
+  const mesh = new THREE.Mesh(partGeo(part), new THREE.MeshLambertMaterial({ color: 0xb5895a }));
   mesh.position.copy(pos);
   mesh.quaternion.copy(buildQuat(rotY, tilt));
-  const s = { mesh, part, pos: pos.clone(), hp: part === 'wall' ? 120 : 60, axis, riseSign };
+  const s = { mesh, part, pos: pos.clone(), hp: part === 'wall' ? 120 : 60, axis, riseSign, level };
   mesh.userData.struct = s;
   scene.add(mesh);
   structures.push(s);
