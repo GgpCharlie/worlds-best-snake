@@ -40,6 +40,12 @@
   #overlay h1 { font-size: 54px; margin: 0 0 10px; color: #ffd76e; text-shadow: 3px 3px 0 #6a3fbf; }
   #overlay p { max-width: 520px; line-height: 1.7; }
   #overlay button { margin-top: 18px; font-size: 24px; padding: 14px 44px; border: none; border-radius: 8px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; }
+  #overlay .diffrow { display: flex; gap: 10px; margin: 6px 0 0; }
+  #overlay .diffbtn { margin: 0; font-size: 17px; padding: 9px 22px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
+  #overlay .diffbtn:hover { color: #fff; border-color: #8a5cff; }
+  #overlay .diffbtn.sel { background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; border-color: #ffd76e; }
+  #diffdesc { margin: 10px 0 0; font-size: 14px; color: #9fb0ff; min-height: 18px; }
+  #overlay .diffbtn.dim { opacity: .4; cursor: not-allowed; }
   .hidden { display: none !important; }
 </style>
 </head>
@@ -72,12 +78,18 @@
 <div id="stormvignette"></div>
 <div id="overlay">
   <h1>BATTLE MINI 3D</h1>
-  <p id="msg">51 fighters on the battle bus. Jump out, crack 🧰 chests, last one standing wins.<br><br>
+  <p id="msg"><span id="fcount">51</span> fighters on the battle bus. Jump out, crack 🧰 chests, last one standing wins.<br><br>
   <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
   <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪 · <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause (game never freezes — click to grab the mouse back)<br>
   Shoot trees &amp; rocks for wood — spend 20 wood per build<br>
   🤢 1 chest in 10 hides a wriggling <b>ORGER</b> — throw it and face what comes out…<br>
   💣 <b>TNT</b> wipes out everyone nearby when thrown — and the rare <b>TNT Launcher</b> fires it for 100 damage</p>
+  <div class="diffrow">
+    <button class="diffbtn" data-diff="easy">🌱 EASY</button>
+    <button class="diffbtn" data-diff="normal">⚔️ NORMAL</button>
+    <button class="diffbtn" data-diff="hard">💀 HARD</button>
+  </div>
+  <p id="diffdesc"></p>
   <button id="playBtn">DROP IN</button>
 </div>
 <script src="vendor/three/three.global.js"></script>
@@ -100,6 +112,19 @@ const WEAPONS = {
 const WKEYS = Object.keys(WEAPONS);
 const PARTS = ['wall', 'ramp', 'floor'];
 const BUILD_COST = 20;
+
+// difficulty — picked on the start screen, remembered for next time
+const DIFFS = {
+  easy:   { name: 'EASY', icon: '🌱', bots: 24, aim: .55, slow: 1.9, see: 45, take: .65, storm: 1.6, stormDmg: 1, shield: .15, loot: 1.35,
+            desc: '25 fighters, bots miss loads and shoot slowly, lazy storm, extra loot, you soak up damage' },
+  normal: { name: 'NORMAL', icon: '⚔️', bots: 50, aim: 1, slow: 1, see: 65, take: 1, storm: 1, stormDmg: 2, shield: .4, loot: 1,
+            desc: 'The proper battle — 51 fighters, fair bots, ordinary storm' },
+  hard:   { name: 'HARD', icon: '💀', bots: 50, aim: 1.6, slow: .7, see: 85, take: 1.45, storm: .7, stormDmg: 3, shield: .9, loot: .75,
+            desc: '51 fighters that hardly ever miss and fire fast, most start shielded, quick storm, every hit stings' },
+};
+let diffKey = 'normal';
+try { const k = localStorage.getItem('bm3d-diff'); if (DIFFS[k]) diffKey = k; } catch (e) {}
+let DIFF = DIFFS[diffKey];
 const NAME_BASE = ['Ninja_Cheese','xX_Sweat_Xx','LlamaLord','NoScopeNancy','BuildFast','CrankedKid','BushCamper','ToastStealer','DefaultDan','GingyGus','PeelyFan01','RaptorRalph','DriftKing','ShellShy','SkyFire','TightRope','ZoneWarrior','LootLlama','Fishstick_Fan','RavenMike'];
 const NAMES = [];
 for (let i = 0; i < 50; i++) NAMES.push(NAME_BASE[i % NAME_BASE.length] + (i >= NAME_BASE.length ? ' ' + ((i / NAME_BASE.length | 0) + 1) : ''));
@@ -300,7 +325,7 @@ function openChest() {
     c.lid.rotation.x = -1.7;
     c.glow.intensity = 2;
     const tntRoll = Math.random() < .17;   // 17% of chests hide a stick of TNT
-    for (let n = 0; n < 3; n++) {
+    for (let n = 0, L = Math.max(2, Math.round(3 * DIFF.loot)); n < L; n++) {
       const roll = Math.random();
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) },
         n === 0 && tntRoll ? 'tnt' : roll < .6 ? 'weapon' : roll < .8 ? 'shield' : 'medkit');
@@ -399,7 +424,7 @@ function buildWorld() {
       roof.rotation.y = Math.PI / 4;
       scene.add(roof);
     }
-    for (let n = 0; n < 3; n++) spawnLoot({ x: x + rand(-hsx + 1.5, hsx - 1.5), z: z + rand(-hsz + 1.5, hsz - 1.5) });
+    for (let n = 0, L = Math.round(3 * DIFF.loot); n < L; n++) spawnLoot({ x: x + rand(-hsx + 1.5, hsx - 1.5), z: z + rand(-hsz + 1.5, hsz - 1.5) });
     if (i === toiletHouse) {
       feed('🚽 A toilet infestation has been detected!');
       for (let t = 0; t < 10; t++) placeProp(x + rand(-hsx + .8, hsx - .8), z + rand(-hsz + .8, hsz - .8));
@@ -1028,7 +1053,7 @@ function makeBot(name) {
   group.position.set(p.x, 0, p.z);
   scene.add(group);
   const weapon = Math.random() < .5 ? 'pistol' : WKEYS[1 + (Math.random() * 3 | 0)];
-  const bot = { name, group, head, body, mesh: head, x: p.x, z: p.z, hp: 100, maxHp: 100, shield: Math.random() < .4 ? 50 : 0,
+  const bot = { name, group, head, body, mesh: head, x: p.x, z: p.z, hp: 100, maxHp: 100, shield: Math.random() < DIFF.shield ? 50 : 0,
     weapon, alive: true, kills: 0, nextShot: 0, isPlayer: false, target: null, wanderT: 0,
     wx: p.x, wz: p.z, strafe: rand(0, 6.28), hitT: 0 };
   head.userData.bot = bot; body.userData.bot = bot;
@@ -1071,9 +1096,9 @@ function initGame() {
     slots: [{ type: 'weapon', id: 'pistol', ammo: WEAPONS.pistol.mag }, null, null, null, null],
     healing: null,
     reloading: false, reloadT: 0, lastShot: 0 };
-  bots = NAMES.map(makeBot);
+  bots = NAMES.slice(0, DIFF.bots).map(makeBot);
   for (let i = 0; i < 150; i++) spawnLoot();
-  storm = { x: 0, y: 0, r: HALF * 1.5, tx: 0, tz: 0, tr: HALF * 1.5, phase: 0, nextShrink: 15, shrinking: false, shrinkT: 0, dmg: 2, tick: 0 };
+  storm = { x: 0, y: 0, r: HALF * 1.5, tx: 0, tz: 0, tr: HALF * 1.5, phase: 0, nextShrink: 15 * DIFF.storm, shrinking: false, shrinkT: 0, dmg: DIFF.stormDmg, tick: 0 };
   bus = new THREE.Group();
   const busMat = new THREE.MeshLambertMaterial({ color: 0x3f66d4 });
   const busBody = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.5, 9), busMat);
@@ -1119,6 +1144,7 @@ function feed(text) {
 
 function damageFighter(v, amt, attacker) {
   if (!v.alive) return;
+  if (v === player) amt *= DIFF.take;
   if (v.shield > 0) { const s = Math.min(v.shield, amt); v.shield -= s; amt -= s; }
   v.hp -= amt;
   if (v === player) {
@@ -1240,7 +1266,7 @@ function startReload() {
 function botFire(bot, target, dist) {
   const w = WEAPONS[bot.weapon];
   if (gameTime < bot.nextShot) return;
-  bot.nextShot = gameTime + w.rate * rand(1.8, 2.6);
+  bot.nextShot = gameTime + w.rate * rand(1.8, 2.6) * DIFF.slow;
   const ax = bot.x, az = bot.z, ay = 1.5;
   const bx = target.isPlayer ? player.x : target.x;
   const bz = target.isPlayer ? player.z : target.z;
@@ -1261,7 +1287,7 @@ function botFire(bot, target, dist) {
   }
   shotSound(bot.weapon);
   addTracer(new THREE.Vector3(ax, ay, az), new THREE.Vector3(bx + rand(-1, 1), rand(0, 1.8), bz + rand(-1, 1)));
-  const hitChance = clamp(.5 - dist * .008, .07, .45);
+  const hitChance = clamp((.5 - dist * .008) * DIFF.aim, .05, .8);
   if (Math.random() < hitChance) {
     const mult = bot.weapon === 'shotgun' && dist < 15 ? 1 : dist > 40 ? .7 : 1;
     damageFighter(target, w.dmg * (bot.weapon === 'shotgun' ? 4 : 1) * mult, bot);
@@ -1280,7 +1306,7 @@ function updateBot(bot, dt) {
   bot.aiCd = (bot.aiCd || 0) - dt;
   if (bot.aiCd <= 0) {
     bot.aiCd = .15;
-    let cand = null, cd = 65;
+    let cand = null, cd = DIFF.see;
     for (const o of bots) {
       if (o === bot || !o.alive) continue;
       const d = Math.hypot(bot.x - o.x, bot.z - o.z);
@@ -1292,7 +1318,7 @@ function updateBot(bot, dt) {
     }
     if (cand && losBlocked(bot.x, 1.5, bot.z, cand.isPlayer ? player.x : cand.x, 1.2, cand.isPlayer ? player.z : cand.z)) cand = null;
     bot.target = cand;
-    bot.tdist = cand ? cd : 65;
+    bot.tdist = cand ? cd : DIFF.see;
   }
   const best = bot.target && bot.target.alive ? bot.target : null;
   const bd = bot.tdist;
@@ -1360,16 +1386,16 @@ function updateStorm(dt) {
     const a = rand(0, 6.28), d = rand(0, (storm.r - storm.tr) * .5);
     storm.tx = clamp(storm.x + Math.cos(a) * d, -lim, lim);
     storm.tz = clamp(storm.z + Math.sin(a) * d, -lim, lim);
-    storm.nextShrink = Math.max(15, 25 - storm.phase * 2);
+    storm.nextShrink = Math.max(15, 25 - storm.phase * 2) * DIFF.storm;
     feed('⚠ The storm is closing in!');
   }
   if (storm.shrinking) {
     storm.shrinkT += dt;
-    const t = Math.min(1, storm.shrinkT / 12);
+    const t = Math.min(1, storm.shrinkT / (12 * DIFF.storm));
     storm.r = storm.r0 + (storm.tr - storm.r0) * t;
     storm.x = storm.x0 + (storm.tx - storm.x0) * t;
     storm.z = storm.z0 + (storm.tz - storm.z0) * t;
-    if (storm.shrinkT >= 12) { storm.shrinking = false; storm.dmg += 2; }
+    if (storm.shrinkT >= 12 * DIFF.storm) { storm.shrinking = false; storm.dmg += DIFF.stormDmg; }
   }
   stormCyl.scale.set(storm.r, 1, storm.r);
   stormCyl.position.set(storm.x, 60, storm.z);
@@ -1753,6 +1779,8 @@ function endGame(won, place) {
     ? `${bossSeen ? '🏆 <b>#1 — ORGER SLAYER!</b>' : '🏆 <b>#1 — BIG WIN!</b>'}<br>${player.kills} elimination${player.kills === 1 ? '' : 's'} · survived ${Math.floor(gameTime)}s`
     : `Placement #${place || aliveCount} · ${player.kills} elimination${player.kills === 1 ? '' : 's'}${orgerBoss ? ' · the ORGER got you 👹' : ''}`;
   $('playBtn').textContent = 'PLAY AGAIN';
+  $('msg').innerHTML += `<br><br>${DIFF.icon} <b>${DIFF.name}</b> mode`;
+  paintDiff();
 }
 
 function setTxt(el, v) { if (el._v !== v) { el._v = v; el.textContent = v; } }
@@ -1773,7 +1801,7 @@ function drawHud() {
   else if (held && held.type !== 'weapon') setHtml($('wpn'), (held.type === 'medkit' ? '⛑ Medkit' : '🧪 Big Pot') + '<br>right-click to use');
   else if (player.weapon) { const w = WEAPONS[player.weapon]; setHtml($('wpn'), `${w.name}<br>${player.reloading ? 'RELOADING…' : player.ammo + ' / ∞'}`); }
   else setHtml($('wpn'), '');
-  setTxt($('alive'), 'ALIVE: ' + aliveCount);
+  setTxt($('alive'), 'ALIVE: ' + aliveCount + ' · ' + DIFF.icon + ' ' + DIFF.name);
   setTxt($('wood'), '🪵 ' + wood + (buildMode ? ' — BUILD: ' + PARTS[buildPart].toUpperCase() + ' [Q]' : ''));
   setTxt($('crosshair'), buildMode ? '⌖' : '+');
   syncSlot();
@@ -1870,6 +1898,7 @@ function showPause() {
   $('overlay h1').textContent = 'PAUSED';
   $('overlay h1').style.color = '#ffd76e';
   $('playBtn').textContent = 'RESUME';
+  paintDiff();   // grey out the difficulty buttons — no swapping mid-match
 }
 document.addEventListener('pointerlockchange', () => {
   if (document.pointerLockElement !== renderer.domElement) {
@@ -1881,6 +1910,35 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 let freshWorld = true;
+// difficulty picker on the start screen
+function setDiff(k) {
+  if (!DIFFS[k]) return;
+  // no swapping mid-match — that would be cheating by stealth
+  if (playing && player && player.alive) {
+    const d = $('diffdesc');
+    if (d) d.textContent = '⏳ Finish this match first, then pick a new one';
+    return;
+  }
+  diffKey = k; DIFF = DIFFS[k];
+  try { localStorage.setItem('bm3d-diff', k); } catch (e) {}
+  paintDiff();
+}
+function paintDiff() {
+  const live = playing && player && player.alive;
+  for (const b of document.querySelectorAll('.diffbtn')) {
+    b.classList.toggle('sel', b.dataset.diff === diffKey);
+    b.classList.toggle('dim', !!live);
+  }
+  const fc = $('fcount');
+  if (fc) fc.textContent = DIFF.bots + 1;
+  const d = $('diffdesc');
+  if (d) d.textContent = DIFF.icon + ' ' + DIFF.desc;
+}
+for (const b of document.querySelectorAll('.diffbtn')) {
+  b.addEventListener('click', () => { setDiff(b.dataset.diff); sfx(660, .06, 'sine', .08); b.blur(); });
+}
+paintDiff();
+
 $('playBtn').addEventListener('click', () => {
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
   if (freshWorld) freshWorld = false;
