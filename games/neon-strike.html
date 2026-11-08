@@ -243,24 +243,17 @@ body.touch.playing #touch-ui{ display:flex; }
   <button class="btn" id="boot-reload" onclick="location.reload()">RELOAD</button>
 </div>
 
-<script type="module">
+<script src="vendor/three/three.global.js"></script>
+<script>
 /* ================================================================
    NEON STRIKE — self-contained wave-survival arena FPS
-   Deps (verified): three@0.160.0 module build (jsDelivr + unpkg fallback)
+   Deps (verified): three@0.160.0, self-hosted classic build
    ================================================================ */
 const $ = id => document.getElementById(id);
 function showFatal(msg){ const el=$('boot-error'); $('boot-msg').textContent=msg; el.classList.add('show'); }
 
-let THREE;
-/* Self-hosted: load the bundled Three.js r160 first; fall back to CDN only if the local copy is missing. */
-try { THREE = await import('./vendor/three/three.module.js'); }
-catch(e){
-  try { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'); }
-  catch(e2){
-    try { THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js'); }
-    catch(e3){ showFatal('Could not load the 3D engine (Three.js). Local copy (vendor/three/three.module.js) is missing and the CDN is unreachable. Serve over HTTP (not file://) and ensure the vendor folder is present.'); throw e3; }
-  }
-}
+const THREE = window.THREE;
+if (!THREE) { showFatal('Could not load the 3D engine (Three.js). Local copy (vendor/three/three.global.js) is missing.'); throw new Error('three.global.js missing'); }
 window.__booted = true;
 
 /* ---------------- helpers ---------------- */

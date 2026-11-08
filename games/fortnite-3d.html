@@ -70,13 +70,12 @@
   Shoot trees &amp; rocks for wood — spend 20 wood per build</p>
   <button id="playBtn">DROP IN</button>
 </div>
-<script type="module">
-let THREE;
-try {
-  THREE = await import('./vendor/three/three.module.js');
-} catch (e) {
-  document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#111;color:#fff;font:20px sans-serif;z-index:99">Could not load the 3D engine — vendor/three/three.module.js is missing</div>');
-  throw e;
+<script src="vendor/three/three.global.js"></script>
+<script>
+const THREE = window.THREE;
+if (!THREE) {
+  document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#111;color:#fff;font:20px sans-serif;z-index:99">Could not load the 3D engine — vendor/three/three.global.js is missing</div>');
+  throw new Error('vendor/three/three.global.js failed to load');
 }
 
 const HALF = 300;
