@@ -33,6 +33,7 @@
   #flash { position: absolute; inset: 0; background: #f00; opacity: 0; pointer-events: none; z-index: 4; transition: opacity .4s; }
   #stormvignette { position: absolute; inset: 0; box-shadow: inset 0 0 180px 60px rgba(140,40,220,.7); opacity: 0; pointer-events: none; z-index: 4; }
   #bossbar { top: 64px; left: 50%; transform: translateX(-50%); width: 430px; display: none; text-align: center; }
+  #mousetip { bottom: 21%; left: 50%; transform: translateX(-50%); font-size: 17px; color: #ffd76e; text-shadow: 1px 1px 0 #000, 0 0 10px #000; display: none; }
   #bosstxt { font-size: 15px; font-weight: bold; color: #b8ff8a; text-shadow: 1px 1px 0 #000; }
   #bossfill { background: #58d858; width: 100%; }
   #overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(8,8,26,.9); color: #fff; z-index: 10; text-align: center; }
@@ -49,6 +50,7 @@
 <div class="hud" id="alive"></div>
 <div class="hud" id="stormbar"></div>
 <div class="hud" id="bossbar"><span id="bosstxt">👹 THE ORGER</span><div class="bar"><div id="bossfill"></div></div></div>
+<div class="hud" id="mousetip">🖱 Click to grab your mouse back · <b>Esc</b> = pause</div>
 <div class="hud" id="stats">
   <span id="stamnum"></span>
   <div class="bar"><div id="stamfill"></div></div>
@@ -72,7 +74,7 @@
   <h1>BATTLE MINI 3D</h1>
   <p id="msg">51 fighters on the battle bus. Jump out, crack 🧰 chests, last one standing wins.<br><br>
   <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
-  <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>Right-click</b> use held ⛑/🧪 · <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause<br>
+  <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>Right-click</b> use held ⛑/🧪 · <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause (game never freezes — click to grab the mouse back)<br>
   Shoot trees &amp; rocks for wood — spend 20 wood per build<br>
   🤢 1 chest in 10 hides a wriggling <b>ORGER</b> — throw it and face what comes out…</p>
   <button id="playBtn">DROP IN</button>
@@ -107,6 +109,7 @@ let scene, camera, renderer, clock;
 let player, bots, loot, tracers, colliders, obstacleMeshes, killfeed, storm, playing = false, aliveCount, gameTime;
 let wood = 0, buildMode = false, buildPart = 0, preview = {}, structures = [], lastPlace = 0, stamina = 100, gameGen = 0;
 let chests = [], bus = null, busDir = null, viewmodel = null;
+let paused = false;
 let orgerBoss = null, bossBalls = [], playerBalls = [], fx = [], throwPending = false, bossSeen = false;
 let yaw = 0, pitch = 0, velY = 0, grounded = true, walkT = 0;
 const keys = {};
@@ -890,7 +893,7 @@ function initGame() {
     new THREE.MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: .35, side: THREE.BackSide }));
   stormCyl.position.y = 60;
   scene.add(stormCyl);
-  gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++;
+  gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++; paused = false;
   clearTimeout(buildFlash.t);
   orgerBoss = null; bossBalls = []; playerBalls = []; fx = []; throwPending = false; bossSeen = false;
   for (const f of dmgNums) f.el.remove();
@@ -1553,6 +1556,7 @@ function drawHud() {
     if (el.className !== cn) el.className = cn;
   }
   setTxt($('stormbar'), storm.shrinking ? '⚠ STORM CLOSING' : `Storm in ${Math.ceil(storm.nextShrink)}s`);
+  $('mousetip').style.display = document.pointerLockElement === renderer.domElement ? 'none' : 'block';
   const bb = $('bossbar');
   if (orgerBoss && orgerBoss.alive) {
     if (bb.style.display !== 'block') bb.style.display = 'block';
@@ -1593,6 +1597,7 @@ addEventListener('keydown', e => {
   keys[k] = true;
   if (k === ' ') e.preventDefault();
   if (!playing) return;
+  if (k === 'escape') { if (player.alive && !paused) { paused = true; showPause(); } return; }
   if (k === ' ') jumpFromBus();
   if (k === 'e') { if (!openChest()) pickupNearest(); }
   if (k === 'f') startReload();
@@ -1607,7 +1612,7 @@ addEventListener('mousemove', e => {
   pitch = clamp(pitch - e.movementY * .0023, -1.5, 1.5);
 });
 addEventListener('wheel', e => {
-  if (!playing || !player.alive || document.pointerLockElement !== renderer.domElement) return;
+  if (!playing || !player.alive || paused) return;
   const dir = e.deltaY > 0 ? 1 : -1;
   for (let i = 1; i <= 5; i++) {
     const n = (player.cur + dir * i + 10) % 5;
@@ -1615,7 +1620,13 @@ addEventListener('wheel', e => {
   }
 });
 addEventListener('mousedown', e => {
-  if (e.button === 0) { mouseDown = true; if (playing && document.pointerLockElement === renderer.domElement) jumpFromBus(); }
+  if (e.button === 0) {
+    mouseDown = true;
+    if (playing && !paused && player.alive) {
+      if (document.pointerLockElement === renderer.domElement) jumpFromBus();
+      else { const l = renderer.domElement.requestPointerLock(); if (l && l.catch) l.catch(() => {}); }
+    }
+  }
   if (e.button === 2 && playing && player) {
     const s = player.slots[player.cur];
     if (s && (s.type === 'medkit' || s.type === 'shield')) useHeal(s.type);
@@ -1630,10 +1641,11 @@ function showPause() {
   $('playBtn').textContent = 'RESUME';
 }
 document.addEventListener('pointerlockchange', () => {
-  if (document.pointerLockElement !== renderer.domElement && playing) {
+  if (document.pointerLockElement !== renderer.domElement) {
+    // mouse got free (Esc, alt-tab, browser nag) — the game KEEPS RUNNING,
+    // we just clear held keys so nothing gets stuck down
     mouseDown = false;
     for (const k of Object.keys(keys)) delete keys[k];
-    showPause();
   }
 });
 
@@ -1646,12 +1658,12 @@ $('playBtn').addEventListener('click', () => {
   playing = true;
   mouseDown = false;
   $('playBtn').blur();
+  paused = false;
   const lock = renderer.domElement.requestPointerLock();
   if (lock && lock.catch) lock.catch(() => {});
 });
-// if the browser refuses the mouse capture (e.g. clicked RESUME right after Esc),
-// don't leave the player stuck in a frozen world — bring the menu back
-document.addEventListener('pointerlockerror', () => { if (playing) showPause(); });
+// if the browser refuses the mouse capture (e.g. clicked right after Esc),
+// no problem — the game keeps running and a click grabs the mouse back
 
 initScene();
 initGame();
@@ -1660,7 +1672,7 @@ clock = new THREE.Clock();
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(.05, clock.getDelta());
-  if (playing && player.alive && document.pointerLockElement === renderer.domElement) {
+  if (playing && player.alive && !paused) {
     gameTime += dt;
     if (bus) {
       bus.position.addScaledVector(busDir, 26 * dt);
