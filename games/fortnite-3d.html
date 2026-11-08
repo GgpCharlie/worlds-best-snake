@@ -74,7 +74,7 @@
   <h1>BATTLE MINI 3D</h1>
   <p id="msg">51 fighters on the battle bus. Jump out, crack 🧰 chests, last one standing wins.<br><br>
   <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
-  <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>Right-click</b> use held ⛑/🧪 · <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause (game never freezes — click to grab the mouse back)<br>
+  <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪 · <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause (game never freezes — click to grab the mouse back)<br>
   Shoot trees &amp; rocks for wood — spend 20 wood per build<br>
   🤢 1 chest in 10 hides a wriggling <b>ORGER</b> — throw it and face what comes out…</p>
   <button id="playBtn">DROP IN</button>
@@ -809,6 +809,7 @@ function spawnLoot(near, kind, weaponId) {
   scene.add(m);
   const item = { mesh: m, type, weapon };
   loot.push(item);
+  return item;
 }
 
 function makeBot(name) {
@@ -1359,7 +1360,7 @@ function switchSlot(n) {
 function pickupNearest() {
   let best = null, bd = 2.2;
   for (const l of loot) {
-    if (l.type === 'ammo') continue;
+    if (l.type === 'ammo' || (l.noPick && gameTime < l.noPick)) continue;
     const d = Math.hypot(player.x - l.mesh.position.x, player.z - l.mesh.position.z);
     if (d < bd) { bd = d; best = l; }
   }
@@ -1394,6 +1395,32 @@ function pickupNearest() {
   player.reloading = false;
   removeLoot(best);
   sfx(740, .12, 'sine', .14);
+}
+
+// G — throw what you're holding onto the ground in front of you
+function dropItem() {
+  if (!player.alive || player.state !== 'fight' || paused) return;
+  const i = player.cur, s = player.slots[i];
+  if (!s) { buildFlash('Hands already empty 🤷'); return; }
+  cancelHeal();
+  const px = clamp(player.x - Math.sin(yaw) * 2.6, -HALF + 3, HALF - 3);
+  const pz = clamp(player.z - Math.cos(yaw) * 2.6, -HALF + 3, HALF - 3);
+  let name;
+  if (s.type === 'weapon') {
+    syncSlot();
+    name = WEAPONS[s.id].name;
+    const it = spawnLoot({ x: px, z: pz }, 'weapon', s.id);
+    if (it) it.noPick = gameTime + .8;
+    player.slots[i] = null;
+    player.weapon = null; player.ammo = 0; player.reloading = false;
+  } else {
+    name = s.type === 'medkit' ? '⛑ Medkit' : s.type === 'orger' ? '🤢 ORGER' : '🧪 Big Pot';
+    const it = spawnLoot({ x: px, z: pz }, s.type);
+    if (it) it.noPick = gameTime + .8;
+    if (--s.count <= 0) player.slots[i] = null;
+  }
+  buildFlash(`Dropped ${name}`);
+  sfx(300, .1, 'triangle', .1);
 }
 
 function useHeal(kind) {
@@ -1601,6 +1628,7 @@ addEventListener('keydown', e => {
   if (k === ' ') jumpFromBus();
   if (k === 'e') { if (!openChest()) pickupNearest(); }
   if (k === 'f') startReload();
+  if (k === 'g' && !e.repeat) dropItem();
   if (k === 'r' && player.alive && player.state === 'fight') { buildMode = !buildMode; sfx(buildMode ? 620 : 400, .08, 'sine', .1); }
   if (k === 'q' && buildMode) buildPart = (buildPart + 1) % PARTS.length;
   if (k >= '1' && k <= '5') switchSlot(+k - 1);
