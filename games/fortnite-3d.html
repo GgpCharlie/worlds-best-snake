@@ -76,6 +76,7 @@
   <button id="playBtn">DROP IN</button>
 </div>
 <script src="vendor/three/three.global.js"></script>
+<script src="crates.js"></script>
 <script>
 const THREE = window.THREE;
 if (!THREE) {
@@ -393,6 +394,18 @@ function buildWorld() {
     rock.userData.kind = 'rock';
     obstacleMeshes.push(rock);
     colliders.push({ type: 'r', x, z, r: r * .8 });
+  }
+  // wooden supply crates — real Fortnite-style cover you can hide behind
+  for (let i = 0; i < 16; i++) {
+    let x, z, t = 0;
+    do { x = rand(-(HALF - 30), HALF - 30); z = rand(-(HALF - 30), HALF - 30); t++; } while (t < 40 && !ok(x, z, 1.6));
+    positions.push({ x, z, r: 1.6 });
+    const crate = makeCrate();
+    crate.position.set(x, 0, z);
+    crate.rotation.y = rand(0, 6.28);
+    scene.add(crate);
+    obstacleMeshes.push(crate);
+    colliders.push({ type: 'c', x, z, r: 1.5 });
   }
 }
 
@@ -936,7 +949,7 @@ function botFire(bot, target, dist) {
   const ax = bot.x, az = bot.z, ay = 1.5;
   const bx = target.isPlayer ? player.x : target.x;
   const bz = target.isPlayer ? player.z : target.z;
-  if (losBlocked(ax, ay, az, bx, bz, 1.3)) {
+  if (losBlocked(ax, ay, az, bx, 1.3, bz)) {
     const walls = structures.map(s => s.mesh);
     if (walls.length) {
       raycaster.set(new THREE.Vector3(ax, ay, az), new THREE.Vector3(bx - ax, 0, bz - az).normalize());
