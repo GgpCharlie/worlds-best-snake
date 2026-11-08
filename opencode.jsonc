@@ -1,0 +1,49 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Force every session in this project onto the two allowed LiteLLM endpoints.
+  "model": "litellm/main",
+  "small_model": "litellm/test",
+
+  "agents": {
+    // The main coding agent for this project.
+    "build": {
+      "model": "litellm/main"
+    },
+
+    // Allowed subagent #1 - general builder, runs on "main".
+    "worker": {
+      "description": "Builder subagent for implementation work: writing game code, editing pages, vendoring libraries, fixing bugs. Use for build tasks, not research.",
+      "mode": "subagent",
+      "model": "litellm/main",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" }
+      ]
+    },
+
+    // Allowed subagent #2 - verification, runs on "test".
+    "tester": {
+      "description": "Tester subagent for checking work: run the page, hunt edge cases, verify links/images/vendor paths, confirm the landing page lists new games. Use after building something.",
+      "mode": "subagent",
+      "model": "litellm/test",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" }
+      ]
+    },
+
+    // Block the built-in subagents so nothing runs on a non-allowed model.
+    "general": { "permissions": [{ "action": "subagent", "resource": "*", "effect": "deny" }] },
+    "explore": { "permissions": [{ "action": "subagent", "resource": "*", "effect": "deny" }] }
+  },
+
+  "permissions": [
+    // Only the two declared subagents may be dispatched.
+    { "action": "subagent", "resource": "*", "effect": "deny" },
+    { "action": "subagent", "resource": "worker", "effect": "allow" },
+    { "action": "subagent", "resource": "tester", "effect": "allow" },
+
+    // Publishing target is the only place outside the workspace we may write.
+    { "action": "external_directory", "resource": "*", "effect": "deny" },
+    { "action": "external_directory", "resource": "/mnt/openshare/public/www/t54w/*", "effect": "allow" }
+  ]
+}
