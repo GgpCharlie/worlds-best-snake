@@ -322,24 +322,32 @@ function jumpFromBus() {
 
 function buildWorld() {
   colliders = []; obstacleMeshes = [];
-  const houseMat = new THREE.MeshLambertMaterial({ color: 0xc9a27a });
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x8a4a36 });
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
   const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e6b2e });
   const rockMat = new THREE.MeshLambertMaterial({ color: 0x9090a0 });
+  // house paint colours + styles — every match gets a mix
+  const WALL_COLORS = [0xc9a27a, 0x7fa8c9, 0xc97f8f, 0x9fd08f, 0xd8b84f, 0xb08bd0];
+  const ROOF_COLORS = [0x8a4a36, 0x5a6674, 0x6b3a5c, 0x3f6b5a, 0x74463a];
+  const STYLES = ['cottage', 'cottage', 'barn', 'barn', 'shack', 'tower'];
   const positions = [];
   const toiletHouse = Math.random() * 26 | 0;
   const ok = (x, z, r) => positions.every(p => Math.hypot(x - p.x, z - p.z) > r + p.r + 6);
 
   for (let i = 0; i < 26; i++) {
     let x, z, t = 0;
-    do { x = rand(-(HALF - 35), HALF - 35); z = rand(-(HALF - 35), HALF - 35); t++; } while (t < 40 && !ok(x, z, 12));
-    positions.push({ x, z, r: 12 });
-    const s = rand(10, 15), hs = s / 2, door = 3.2, seg = (s - door) / 2, off = (s + door) / 4;
+    do { x = rand(-(HALF - 35), HALF - 35); z = rand(-(HALF - 35), HALF - 35); t++; } while (t < 40 && !ok(x, z, 13));
+    const style = STYLES[Math.random() * STYLES.length | 0];
+    const s = style === 'shack' ? rand(8, 10) : style === 'tower' ? rand(9, 11) : rand(10, 15);
+    positions.push({ x, z, r: style === 'barn' ? 15 : 12 });
+    const wallH = style === 'tower' ? 9.5 : 5;
+    const wallMat = new THREE.MeshLambertMaterial({ color: WALL_COLORS[Math.random() * WALL_COLORS.length | 0] });
+    const roofMat = new THREE.MeshLambertMaterial({ color: ROOF_COLORS[Math.random() * ROOF_COLORS.length | 0] });
+    const sx = s, sz = style === 'barn' ? s * 1.55 : s;
+    const hsx = sx / 2, hsz = sz / 2, door = 3.2;
     const doorSide = Math.random() * 4 | 0;
     const addWall = (mx, mz, hw, hh) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, 5, hh * 2), houseMat);
-      m.position.set(mx, 2.5, mz);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, wallH, hh * 2), wallMat);
+      m.position.set(mx, wallH / 2, mz);
       m.userData.kind = 'house';
       scene.add(m);
       obstacleMeshes.push(m);
@@ -347,31 +355,52 @@ function buildWorld() {
     };
     for (let side = 0; side < 4; side++) {
       if (side !== doorSide) {
-        if (side === 0) addWall(x, z + hs + .3, s / 2, .3);
-        if (side === 1) addWall(x, z - hs - .3, s / 2, .3);
-        if (side === 2) addWall(x + hs + .3, z, .3, s / 2);
-        if (side === 3) addWall(x - hs - .3, z, .3, s / 2);
+        if (side === 0) addWall(x, z + hsz + .3, sx / 2, .3);
+        if (side === 1) addWall(x, z - hsz - .3, sx / 2, .3);
+        if (side === 2) addWall(x + hsx + .3, z, .3, sz / 2);
+        if (side === 3) addWall(x - hsx - .3, z, .3, sz / 2);
       } else {
+        const len = side < 2 ? sx : sz, half = side < 2 ? hsz + .3 : hsx + .3;
+        const seg = (len - door) / 2, off = (len + door) / 4;
         for (const d of [-1, 1]) {
-          if (side === 0) addWall(x + d * off, z + hs + .3, seg / 2, .3);
-          if (side === 1) addWall(x + d * off, z - hs - .3, seg / 2, .3);
-          if (side === 2) addWall(x + hs + .3, z + d * off, .3, seg / 2);
-          if (side === 3) addWall(x - hs - .3, z + d * off, .3, seg / 2);
+          if (side === 0) addWall(x + d * off, z + half, seg / 2, .3);
+          if (side === 1) addWall(x + d * off, z - half, seg / 2, .3);
+          if (side === 2) addWall(x + half, z + d * off, .3, seg / 2);
+          if (side === 3) addWall(x - half, z + d * off, .3, seg / 2);
         }
       }
     }
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(s * .78, 3.5, 4), roofMat);
-    roof.position.set(x, 6.6, z);
-    roof.rotation.y = Math.PI / 4;
-    scene.add(roof);
-    for (let n = 0; n < 3; n++) spawnLoot({ x: x + rand(-hs + 1.5, hs - 1.5), z: z + rand(-hs + 1.5, hs - 1.5) });
+    if (style === 'barn') {
+      // two slanted panels make a proper gable roof
+      const pitch = .62, halfW = sx / 2 + .55;
+      const panelLen = halfW / Math.cos(pitch) + .3;
+      for (const d of [-1, 1]) {
+        const panel = new THREE.Mesh(new THREE.BoxGeometry(panelLen, .5, sz + 1.1), roofMat);
+        panel.position.set(x + d * halfW / 2, wallH + 1.15, z);
+        panel.rotation.z = -d * pitch;
+        scene.add(panel);
+      }
+    } else if (style === 'shack') {
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(sx + 1, .5, sz + 1), roofMat);
+      slab.position.set(x, wallH + .25, z);
+      scene.add(slab);
+      const chim = new THREE.Mesh(new THREE.BoxGeometry(.9, 2.4, .9), rockMat);
+      chim.position.set(x + hsx * .55, wallH + 1.4, z - hsz * .55);
+      scene.add(chim);
+    } else {
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(sx * .78, style === 'tower' ? 4.5 : 3.5, 4), roofMat);
+      roof.position.set(x, wallH + (style === 'tower' ? 2.5 : 1.6), z);
+      roof.rotation.y = Math.PI / 4;
+      scene.add(roof);
+    }
+    for (let n = 0; n < 3; n++) spawnLoot({ x: x + rand(-hsx + 1.5, hsx - 1.5), z: z + rand(-hsz + 1.5, hsz - 1.5) });
     if (i === toiletHouse) {
       feed('🚽 A toilet infestation has been detected!');
-      for (let t = 0; t < 10; t++) placeProp(x + rand(-hs + .8, hs - .8), z + rand(-hs + .8, hs - .8));
+      for (let t = 0; t < 10; t++) placeProp(x + rand(-hsx + .8, hsx - .8), z + rand(-hsz + .8, hsz - .8));
     } else {
-      placeProp(x + rand(-hs * .4, hs * .4), z + rand(-hs * .4, hs * .4));
+      placeProp(x + rand(-hsx * .4, hsx * .4), z + rand(-hsz * .4, hsz * .4));
     }
-    makeChest(x + rand(-hs * .6, hs * .6), z + rand(-hs * .6, hs * .6));
+    makeChest(x + rand(-hsx * .6, hsx * .6), z + rand(-hsz * .6, hsz * .6));
   }
   for (let i = 0; i < 130; i++) {
     let x, z, t = 0;
@@ -386,11 +415,13 @@ function buildWorld() {
     obstacleMeshes.push(trunk, leaves);
     colliders.push({ type: 'r', x, z, r: .8 });
   }
+  const rockSpots = [];
   for (let i = 0; i < 45; i++) {
     let x, z, t = 0;
     do { x = rand(-(HALF - 8), HALF - 8); z = rand(-(HALF - 8), HALF - 8); t++; } while (t < 40 && !ok(x, z, 4));
     positions.push({ x, z, r: 4 });
     const r = rand(1.4, 2.6);
+    rockSpots.push({ x, z, r });
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r), rockMat);
     rock.position.set(x, r * .5, z);
     rock.scale.y = .7;
@@ -411,6 +442,20 @@ function buildWorld() {
     scene.add(crate);
     obstacleMeshes.push(crate);
     colliders.push({ type: 'c', x, z, r: 1.5 });
+  }
+  // open-field chests — 1 in 5 likes to hide right next to a big rock
+  for (let i = 0; i < 24; i++) {
+    let placed = false;
+    if (rockSpots.length && Math.random() < .2) {
+      for (let t = 0; t < 12 && !placed; t++) {
+        const rk = rockSpots[Math.random() * rockSpots.length | 0];
+        const a = rand(0, 6.283), d = rk.r * .8 + rand(1.6, 2.9);
+        const cx = clamp(rk.x + Math.cos(a) * d, -HALF + 4, HALF - 4);
+        const cz = clamp(rk.z + Math.sin(a) * d, -HALF + 4, HALF - 4);
+        if (!pointBlocked(cx, cz, 1.3)) { makeChest(cx, cz); placed = true; }
+      }
+    }
+    if (!placed) makeChest();
   }
 }
 
@@ -858,7 +903,6 @@ function initGame() {
   loot = []; tracers = []; killfeed = []; chests = [];
   structures = []; buildMode = false; wood = 60; stamina = 100;
   buildWorld();
-  for (let i = 0; i < 24; i++) makeChest();
   preview = {};
   for (const part of PARTS) {
     const geo = part === 'wall' ? new THREE.BoxGeometry(4, 3, .3) : new THREE.BoxGeometry(4, .25, 4);
