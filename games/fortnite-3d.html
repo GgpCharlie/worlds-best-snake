@@ -978,8 +978,8 @@ function updateViewmodel() {
 
 function spawnLoot(near, kind, weaponId) {
   const roll = Math.random();
-  // same odds as before for guns/heals, and TNT now turns up as often as medkits
-  const type = kind || (roll < .40 ? 'weapon' : roll < .62 ? 'medkit' : roll < .84 ? 'tnt' : 'shield');
+  // TNT is half as common as medkits here (it's a big stick of dynamite)
+  const type = kind || (roll < .40 ? 'weapon' : roll < .62 ? 'medkit' : roll < .73 ? 'tnt' : 'shield');
   const weapon = weaponId || (type === 'weapon' ? (Math.random() < .1 ? 'grenade' : WKEYS[1 + (Math.random() * 3 | 0)]) : null);
   const p = near || freeSpot(1);
   let m;
