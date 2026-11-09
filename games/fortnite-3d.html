@@ -1197,9 +1197,19 @@ function initGame() {
   camera.position.set(bus.position.x, bus.position.y - 1, bus.position.z);
   // fog:false is the important bit — the wall starts far outside the fog range,
   // so with fog on it was invisible until it was already on top of you
-  stormCyl = new THREE.Mesh(
-    new THREE.CylinderGeometry(1, 1, 220, 64, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x9b45ff, transparent: true, opacity: .5, side: THREE.DoubleSide, fog: false, depthWrite: false }));
+  stormCyl = new THREE.Group();
+  const wallMat = new THREE.MeshBasicMaterial({ color: 0x9b45ff, transparent: true, opacity: .3, side: THREE.DoubleSide, fog: false, depthWrite: false });
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 220, 64, 1, true), wallMat);
+  // the bright band at ground level is the part players actually look for — without it
+  // the storm just reads as "purple sky" and you can't tell where the edge is
+  stormBand = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 16, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xd68bff, transparent: true, opacity: .85, side: THREE.DoubleSide, fog: false, depthWrite: false }));
+  stormBand.position.y = -97;   // group rides at y=105, so this drops the band onto the ground
+  // neon rim on top of the band so the edge stays crisp against the haze
+  stormLine = new THREE.Mesh(new THREE.CylinderGeometry(1.001, 1.001, 3, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd6ff, transparent: true, opacity: .95, side: THREE.DoubleSide, fog: false, depthWrite: false }));
+  stormLine.position.y = -89;
+  stormCyl.add(wall, stormBand, stormLine);
   stormCyl.position.y = 105;
   scene.add(stormCyl);
   gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++; paused = false;
@@ -1219,7 +1229,7 @@ function initGame() {
   feed('🚌 The battle bus has departed!');
 }
 
-let stormCyl;
+let stormCyl, stormBand, stormLine;
 
 function feed(text) {
   killfeed.unshift(text);
@@ -1491,6 +1501,7 @@ function updateStorm(dt) {
   }
   stormCyl.scale.set(storm.r, 1, storm.r);
   stormCyl.position.set(storm.x, 105, storm.z);
+  if (stormBand) stormBand.material.opacity = .72 + Math.sin(gameTime * 2.5) * .16;
   storm.tick += dt;
   if (storm.tick >= 1) {
     storm.tick = 0;
