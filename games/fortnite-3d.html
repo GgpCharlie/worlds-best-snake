@@ -484,8 +484,9 @@ function openChest() {
   for (const c of chests) {
     if (c.opened || Math.hypot(player.x - c.x, player.z - c.z) > 3) continue;
     c.opened = true;
+    c.openT = gameTime;          // used to fade the glow out — an empty chest sits dark
     c.lid.rotation.x = -1.7;
-    c.glow.intensity = 2;
+    c.glow.intensity = 2.6;      // one last bright pop as the lid comes up
     const tntRoll = Math.random() < .17;   // 17% of chests hide a stick of TNT
     for (let n = 0, L = Math.max(2, Math.round(3 * DIFF.loot)); n < L; n++) {
       const roll = Math.random();
@@ -506,6 +507,22 @@ function openChest() {
     return true;
   }
   return false;
+}
+
+// unopened chests pulse a golden beacon; once you have emptied one it all fades to dark
+function updateChests(dt) {
+  for (const c of chests) {
+    if (c.opened) {
+      const k = clamp(1 - (gameTime - (c.openT || 0)) / 1.1, 0, 1);
+      c.glow.intensity = 2.6 * k * k;
+      if (c.beam) { c.beam.material.opacity = .12 * k; c.beam.visible = k > .01; }
+      if (c.gem) c.gem.material.emissiveIntensity = k;
+      continue;
+    }
+    if (c.beam) c.beam.rotation.y += dt;
+    if (c.gem) c.gem.rotation.y += dt * 2;
+    c.glow.intensity = .9 + Math.sin(gameTime * 3 + c.x) * .4;
+  }
 }
 
 function jumpFromBus() {
@@ -2831,11 +2848,7 @@ function loop() {
     updatePlayer(dt);
     for (const b of bots) if (b.alive) updateBot(b, dt);
     if (player.state !== 'bus') updateStorm(dt);
-    for (const c of chests) {
-      if (c.beam) c.beam.rotation.y += dt;
-      if (c.gem) c.gem.rotation.y += dt * 2;
-      c.glow.intensity = (c.opened ? 1.6 : .9) + Math.sin(gameTime * 3 + c.x) * .4;
-    }
+    updateChests(dt);
     updatePreview();
     if (buildMode && mouseDown) tryPlace();
     updateBoss(dt);
