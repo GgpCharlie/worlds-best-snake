@@ -1366,9 +1366,9 @@ function toggleCam() {
 
 function spawnLoot(near, kind, weaponId) {
   const roll = Math.random();
-  // TNT is half as common as medkits here (it's a big stick of dynamite), and a BIG MAC
-  // is rarer still because it is the best thing in the whole shop
-  const type = kind || (roll < .40 ? 'weapon' : roll < .58 ? 'medkit' : roll < .69 ? 'tnt' : roll < .79 ? 'bigmac' : 'shield');
+  // BIG MACs are now as common as medkits (they used to be invisible, so nobody could find them),
+  // and TNT stays half as common as medkits since it is such a big stick of dynamite
+  const type = kind || (roll < .36 ? 'weapon' : roll < .54 ? 'medkit' : roll < .72 ? 'bigmac' : roll < .83 ? 'tnt' : 'shield');
   const weapon = weaponId || (type === 'weapon' ? (Math.random() < .1 ? 'grenade' : WKEYS[1 + (Math.random() * 3 | 0)]) : null);
   const p = near || freeSpot(1);
   let m;
@@ -1390,7 +1390,13 @@ function spawnLoot(near, kind, weaponId) {
   } else if (type === 'bigmac') {
     m = buildBigMac(true);
     m.scale.setScalar(.9);
-    m.position.set(p.x, .55, p.z);
+    m.position.set(p.x, .62, p.z);
+    // a burger sitting on brown dirt is hard to spot, so give it a beacon like the chests
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(.5, .5, 8, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xffc63d, transparent: true, opacity: .14, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+    beam.position.y = 3.4;
+    m.add(beam);
   } else {
     m = buildShield();
     m.position.set(p.x, .6, p.z);
@@ -1940,10 +1946,14 @@ function updatePlayer(dt) {
     if (player.reloadT <= 0) { player.reloading = false; player.ammo = player.weapon ? WEAPONS[player.weapon].mag : 0; }
   }
   let nearPickup = null;
+  const LOOT_Y = { weapon: 1.1, medkit: .85, shield: .6, ammo: .8, orger: 1, tnt: .75, bigmac: .62 };
   for (const l2 of loot) {
     const d = Math.hypot(player.x - l2.mesh.position.x, player.z - l2.mesh.position.z);
     l2.mesh.rotation.y += dt * 2;
-    l2.mesh.position.y = ({ weapon: 1.1, medkit: .85, shield: .6, ammo: .8, orger: 1, tnt: .75 }[l2.type]) + Math.sin(gameTime * 3 + l2.mesh.position.x) * .12;
+    // every loot type needs a height here — a missing one turns into NaN and the item
+    // silently vanishes (that is how BIG MACs went invisible)
+    const baseY = LOOT_Y[l2.type] === undefined ? .8 : LOOT_Y[l2.type];
+    l2.mesh.position.y = baseY + Math.sin(gameTime * 3 + l2.mesh.position.x) * .12;
     if (d > 2.2 || l2.type === 'ammo') continue;
     nearPickup = l2;
   }
