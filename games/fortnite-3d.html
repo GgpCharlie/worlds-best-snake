@@ -990,7 +990,7 @@ function updateBossBalls(dt) {
 }
 
 function throwOrger() {
-  if (orgerBoss) { buildFlash('One ORGER is already enough!!'); return; }
+  if (orgerBoss) { buildFlash('One HARPER is already enough!!'); return; }
   const s = player.slots[player.cur];
   if (!s || s.type !== 'orger') return;
   cancelHeal();
@@ -2065,7 +2065,7 @@ function updatePlayer(dt) {
   const nearChest = chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3);
   if (nearChest) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to open the chest' : 'Press E to open chest') + ' 🧰'; }
   else if (nearPickup) {
-    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery ORGER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : 'Big Pot 🧪';
+    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery HARPER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : 'Big Pot 🧪';
     pr.style.display = 'block';
     pr.textContent = `${isTouch ? 'Tap GRAB for' : 'Press E to pick up'} ${tname}`;
   }
@@ -2189,7 +2189,7 @@ const BIG_MAC_HP = 50;
 const MAX_HP_CAP = 500;
 // how long each thing takes to use — a whole burger takes a bit of chewing
 const USE_TIME = { medkit: 3, shield: 3, bigmac: 4 };
-const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 ORGER', tnt: '💣 TNT' };
+const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 HARPER', tnt: '💣 TNT' };
 const ITEM_ICON = { medkit: '⛑', shield: '🧪', bigmac: '🍔', orger: '🤢', tnt: '💣' };
 // the things you can use by holding them (right-click, or the ⛑ button on a phone)
 const isUsable = s => !!(s && (s.type === 'medkit' || s.type === 'shield' || s.type === 'bigmac'));
@@ -2381,7 +2381,7 @@ function drawHud() {
   const held = player.slots[player.cur];
   const vmKey = player.cur + ':' + (held ? (held.type === 'weapon' ? held.id : held.type) : '-');
   if (viewmodel && viewmodel._key !== vmKey) { viewmodel._key = vmKey; updateViewmodel(); }
-  if (held && held.type === 'orger') setHtml($('wpn'), '🤢 ORGER<br>left-click: THROW!');
+  if (held && held.type === 'orger') setHtml($('wpn'), '🤢 HARPER<br>left-click: THROW!');
   else if (held && held.type === 'tnt') setHtml($('wpn'), '💣 TNT<br>left-click: THROW!');
   else if (held && held.type !== 'weapon') setHtml($('wpn'), (ITEM_NAME[held.type] || 'item') + '<br>' + (isTouch ? 'tap ⛑ to use' : 'right-click to use'));
   else if (player.weapon) { const w = WEAPONS[player.weapon]; setHtml($('wpn'), `${w.name}<br>${player.reloading ? 'RELOADING…' : player.ammo + ' / ∞'}`); }
