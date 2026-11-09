@@ -147,13 +147,19 @@ You **must not** use, switch to, or configure any other model. This is enforced 
 in this one session. The `worker` and `tester` helpers are switched off in `opencode.jsonc`, so
 dispatching one will just be denied.
 
-Verify your own work instead, with real checks rather than a second model's opinion:
+**The user does the testing. You do not.** They play the game on the live site and tell you what is
+still wrong. Building and checking with a second model is off, and driving the game in a browser is
+their job, not yours.
 
-- load the page in headless chromium and look for console errors (`errors: none`), actually play a
-  bit of the match in the harness, and take a screenshot when it is something you should see
-- check links, image paths and vendored paths resolve, on a phone-sized window as well as desktop
-- keep test harnesses in `/tmp/opencode` and copies of the page in the repo folder you are working in,
-  never in the live tree
+- Write the change, read your own diff, then commit, push and publish it. Do not spin up a browser to
+  try it, and do not take screenshots — they will look at it themselves.
+- What you *do* owe the change: read the surrounding code so the edit fits, keep the diff small, check
+  that any path you mention actually exists, and re-read what you wrote for obvious slips (typos, a
+  function that does not exist, a variable used before it is defined).
+- If something is genuinely broken and you cannot tell by reading, say that you could not check it
+  rather than claiming it works. Never say "tested and works" unless the user said so first.
+- If they explicitly ask you to check something, do it in a headless browser and keep any harness in
+  `/tmp/opencode`, never in the live tree.
 
 Big jobs are still fine — just break them into steps and do them one at a time. If you ever want the
 helpers back, flip the `subagent` permissions in `opencode.jsonc` and change this section.
@@ -163,6 +169,6 @@ helpers back, flip the `subagent` permissions in `opencode.jsonc` and change thi
 - Never delete or overwrite live work you did not write without being sure.
 - Never commit secrets, keys, or tokens.
 - Do not reformat or rewrite whole files you were not asked to touch — keep diffs small and reviewable.
-- Verify before claiming done. "It works" needs a check behind it: page loads, console clean, links and
-  images resolve, game playable.
+- The user tests the games, not you. Ship the change and describe what you changed — do not claim it
+  is "tested" or "works" unless they said so first. Reading your own diff carefully is the check you owe.
 - If you break something, fix it immediately, then commit and push.
