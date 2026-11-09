@@ -55,6 +55,10 @@ This is the **staging** copy.
 
 ### Publishing
 
+**Only publish when the user tells you to.** Never publish on your own initiative, not even after a
+finishing touch they asked for, and not because a commit felt like the end of a job. A change is
+staged and pushed, then it sits there until they say "publish". Asking is fine; doing it quietly is not.
+
 When the user says **"publish"**, "go publish this", "put it live", "ship it", or anything like it,
 they mean: **copy the finished files into `/mnt/openshare/public/www/t54w/`**, keeping the same
 relative paths and directory structure. Publishing is not a git operation.
@@ -151,8 +155,8 @@ dispatching one will just be denied.
 still wrong. Building and checking with a second model is off, and driving the game in a browser is
 their job, not yours.
 
-- Write the change, read your own diff, then commit, push and publish it. Do not spin up a browser to
-  try it, and do not take screenshots — they will look at it themselves.
+- Write the change, read your own diff, then commit and push it. Do not spin up a browser to
+  try it, do not take screenshots, and do not publish — they will look at it and tell you when to publish.
 - What you *do* owe the change: read the surrounding code so the edit fits, keep the diff small, check
   that any path you mention actually exists, and re-read what you wrote for obvious slips (typos, a
   function that does not exist, a variable used before it is defined).
