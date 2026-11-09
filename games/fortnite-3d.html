@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>BATTLE MINI 3D</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #111; font-family: 'Segoe UI', Arial, sans-serif; }
@@ -82,6 +83,61 @@
   #dropBtn { font-size: 25px; padding: 13px 46px; border: none; border-radius: 9px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; margin-top: 4px; }
   #dropBtn:hover { filter: brightness(1.12); }
   .hidden { display: none !important; }
+
+  /* ---- phone controls: left stick, look drag, thumb buttons ---- */
+  #c { touch-action: none; }
+  #touchui { position: absolute; inset: 0; z-index: 6; display: none; pointer-events: none; }
+  body.touch #touchui { display: block; }
+  .tj { position: absolute; z-index: 7; pointer-events: auto; display: flex; align-items: center; justify-content: center;
+    color: #fff; background: rgba(10,10,26,.46); border: 2px solid rgba(255,255,255,.42); border-radius: 50%;
+    font-weight: bold; text-shadow: 1px 1px 0 #000; user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent; touch-action: none; padding: 0; }
+  .tj.on, .tj.act { background: rgba(255,255,255,.3); border-color: #ffd76e; }
+  #stickBase { position: absolute; z-index: 6; pointer-events: none; width: 126px; height: 126px; border-radius: 50%;
+    background: rgba(255,255,255,.10); border: 2px solid rgba(255,255,255,.42); transform: translate(-50%,-50%);
+    display: none; }
+  #stickKnob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
+    border-radius: 50%; background: rgba(255,255,255,.5); border: 2px solid #fff; }
+  #tStickZone { position: absolute; z-index: 6; pointer-events: auto; left: 0; bottom: 0; width: 44%; height: 66%; touch-action: none; }
+  #tFire { right: 18px; bottom: 96px; width: 100px; height: 100px; font-size: 15px; }
+  #tJump { right: 132px; bottom: 26px; width: 64px; height: 64px; font-size: 12px; }
+  #tBuild { right: 130px; bottom: 104px; width: 64px; height: 64px; font-size: 11px; }
+  #tReload { right: 126px; bottom: 180px; width: 58px; height: 58px; font-size: 11px; }
+  #tUse { right: 24px; bottom: 216px; width: 58px; height: 58px; font-size: 20px; }
+  #tGrab { right: 196px; bottom: 34px; width: 58px; height: 58px; font-size: 11px; }
+  #tPart { right: 200px; bottom: 112px; width: 58px; height: 58px; font-size: 11px; display: none; }
+  #tPause { top: 8px; left: 8px; width: 42px; height: 42px; font-size: 17px; border-radius: 10px; }
+  #tCam { top: 8px; left: 56px; width: 42px; height: 42px; font-size: 15px; border-radius: 10px; }
+  /* the match HUD gets a phone-sized arrangement */
+  body.touch #stats { top: 56px; left: 8px; bottom: auto; width: 140px; }
+  body.touch .bar { height: 11px; }
+  body.touch #hpnum, body.touch #shnum, body.touch #stamnum { font-size: 11px; }
+  body.touch #wpn { left: auto; right: 8px; bottom: auto; top: 96px; text-align: right; font-size: 14px; line-height: 1.1; }
+  body.touch #wood { left: auto; right: 8px; bottom: auto; top: 138px; text-align: right; font-size: 12px; }
+  body.touch #feed { top: 176px; left: 8px; font-size: 10px; max-width: 46vw; }
+  body.touch #alive { font-size: 13px; top: 6px; max-width: 48vw; }
+  body.touch #stormbar { font-size: 11px; top: 24px; }
+  body.touch #mm { top: 8px; right: 8px; width: 82px; height: 82px; }
+  body.touch #hotbar { bottom: 4px; gap: 3px; z-index: 8; pointer-events: auto; }
+  body.touch #hotbar .slot { width: 64px; padding: 3px 3px; font-size: 9.5px; white-space: nowrap; overflow: hidden; }
+  body.touch #healui { bottom: auto; top: 32%; font-size: 14px; }
+  body.touch #bossbar { top: 50px; width: 70vw; }
+  body.touch #prompt { font-size: 15px; }
+  body.touch #overlay h1 { font-size: 36px; }
+  body.touch #overlay p { font-size: 14px; padding: 0 18px; }
+  body.touch #lobby h1 { font-size: 30px; }
+  body.touch #dropBtn { font-size: 21px; padding: 13px 34px; }
+  /* phones lying on their side are short, so tuck the buttons in */
+  @media (max-height: 430px) {
+    body.touch #tFire { width: 84px; height: 84px; bottom: 74px; }
+    body.touch #tUse { width: 52px; height: 52px; bottom: 176px; }
+    body.touch #tReload { width: 52px; height: 52px; bottom: 146px; }
+    body.touch #tBuild { bottom: 88px; }
+    body.touch #tJump { bottom: 18px; }
+    body.touch #tGrab { bottom: 26px; }
+    body.touch #stats { top: 48px; }
+    body.touch #feed { top: 168px; }
+  }
 </style>
 </head>
 <body>
@@ -109,6 +165,19 @@
 <div class="hud" id="feed"></div>
 <canvas class="hud" id="mm" width="150" height="150"></canvas>
 <div class="hud" id="prompt"></div>
+<div id="touchui">
+  <div id="tStickZone"></div>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <button class="tj" id="tFire">FIRE</button>
+  <button class="tj" id="tJump">JUMP</button>
+  <button class="tj" id="tBuild">BUILD</button>
+  <button class="tj" id="tReload">RELOAD</button>
+  <button class="tj" id="tUse">⛑</button>
+  <button class="tj" id="tGrab">GRAB</button>
+  <button class="tj" id="tPart">PART</button>
+  <button class="tj" id="tPause">⏸</button>
+  <button class="tj" id="tCam">👁</button>
+</div>
 <div id="flash"></div>
 <div id="stormvignette"></div>
 <div id="overlay" class="hidden">
@@ -139,7 +208,7 @@
         <div class="lhelp" style="margin-top:12px">
           <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
           <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪<br>
-          <b>Shift</b> sprint · <b>Q</b> cycle part · <b>Esc</b> pause<br>
+          <b>Shift</b> sprint · <b>Q</b> cycle part · <b>V</b> camera · <b>Esc</b> pause<br>
           Shoot trees &amp; rocks for wood — 20 wood per build
         </div>
       </div>
@@ -219,6 +288,8 @@ let scene, camera, renderer, clock;
 let player, bots, loot, tracers, colliders, obstacleMeshes, killfeed, storm, playing = false, aliveCount, gameTime;
 let wood = 0, buildMode = false, buildPart = 0, preview = {}, structures = [], lastPlace = 0, stamina = 100, gameGen = 0;
 let chests = [], bus = null, busDir = null, viewmodel = null;
+let thirdPerson = true, playerChar = null, handItem = null, camSnap = true, sprintingNow = false;
+try { thirdPerson = localStorage.getItem('bm3d-cam') !== 'fp'; } catch (e) {}
 let paused = false;
 let orgerBoss = null, bossBalls = [], playerBalls = [], fx = [], throwPending = false, bossSeen = false;
 let yaw = 0, pitch = 0, velY = 0, grounded = true, walkT = 0;
@@ -428,8 +499,8 @@ function openChest() {
 function jumpFromBus() {
   if (!player || !player.alive || player.state !== 'bus') return;
   player.state = 'drop';
-  player.x = camera.position.x;
-  player.z = camera.position.z;
+  if (bus) { player.x = bus.position.x; player.z = bus.position.z; player.y = bus.position.y - 1; }
+  camSnap = true;
   velY = -4;
   sfx(320, .25, 'sawtooth', .12);
 }
@@ -821,7 +892,7 @@ function updateBossBalls(dt) {
     p.mesh.rotation.x += dt * 5; p.mesh.rotation.y += dt * 3;
     let boom = p.t <= 0;
     if (player.alive && player.state === 'fight') {
-      if (p.mesh.position.distanceTo(camera.position) < 2.6) { boom = true; damageFighter(player, 20, p.owner); sfx(140, .2, 'square', .18); }
+      if (p.mesh.position.distanceTo(playerPoint()) < 2.6) { boom = true; damageFighter(player, 20, p.owner); sfx(140, .2, 'square', .18); }
       else if (p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + .5) {
         boom = true;
         if (Math.hypot(p.mesh.position.x - player.x, p.mesh.position.z - player.z) < 3) damageFighter(player, 14, p.owner);
@@ -842,7 +913,7 @@ function throwOrger() {
   ball.scale.setScalar(1.3);
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
-  ball.position.copy(camera.position).add(dir.clone().multiplyScalar(1.4));
+  ball.position.copy(muzzleWorld()).add(dir.clone().multiplyScalar(1.4));
   ball.position.y -= .2;
   scene.add(ball);
   playerBalls.push({ mesh: ball, vx: dir.x * 22, vy: dir.y * 22 + 3, vz: dir.z * 22, t: 8 });
@@ -946,7 +1017,7 @@ function throwTnt() {
   const mesh = buildTntItem();
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
-  mesh.position.copy(camera.position).add(dir.clone().multiplyScalar(1.4));
+  mesh.position.copy(muzzleWorld()).add(dir.clone().multiplyScalar(1.4));
   mesh.position.y -= .25;
   scene.add(mesh);
   tntBalls.push({ mesh, vx: dir.x * 20, vy: dir.y * 20 + 3, vz: dir.z * 20, t: 2.6 });
@@ -986,7 +1057,7 @@ function launchGrenade() {
   mesh.scale.setScalar(.7);
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
-  mesh.position.copy(camera.position).add(dir.clone().multiplyScalar(1.1));
+  mesh.position.copy(muzzleWorld()).add(dir.clone().multiplyScalar(1.1));
   mesh.position.y -= .1;
   scene.add(mesh);
   grenadeBalls.push({ mesh, vx: dir.x * 25, vy: dir.y * 25 + 2.4, vz: dir.z * 25, t: 5 });
@@ -1038,6 +1109,10 @@ function positionMuzzle(id) {
 }
 function flashMuzzle(big) {
   if (!muzzleFlash) return;
+  if (thirdPerson) {   // the gun lives out in the world now, so light it up there
+    popFlash(muzzleWorld(), big ? 1.5 : 1);
+    return;
+  }
   muzzleFlash.visible = true;
   muzzleFlash.material.rotation = Math.random() * 6.28;
   muzzleFlash.scale.setScalar((big ? .42 : .26) + Math.random() * .08);
@@ -1087,6 +1162,133 @@ function updateViewmodel() {
     m.position.set(.46, -.66, -.5);
   }
   viewmodel.add(m);
+}
+
+// ---------------- third person ----------------
+// A blocky fighter you can actually see, built to sit with the bots' look.
+const _camAnchor = new THREE.Vector3(), _camWant = new THREE.Vector3(), _camDir = new THREE.Vector3();
+const BASE_FOV = 75;
+
+function buildPlayerChar() {
+  const g = new THREE.Group();
+  const skin = new THREE.MeshLambertMaterial({ color: 0xf1c27d });
+  const shirt = new THREE.MeshLambertMaterial({ color: 0x2f6fd0 });
+  const pants = new THREE.MeshLambertMaterial({ color: 0x2b3a63 });
+  const limb = (w, h, d, mat, hang) => {
+    const geo = new THREE.BoxGeometry(w, h, d);
+    if (hang) geo.translate(0, -h / 2, 0);   // swing the limb from its top end
+    return new THREE.Mesh(geo, mat);
+  };
+  const legL = limb(.26, .82, .26, pants, true); legL.position.set(-.16, .84, 0);
+  const legR = limb(.26, .82, .26, pants, true); legR.position.set(.16, .84, 0);
+  const torso = limb(.62, .74, .34, shirt); torso.position.y = 1.2;
+  const pack = limb(.5, .44, .18, new THREE.MeshLambertMaterial({ color: 0x7a5230 })); pack.position.set(0, 1.24, .26);
+  const armL = limb(.19, .6, .19, shirt, true); armL.position.set(-.4, 1.48, 0);
+  const armR = limb(.19, .6, .19, shirt, true); armR.position.set(.4, 1.48, 0);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.27, 12, 10), skin); head.position.y = 1.78;
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(.3, .3, .13, 12), new THREE.MeshLambertMaterial({ color: 0xd43f5e }));
+  cap.position.y = 1.94;
+  const hand = new THREE.Object3D(); hand.position.set(0, -.6, .08); armR.add(hand);
+  const chute = new THREE.Group();
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 8, 0, 6.283, 0, 1.25),
+    new THREE.MeshLambertMaterial({ color: 0xff8a3c, side: THREE.DoubleSide }));
+  canopy.position.y = 3;
+  const line = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 1.5, 4), new THREE.MeshBasicMaterial({ color: 0xe6e6e6 }));
+  line.position.y = 2.2;
+  chute.add(canopy, line);
+  chute.visible = false;
+  g.add(legL, legR, torso, pack, armL, armR, head, cap, chute);
+  g.userData = { legL, legR, armL, armR, head, hand, chute };
+  return g;
+}
+
+function playerPoint(out) {
+  return (out || new THREE.Vector3()).set(player.x, player.y - .3, player.z);
+}
+
+// where shots appear to come from — the hand in third person, the eye in first
+function muzzleWorld() {
+  const out = new THREE.Vector3();
+  if (thirdPerson && handItem) handItem.getWorldPosition(out);
+  else out.set(player.x, player.y - .25, player.z);
+  const d = new THREE.Vector3();
+  camera.getWorldDirection(d);
+  return out.addScaledVector(d, .6);
+}
+
+// how far back the camera can sit before a wall gets in the way
+function camClearance(from, dir, want) {
+  raycaster.set(from, dir);
+  raycaster.near = 0; raycaster.far = want;
+  const hits = raycaster.intersectObjects(obstacleMeshes);
+  return hits.length ? Math.max(1.2, hits[0].distance - .4) : want;
+}
+
+function placeCamera(dt) {
+  camera.rotation.set(0, 0, 0);
+  camera.rotateY(yaw);
+  camera.rotateX(pitch);
+  if (viewmodel) viewmodel.visible = !thirdPerson;
+  if (playerChar) playerChar.visible = thirdPerson && player.alive;
+  if (!thirdPerson) { camera.position.set(player.x, player.y, player.z); return; }
+  camera.getWorldDirection(_camDir);
+  // sits over the right shoulder so your own head is not dead centre
+  _camAnchor.set(player.x + Math.cos(yaw) * .55, player.y + .12, player.z - Math.sin(yaw) * .55).addScaledVector(_camDir, 1);
+  // a phone held upright is narrow, so give the camera more room there or your own body fills the screen
+  const narrow = clamp((1.6 - innerWidth / Math.max(1, innerHeight)) / 1.14, 0, 1);
+  const back = (player.state === 'drop' ? 6.4 : 5.4) * (1 + narrow * .45);
+  _camWant.copy(_camAnchor).addScaledVector(_camDir, -camClearance(_camAnchor, _camDir, back));
+  if (_camWant.y < player.y - .6) _camWant.y = player.y - .6;   // never dip under the floor when looking up
+  const k = camSnap ? 1 : Math.min(1, dt * 18);
+  camSnap = false;
+  camera.position.lerp(_camWant, k);
+  const wantFov = BASE_FOV + narrow * 9 + (sprintingNow && player.state === 'fight' ? 4 : 0);
+  if (Math.abs(camera.fov - wantFov) > .05) { camera.fov += (wantFov - camera.fov) * k; camera.updateProjectionMatrix(); }
+}
+
+function updatePlayerChar(dt, moving, sprint) {
+  if (!playerChar || !playerChar.visible) return;
+  const u = playerChar.userData;
+  playerChar.position.set(player.x, player.y - 1.7, player.z);
+  playerChar.rotation.y = yaw;
+  u.chute.visible = player.state === 'drop';
+  const sw = grounded && moving ? Math.sin(walkT) * (sprint ? .85 : .58) : 0;
+  u.legL.rotation.x = grounded ? sw : -.45;
+  u.legR.rotation.x = grounded ? -sw : .25;
+  const held = player.slots[player.cur];
+  const aiming = held && held.type === 'weapon';
+  u.armR.rotation.x = aiming ? -1.35 : (grounded && moving ? -sw * .7 : -.1);
+  u.armL.rotation.x = grounded && moving ? sw * .7 : -.1;
+  u.head.rotation.x = clamp(-pitch * .3, -.5, .5);
+}
+
+// whatever is in the active slot shows up in the hand, same as the first-person view
+function updateHandItem() {
+  if (!playerChar) return;
+  const s = player.slots[player.cur];
+  const key = s ? (s.type === 'weapon' ? s.id : s.type) : '-';
+  if (handItem && handItem._key === key) return;
+  const hand = playerChar.userData.hand;
+  if (handItem) hand.remove(handItem);
+  handItem = null;
+  if (!s) return;
+  let m;
+  if (s.type === 'weapon') { m = buildGunModel(s.id); m.rotation.set(0, Math.PI / 2, 0); m.scale.setScalar(.85); }
+  else if (s.type === 'medkit') { m = buildMedkit(); m.rotation.set(-.5, .5, 0); m.scale.setScalar(.5); }
+  else if (s.type === 'shield') { m = buildShield(false); m.rotation.set(.2, -.4, 0); m.scale.setScalar(.4); }
+  else if (s.type === 'orger') { m = buildOrgerItem(false); m.scale.setScalar(.4); }
+  else { m = buildTntItem(false); m.scale.setScalar(.35); }
+  m.position.set(0, -.55, .12);
+  handItem = m;
+  handItem._key = key;
+  hand.add(m);
+}
+
+function toggleCam() {
+  thirdPerson = !thirdPerson;
+  camSnap = true;
+  try { localStorage.setItem('bm3d-cam', thirdPerson ? 'tp' : 'fp'); } catch (e) {}
+  buildFlash(thirdPerson ? 'Third person camera' : 'First person camera');
 }
 
 function spawnLoot(near, kind, weaponId) {
@@ -1161,7 +1363,12 @@ function initGame() {
   scene.add(camera);
   camera.add(viewmodel);
   if (!muzzleFlash) makeMuzzleFlash();
+  camera.add(muzzleFlash, muzzleLight);   // the loop above just stripped these off the camera
   muzzleFlash.visible = false; muzzleLight.intensity = 0;
+  playerChar = buildPlayerChar();
+  scene.add(playerChar);
+  handItem = null;
+  camSnap = true;
 
   loot = []; tracers = []; killfeed = []; chests = [];
   structures = []; buildMode = false; wood = 60; stamina = 100;
@@ -1173,7 +1380,7 @@ function initGame() {
     scene.add(preview[part]);
   }
   const sp = freeSpot(1);
-  player = { isPlayer: true, name: 'You', x: sp.x, z: sp.z, hp: 200 + hpBonus(), maxHp: 200 + hpBonus(), shield: 0, alive: true, kills: 0, state: 'bus',
+  player = { isPlayer: true, name: 'You', x: sp.x, z: sp.z, y: 79, hp: 200 + hpBonus(), maxHp: 200 + hpBonus(), shield: 0, alive: true, kills: 0, state: 'bus',
     weapon: 'pistol', ammo: WEAPONS.pistol.mag, cur: 0,
     slots: [{ type: 'weapon', id: 'pistol', ammo: WEAPONS.pistol.mag }, null, null, null, null],
     healing: null,
@@ -1315,6 +1522,13 @@ function playerFire() {
   camera.getWorldPosition(origin);
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
+  if (thirdPerson) {
+    // the shot leaves from the body, not from the camera floating behind you,
+    // but it still flies exactly where the crosshair is pointing
+    const look = origin.clone().addScaledVector(dir, 140);
+    playerPoint(origin);
+    dir.copy(look).sub(origin).normalize();
+  }
   const targets = [];
   const camx = camera.position.x, camz = camera.position.z;
   for (const b of bots) {
@@ -1351,7 +1565,7 @@ function playerFire() {
         sfx(200, .05, 'triangle', .08);
       }
     }
-    addTracer(origin.clone().add(d.clone().multiplyScalar(1)), end);
+    addTracer(thirdPerson ? muzzleWorld() : origin.clone().add(d.clone().multiplyScalar(1)), end);
   }
   pitch = clamp(pitch + .008 + (player.weapon === 'shotgun' ? .02 : 0), -1.5, 1.5);
 }
@@ -1540,9 +1754,10 @@ function updatePlayer(dt) {
     camera.position.y -= 1;
     player.x = camera.position.x;
     player.z = camera.position.z;
-    camera.rotation.set(0, 0, 0);
-    camera.rotateY(yaw);
-    camera.rotateX(pitch);
+    player.y = camera.position.y;
+    placeCamera(dt);
+    updatePlayerChar(dt, false, false);
+    updateHandItem();
     pr0.style.display = 'block';
     pr0.textContent = '🚌 Click or press SPACE to JUMP';
     return;
@@ -1555,18 +1770,19 @@ function updatePlayer(dt) {
     if (keys['s']) { mx2 -= fx2; mz2 -= fz2; }
     if (keys['a']) { mx2 -= rx2; mz2 -= rz2; }
     if (keys['d']) { mx2 += rx2; mz2 += rz2; }
+    if (isTouch) { mx2 += fx2 * touchMove.y + rx2 * touchMove.x; mz2 += fz2 * touchMove.y + rz2 * touchMove.x; }
     const l2 = Math.hypot(mx2, mz2);
     if (l2 > 0) {
-      player.x += mx2 / l2 * 18 * dt;
-      player.z += mz2 / l2 * 18 * dt;
+      player.x += mx2 / l2 * 18 * Math.min(1, l2) * dt;
+      player.z += mz2 / l2 * 18 * Math.min(1, l2) * dt;
     }
     player.x = clamp(player.x, -HALF + 2, HALF - 2);
     player.z = clamp(player.z, -HALF + 2, HALF - 2);
     velY = Math.max(velY - 30 * dt, -14);
-    camera.position.y += velY * dt;
+    player.y += velY * dt;
     const gh2 = 1.7 + groundHeight(player.x, player.z);
-    if (camera.position.y <= gh2 && velY <= 0) {
-      camera.position.y = gh2;
+    if (player.y <= gh2 && velY <= 0) {
+      player.y = gh2;
       velY = 0;
       grounded = true;
       player.state = 'fight';
@@ -1579,13 +1795,11 @@ function updatePlayer(dt) {
       }
       sfx(150, .1, 'triangle', .1);
     }
-    camera.position.x = player.x;
-    camera.position.z = player.z;
-    camera.rotation.set(0, 0, 0);
-    camera.rotateY(yaw);
-    camera.rotateX(pitch);
+    placeCamera(dt);
+    updatePlayerChar(dt, l2 > 0, false);
+    updateHandItem();
     pr0.style.display = 'block';
-    pr0.textContent = '🪂 WASD to steer';
+    pr0.textContent = isTouch ? '🪂 Drag the stick to steer' : '🪂 WASD to steer';
     return;
   }
   const fwdX = -Math.sin(yaw), fz = -Math.cos(yaw);
@@ -1595,10 +1809,12 @@ function updatePlayer(dt) {
   if (keys['s']) { mx -= fwdX; mz -= fz; }
   if (keys['a']) { mx -= rx; mz -= rz; }
   if (keys['d']) { mx += rx; mz += rz; }
+  if (isTouch) { mx += fwdX * touchMove.y + rx * touchMove.x; mz += fz * touchMove.y + rz * touchMove.x; }
   const l = Math.hypot(mx, mz);
   const sprinting = keys['shift'] && l > 0 && stamina > 0 && grounded;
+  sprintingNow = sprinting;
   if (l > 0) {
-    const speed = 8 * (sprinting ? 1.6 : 1);
+    const speed = 8 * (sprinting ? 1.6 : 1) * Math.min(1, l);
     player.x += mx / l * speed * dt;
     player.z += mz / l * speed * dt;
     walkT += dt * (sprinting ? 14 : 9);
@@ -1610,21 +1826,19 @@ function updatePlayer(dt) {
   player.coyote = grounded ? .12 : Math.max(0, (player.coyote || 0) - dt);
   if (keys[' '] && player.coyote > 0 && velY <= 0) { velY = 9.5; player.coyote = 0; sfx(500, .06, 'sine', .05); }
   velY -= 20 * dt;
-  camera.position.y += velY * dt;
+  player.y += velY * dt;
   const wasGrounded = grounded;
   grounded = false;
-  if (camera.position.y <= gh + .35 && velY <= 0) {
-    camera.position.y = gh;
+  if (player.y <= gh + .35 && velY <= 0) {
+    player.y = gh;
     velY = 0;
     grounded = true;
     if (!wasGrounded && player.coyote === 0) sfx(180, .07, 'triangle', .05);
   }
-  camera.position.x = player.x;
-  camera.position.z = player.z;
-  if (l > 0 && grounded && gh < 2) camera.position.y = gh + Math.sin(walkT) * .05;
-  camera.rotation.set(0, 0, 0);
-  camera.rotateY(yaw);
-  camera.rotateX(pitch);
+  if (l > 0 && grounded && gh < 2) player.y = gh + Math.sin(walkT) * .05;
+  placeCamera(dt);
+  updatePlayerChar(dt, l > 0, sprinting);
+  updateHandItem();
   const heldNow = player.slots[player.cur];
   if (mouseDown && !buildMode) {
     if (heldNow && heldNow.type === 'orger') { if (!throwPending) { throwPending = true; throwOrger(); } }
@@ -1646,11 +1860,11 @@ function updatePlayer(dt) {
   }
   const pr = $('prompt');
   const nearChest = chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3);
-  if (nearChest) { pr.style.display = 'block'; pr.textContent = 'Press E to open chest 🧰'; }
+  if (nearChest) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to open the chest' : 'Press E to open chest') + ' 🧰'; }
   else if (nearPickup) {
     const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery ORGER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : 'Big Pot 🧪';
     pr.style.display = 'block';
-    pr.textContent = `Press E to pick up ${tname}`;
+    pr.textContent = `${isTouch ? 'Tap GRAB for' : 'Press E to pick up'} ${tname}`;
   }
   else pr.style.display = 'none';
   if (player.healing) {
@@ -1798,7 +2012,7 @@ function computePlacement() {
   const part = PARTS[buildPart];
   const k = 4;
   const cell = v => Math.floor(v / k);
-  let level = Math.max(0, Math.round((camera.position.y - 1.7) / 3));
+  let level = Math.max(0, Math.round((player.y - 1.7) / 3));
   // Standing on a ramp? Then whatever you build next should carry on from the TOP of
   // that ramp, not from wherever your feet happen to be — that is what makes a
   // staircase of ramps join up instead of leaving a step.
@@ -1933,6 +2147,7 @@ function setTxt(el, v) { if (el._v !== v) { el._v = v; el.textContent = v; } }
 function setHtml(el, v) { if (el._v !== v) { el._v = v; el.innerHTML = v; } }
 
 function drawHud() {
+  if (isTouch) touchHud();
   $('stamfill').style.width = stamina + '%';
   setTxt($('stamnum'), '⚡ energy');
   $('hpfill').style.width = (player.hp / player.maxHp * 100) + '%';
@@ -1962,7 +2177,7 @@ function drawHud() {
   setTxt($('stormbar'), storm.phase >= 7 && !storm.shrinking ? '☠ FINAL STORM'
     : storm.shrinking ? '⚠ STORM CLOSING'
     : `Storm in ${Math.max(0, Math.ceil(storm.nextShrink))}s`);
-  $('mousetip').style.display = document.pointerLockElement === renderer.domElement ? 'none' : 'block';
+  $('mousetip').style.display = isTouch || document.pointerLockElement === renderer.domElement ? 'none' : 'block';
   const bb = $('bossbar');
   if (orgerBoss && orgerBoss.alive) {
     if (bb.style.display !== 'block') bb.style.display = 'block';
@@ -2010,6 +2225,7 @@ addEventListener('keydown', e => {
   if (k === 'g' && !e.repeat) dropItem();
   if (k === 'r' && player.alive && player.state === 'fight') { buildMode = !buildMode; sfx(buildMode ? 620 : 400, .08, 'sine', .1); }
   if (k === 'q' && buildMode) buildPart = (buildPart + 1) % PARTS.length;
+  if (k === 'v' && !e.repeat) toggleCam();
   if (k >= '1' && k <= '5') switchSlot(+k - 1);
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -2045,7 +2261,9 @@ function showPause() {
   $('overlay').classList.remove('hidden');
   $('overlay h1').textContent = 'PAUSED';
   $('overlay h1').style.color = '#ffd76e';
-  $('msg').innerHTML = 'The world is holding still.<br>Click the game or press <b>Esc</b> to grab the mouse back and get fighting.';
+  $('msg').innerHTML = isTouch
+    ? 'The world is holding still.<br>Hit <b>RESUME</b> to drop back in.'
+    : 'The world is holding still.<br>Click the game or press <b>Esc</b> to grab the mouse back and get fighting.';
   $('playBtn').textContent = 'RESUME';
 }
 document.addEventListener('pointerlockchange', () => {
@@ -2194,8 +2412,10 @@ function startMatch() {
   playing = true;
   mouseDown = false;
   paused = false;
-  const lock = renderer.domElement.requestPointerLock();
-  if (lock && lock.catch) lock.catch(() => {});
+  if (!isTouch) {                       // phones drive everything with the touch pad
+    const lock = renderer.domElement.requestPointerLock();
+    if (lock && lock.catch) lock.catch(() => {});
+  }
 }
 $('quitBtn').addEventListener('click', () => {
   // walking out of a match counts as a loss, but you still get the consolation coins
@@ -2298,14 +2518,162 @@ $('playBtn').addEventListener('click', () => {
   playing = true;
   mouseDown = false;
   $('playBtn').blur();
-  const lock = renderer.domElement.requestPointerLock();
-  if (lock && lock.catch) lock.catch(() => {});
+  if (!isTouch) {                       // phones drive everything with the touch pad
+    const lock = renderer.domElement.requestPointerLock();
+    if (lock && lock.catch) lock.catch(() => {});
+  }
 });
 // if the browser refuses the mouse capture (e.g. clicked right after Esc),
 // no problem — the game keeps running and a click grabs the mouse back
 
 initScene();
 initGame();
+
+// ============================================================
+//  PHONE CONTROLS
+//  Left half of the screen is a floating joystick (touch anywhere in
+//  that corner and it appears under your thumb). Anywhere else you drag
+//  to look. The buttons do what the keys do, and pushing the stick all
+//  the way to the rim sprints.
+// ============================================================
+const isTouch = /[?&]touch=1\b/.test(location.search) ||
+  (window.matchMedia && matchMedia('(pointer: coarse)').matches) ||
+  (navigator.maxTouchPoints > 0 && !(window.matchMedia && matchMedia('(pointer: fine)').matches));
+const touchMove = { x: 0, y: 0 };
+if (isTouch) document.body.classList.add('touch');
+const tStick = { id: null, ox: 0, oy: 0 };
+let tLookId = null, tLookX = 0, tLookY = 0, tLookT = 0, tLookMoved = 0;
+const LOOK_SPD = .0062, STICK_R = 48;
+const sBase = $('stickBase'), sKnob = $('stickKnob');
+const lobbyUp = () => !$('lobby').classList.contains('hidden');
+
+function stickSet(cx, cy) {
+  let dx = cx - tStick.ox, dy = cy - tStick.oy;
+  const d = Math.hypot(dx, dy);
+  if (d > STICK_R) { dx = dx / d * STICK_R; dy = dy / d * STICK_R; }
+  sKnob.style.transform = `translate(${dx}px,${dy}px)`;
+  const nx = dx / STICK_R, ny = dy / STICK_R;
+  if (Math.hypot(nx, ny) < .18) { touchMove.x = 0; touchMove.y = 0; keys['shift'] = false; return; }
+  touchMove.x = nx; touchMove.y = -ny;          // dragging up the screen means running forward
+  keys['shift'] = Math.hypot(nx, ny) > .93;     // shove it to the rim to sprint
+}
+function stickOff() {
+  tStick.id = null; touchMove.x = touchMove.y = 0; keys['shift'] = false;
+  sBase.style.display = 'none'; sKnob.style.transform = '';
+}
+$('tStickZone').addEventListener('touchstart', e => {
+  if (tStick.id !== null || !playing || paused || !player.alive) return;
+  const t = e.changedTouches[0];
+  tStick.id = t.identifier; tStick.ox = t.clientX; tStick.oy = t.clientY;
+  sBase.style.display = 'block';
+  sBase.style.left = t.clientX + 'px'; sBase.style.top = t.clientY + 'px';
+  stickSet(t.clientX, t.clientY);
+  e.preventDefault(); e.stopPropagation();
+}, { passive: false });
+
+// keeps the thumb buttons honest about what is going on
+function touchHud() {
+  const p = $('tPart'), show = buildMode ? 'flex' : 'none';
+  if (p.style.display !== show) p.style.display = show;
+  const b = $('tBuild');
+  if (b._b !== buildMode) { b._b = buildMode; b.classList.toggle('on', buildMode); }
+  const s = player.slots[player.cur];
+  const canUse = !!(s && (s.type === 'medkit' || s.type === 'shield'));
+  const u = $('tUse');
+  if (u._u !== canUse) { u._u = canUse; u.style.opacity = canUse ? 1 : .45; }
+  const bus = player.state === 'bus';
+  const f = $('tFire');
+  if (f._bus !== bus) {
+    f._bus = bus;
+    f.textContent = bus ? 'JUMP' : buildMode ? 'PLACE' : 'FIRE';
+    $('tJump').textContent = bus ? 'OUT' : 'JUMP';
+  } else if (!bus && f._bm !== buildMode) {
+    f._bm = buildMode;
+    f.textContent = buildMode ? 'PLACE' : 'FIRE';
+  }
+}
+function tapCtl(id, down, up) {  const el = $(id);
+  const off = e => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    el.classList.remove('act');
+    if (up) up();
+  };
+  el.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    if (!playing || paused || !player || !player.alive) return;
+    el.classList.add('act');
+    if (down) down();
+  }, { passive: false });
+  el.addEventListener('touchend', off, { passive: false });
+  el.addEventListener('touchcancel', off);
+}
+tapCtl('tFire', () => { if (player.state === 'bus') jumpFromBus(); else mouseDown = true; }, () => { mouseDown = false; });
+tapCtl('tJump', () => { if (player.state === 'bus') jumpFromBus(); else keys[' '] = true; }, () => { keys[' '] = false; });
+tapCtl('tBuild', () => { if (player.state !== 'fight') return; buildMode = !buildMode; sfx(buildMode ? 620 : 400, .08, 'sine', .1); });
+tapCtl('tPart', () => { if (buildMode) buildPart = (buildPart + 1) % PARTS.length; });
+tapCtl('tReload', () => startReload());
+tapCtl('tUse', () => {
+  const s = player.slots[player.cur];
+  if (s && (s.type === 'medkit' || s.type === 'shield')) useHeal(s.type);
+  else buildFlash('Nothing to use here');
+});
+tapCtl('tGrab', () => { if (!openChest()) pickupNearest(); });
+tapCtl('tCam', () => toggleCam());
+tapCtl('tPause', () => { paused = true; showPause(); });
+for (let i = 0; i < 5; i++) {
+  $('slot' + i).addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    if (playing && !paused && player.alive) switchSlot(i);
+  }, { passive: false });
+}
+
+addEventListener('touchstart', e => {
+  if (!isTouch || tLookId !== null || lobbyUp()) return;
+  const t = e.changedTouches[0];
+  if (!(e.target === renderer.domElement || e.target === document.body || e.target.id === 'c')) return;
+  e.preventDefault();          // no ghost mouse clicks on the game view
+  tLookId = t.identifier; tLookX = t.clientX; tLookY = t.clientY; tLookT = performance.now(); tLookMoved = 0;
+}, { passive: false });
+addEventListener('touchmove', e => {
+  if (!isTouch) return;
+  if (!lobbyUp()) e.preventDefault();          // the shop can still be scrolled on a phone
+  for (const t of e.changedTouches) {
+    if (t.identifier === tStick.id) stickSet(t.clientX, t.clientY);
+    else if (t.identifier === tLookId) {
+      const dx = t.clientX - tLookX, dy = t.clientY - tLookY;
+      tLookMoved = Math.max(tLookMoved, Math.abs(dx) + Math.abs(dy));
+      if (playing && !paused && player && player.alive) {
+        yaw -= dx * LOOK_SPD;
+        pitch = clamp(pitch - dy * LOOK_SPD, -1.5, 1.5);
+      }
+      tLookX = t.clientX; tLookY = t.clientY;
+    }
+  }
+}, { passive: false });
+function touchGone(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === tStick.id) stickOff();
+    if (t.identifier !== tLookId) continue;
+    tLookId = null;
+    // a quick tap on the world (not a drag) shoots, same as a mouse click
+    if (!playing || paused || !player || !player.alive || lobbyUp()) continue;
+    if (tLookMoved > 14 || performance.now() - tLookT > 260) continue;
+    if (player.state === 'bus') jumpFromBus();
+    else if (buildMode) tryPlace();
+    else { mouseDown = true; setTimeout(() => mouseDown = false, 90); }
+  }
+}
+addEventListener('touchend', touchGone);
+addEventListener('touchcancel', touchGone);
+if (isTouch) {
+  const help = document.querySelector('.lhelp');
+  if (help) help.innerHTML =
+    '<b>Left thumb</b> = move (push to the edge to sprint) · <b>drag</b> the rest of the screen to look<br>' +
+    '<b>FIRE</b> shoot / place · <b>BUILD</b> build mode · <b>PART</b> part · <b>JUMP</b> jump / leave the bus<br>' +
+    '<b>GRAB</b> open chest or pick up · <b>RELOAD</b> · <b>⛑</b> use held ⛑/🧪 · <b>⏸</b> pause<br>' +
+    'Tap a slot at the bottom to carry that item · Shoot trees &amp; rocks for wood';
+}
+
 playing = false;
 clock = new THREE.Clock();
 function loop() {
