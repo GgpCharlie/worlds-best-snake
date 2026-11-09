@@ -1837,6 +1837,21 @@ function updateStorm(dt) {
 }
 
 const STEP_UP = .7;   // how tall a lip you can walk straight up onto
+const BODY_H = 1.7;   // how tall you are, from your feet to the top of your head
+
+// True when a ramp cuts through the space you are standing in — too high to step onto
+// but too low to duck under. Without this you could stroll sideways through your own ramps.
+function rampBlocked(x, z, feet) {
+  for (const s of structures) {
+    if (s.part !== 'ramp') continue;
+    const along = (s.axis === 'z' ? z - s.pos.z : x - s.pos.x) * s.riseSign;
+    const lat = s.axis === 'z' ? x - s.pos.x : z - s.pos.z;
+    if (along < -RAMP_RUN / 2 || along > RAMP_RUN / 2 || Math.abs(lat) > 2) continue;
+    const gap = s.pos.y + along * Math.tan(RAMP_ANGLE) - feet;
+    if (gap > STEP_UP && gap < BODY_H) return true;
+  }
+  return false;
+}
 
 // What you are standing on at (x, z). Pass the feet height of whoever is standing there
 // and anything higher than that turns into a CEILING instead of the floor - without it,
@@ -1926,8 +1941,13 @@ function updatePlayer(dt) {
   sprintingNow = sprinting;
   if (l > 0) {
     const speed = 8 * (sprinting ? 1.6 : 1) * Math.min(1, l);
-    player.x += mx / l * speed * dt;
-    player.z += mz / l * speed * dt;
+    const stepX = mx / l * speed * dt, stepZ = mz / l * speed * dt;
+    const feetNow = player.y - 1.7;
+    // slide along the underside/side of a ramp instead of walking through it
+    // (if you are somehow already inside one, let you walk out rather than sticking you)
+    const stuck = rampBlocked(player.x, player.z, feetNow);
+    if (!stuck || !rampBlocked(player.x + stepX, player.z, feetNow)) player.x += stepX;
+    if (!stuck || !rampBlocked(player.x, player.z + stepZ, feetNow)) player.z += stepZ;
     walkT += dt * (sprinting ? 14 : 9);
   }
   if (sprinting) stamina = Math.max(0, stamina - 26 * dt);
