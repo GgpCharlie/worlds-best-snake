@@ -376,15 +376,21 @@ function collideCircle(x, z, r, pr) {
   return false;
 }
 function resolveCollisions() {
+  const feet = player.y - 1.7;
   for (const c of colliders) {
+    // Walls stop at their own height. They used to stretch up into the sky, so landing on
+    // a roof meant being trapped behind an invisible wall you could never walk past.
+    if (c.top !== undefined && feet > c.top - 1.2) continue;
     if (c.type === 'r') collideCircle(c.x, c.z, c.r, .5);
     else collideRect(c.x, c.z, c.hw, c.hh, .5);
   }
   player.x = clamp(player.x, -HALF + 2, HALF - 2);
   player.z = clamp(player.z, -HALF + 2, HALF - 2);
 }
-function pointBlocked(x, z, r) {
+function pointBlocked(x, z, r, feet) {
   for (const c of colliders) {
+    // same idea as resolveCollisions: pass how high you are standing and walls above you stop counting
+    if (feet !== undefined && c.top !== undefined && feet > c.top - 1.2) continue;
     if (c.type === 'r' && Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
     if (c.type === 'rect' && x > c.x - c.hw - r && x < c.x + c.hw + r && z > c.z - c.hh - r && z < c.z + c.hh + r) return true;
   }
@@ -565,7 +571,7 @@ function buildWorld() {
       m.userData.kind = 'house';
       scene.add(m);
       obstacleMeshes.push(m);
-      colliders.push({ type: 'rect', x: mx, z: mz, hw, hh });
+      colliders.push({ type: 'rect', x: mx, z: mz, hw, hh, top: wallH });
     };
     for (let side = 0; side < 4; side++) {
       if (side !== doorSide) {
@@ -1963,11 +1969,13 @@ function updatePlayer(dt) {
       velY = 0;
       grounded = true;
       player.state = 'fight';
-      if (pointBlocked(player.x, player.z, .6)) {
+      // landing on a roof counts as being up high, so the walls under you are not in your way here
+      const landFeet = player.y - 1.7;
+      if (pointBlocked(player.x, player.z, .6, landFeet)) {
         for (let t = 2; t < 22; t += 2) {
           const a2 = rand(0, 6.28);
           const px = player.x + Math.cos(a2) * t, pz = player.z + Math.sin(a2) * t;
-          if (!pointBlocked(px, pz, .6)) { player.x = px; player.z = pz; break; }
+          if (!pointBlocked(px, pz, .6, landFeet)) { player.x = px; player.z = pz; break; }
         }
       }
       sfx(150, .1, 'triangle', .1);
@@ -2259,7 +2267,7 @@ function computePlacement() {
   const tilt = part === 'ramp' ? -riseSign * RAMP_ANGLE : 0;
   let ok = Math.hypot(pos.x - player.x, pos.z - player.z) < 7
     && Math.abs(pos.x) <= HALF - 2 && Math.abs(pos.z) <= HALF - 2;
-  if (ok && part !== 'floor') ok = !pointBlocked(pos.x, pos.z, part === 'wall' ? .8 : 1.2);
+  if (ok && part !== 'floor') ok = !pointBlocked(pos.x, pos.z, part === 'wall' ? .8 : 1.2, player.y - 1.7);
   if (ok && part !== 'floor') {
     for (const s of structures) {
       if (s.part === part && Math.abs(s.pos.x - pos.x) < .6 && Math.abs(s.pos.z - pos.z) < .6 && Math.abs(s.pos.y - pos.y) < .6) { ok = false; break; }
@@ -2309,7 +2317,7 @@ function tryPlace() {
   structures.push(s);
   if (part === 'wall') {
     obstacleMeshes.push(mesh);
-    colliders.push(rotY ? { type: 'rect', x: pos.x, z: pos.z, hw: .25, hh: 2, struct: s } : { type: 'rect', x: pos.x, z: pos.z, hw: 2, hh: .25, struct: s });
+    colliders.push(rotY ? { type: 'rect', x: pos.x, z: pos.z, hw: .25, hh: 2, struct: s, top: level * 3 + 3 } : { type: 'rect', x: pos.x, z: pos.z, hw: 2, hh: .25, struct: s, top: level * 3 + 3 });
   } else {
     obstacleMeshes.push(mesh);
   }
