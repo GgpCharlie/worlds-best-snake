@@ -508,6 +508,10 @@ function openChest() {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'orger');
       feed('🤢 Something STINKY is in this chest... throw it!');
     }
+    if (Math.random() < .05) {   // the rarest thing in the game by far
+      spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'noah');
+      feed('🌊 NOAH!! The LEGENDARY ark — throw it to flood the whole island');
+    }
     sfx(880, .15, 'sine', .15);
     setTimeout(() => sfx(1175, .25, 'sine', .12), 90);
     return true;
@@ -845,6 +849,47 @@ function buildOrgerItem(withGlow) {
   return g;
 }
 
+// NOAH — a tiny wooden ark with a rainbow over it. Throw it and the island drowns
+function buildNoahItem(withLabel, withGlow) {
+  const g = new THREE.Group();
+  const plank = new THREE.MeshLambertMaterial({ color: 0x9a6a3a });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x6f4a26 });
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(1.24, .12, .4), dark);
+  keel.position.y = .06;
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.1, .3, .56), plank);
+  hull.position.y = .26;
+  const bow = new THREE.Mesh(new THREE.BoxGeometry(.2, .48, .5), dark);
+  bow.position.set(.62, .38, 0);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(.4, .26, .38), dark);
+  cabin.position.set(-.18, .53, 0);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .7, 6), dark);
+  mast.position.set(.2, .74, 0);
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(.34, .3),
+    new THREE.MeshLambertMaterial({ color: 0xf6f1e2, side: THREE.DoubleSide }));
+  sail.position.set(.02, .82, 0);
+  g.add(keel, hull, bow, cabin, mast, sail);
+  // rainbow arching over the deck
+  const RAINBOW = [0xff4d4d, 0xffa03c, 0xffe94d, 0x5ad85a, 0x4aa3ff, 0xb06bff];
+  for (let i = 0; i < 6; i++) {
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(.52 - i * .055, .026, 5, 20, Math.PI),
+      new THREE.MeshLambertMaterial({ color: RAINBOW[i], emissive: RAINBOW[i], emissiveIntensity: .4 }));
+    arc.position.set(-.1, .42, 0);
+    g.add(arc);
+  }
+  if (withGlow !== false) {
+    const glow = new THREE.PointLight(0x8fd6ff, 1, 6);
+    glow.position.y = .6;
+    g.add(glow);
+  }
+  if (withLabel !== false) {
+    const lab = makeTag('NOAH', '#8fd6ff');
+    lab.position.y = 1.5;
+    lab.scale.setScalar(.85);
+    g.add(lab);
+  }
+  return g;
+}
+
 function buildOrgerBoss() {
   const g = new THREE.Group();
   const skinMat = new THREE.MeshLambertMaterial({ color: 0x69b34c });
@@ -1140,6 +1185,113 @@ function lobbedUpdate(list, dt, onHit) {
 function updateTntBalls(dt) {
   lobbedUpdate(tntBalls, dt, pos => explodeTnt(pos, 9999, player));
 }
+
+// ---- 🌊 NOAH's flood ---------------------------------------------------------
+// One ark, one throw, one giant ring of water that runs the whole island and washes it clean
+let noahBalls = [], noahPending = false, tsunami = null;
+const TS_END = 380;    // how far the ring travels before it runs out of steam
+
+function throwNoah() {
+  if (tsunami) { buildFlash('The flood is already on its way!'); return; }
+  const s = player.slots[player.cur];
+  if (!s || s.type !== 'noah') return;
+  cancelHeal();
+  s.count--;                              // one ark = one flood, that is the whole deal
+  if (s.count <= 0) player.slots[player.cur] = null;
+  const ball = buildNoahItem(false, true);
+  ball.scale.setScalar(1.1);
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  ball.position.copy(muzzleWorld()).add(dir.clone().multiplyScalar(1.4));
+  ball.position.y -= .2;
+  scene.add(ball);
+  noahBalls.push({ mesh: ball, vx: dir.x * 20, vy: dir.y * 20 + 3.5, vz: dir.z * 20, t: 8 });
+  sfx(200, .3, 'sine', .18);
+  setTimeout(() => sfx(150, .4, 'sine', .16), 120);
+}
+function updateNoahBalls(dt) {
+  lobbedUpdate(noahBalls, dt, pos => makeTsunami(pos.x, pos.z));
+}
+
+function makeTsunami(x, z) {
+  const g = new THREE.Group();
+  g.position.set(x, groundHeight(x, z, 0), z);
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 64, 1, true),
+    new THREE.MeshLambertMaterial({ color: 0x2f7fd8, transparent: true, opacity: .78, side: THREE.DoubleSide, depthWrite: false }));
+  wall.position.y = 5;
+  const foam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 64, 1, true),
+    new THREE.MeshLambertMaterial({ color: 0xdff2ff, transparent: true, opacity: .34, side: THREE.DoubleSide, depthWrite: false }));
+  foam.position.y = 4.6;
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(1, .17, 6, 64),
+    new THREE.MeshLambertMaterial({ color: 0xf2fbff, emissive: 0x9fd8ff, emissiveIntensity: .8, transparent: true }));
+  lip.rotation.x = Math.PI / 2;
+  lip.position.y = 9.4;
+  const skirt = new THREE.Mesh(new THREE.RingGeometry(.84, 1.16, 64),
+    new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: .45, side: THREE.DoubleSide, depthWrite: false }));
+  skirt.rotation.x = -Math.PI / 2;
+  skirt.position.y = .6;          // keeps clear of the dirt so it does not flicker
+  const light = new THREE.PointLight(0x9fd8ff, 1.3, 46);
+  light.position.y = 6;
+  g.add(wall, foam, lip, skirt, light);
+  scene.add(g);
+  tsunami = { x, z, r: 5, group: g, wall, foam, lip, skirt, light, baseY: g.position.y, hit: new Set(), built: new Set() };
+  buildFlash('🌊 NOAH UNLEASHED — RUN!!');
+  feed('🌊 THE GREAT FLOOD is on its way. Nobody outruns this one');
+  sfx(48, 1.1, 'sawtooth', .5);
+  setTimeout(() => sfx(90, .9, 'sine', .3), 120);
+}
+
+function updateTsunami(dt) {
+  const t = tsunami;
+  if (!t) return;
+  t.r += 46 * dt;
+  const r = t.r;
+  t.group.position.y = t.baseY + Math.sin(gameTime * 2.6) * .25;   // the whole sea breathes
+  t.wall.scale.set(r, 10, r);
+  t.foam.scale.set(r * .985, 9.2, r * .985);
+  t.lip.scale.set(r, r, 1);
+  t.skirt.scale.set(r, r, 1);
+  const fade = clamp((TS_END - r) / 40, 0, 1);                     // runs out of steam at the end
+  t.wall.material.opacity = .78 * fade;
+  t.foam.material.opacity = .34 * fade;
+  t.lip.material.opacity = fade;
+  t.skirt.material.opacity = .45 * fade;
+  t.light.intensity = 1.3 * fade;
+  // anyone the sea has swallowed gets swept away — the flood only claims each fighter once
+  for (const b of [...bots, ...(orgerBoss ? [orgerBoss] : [])]) {
+    if (!b.alive || t.hit.has(b) || Math.hypot(b.x - t.x, b.z - t.z) > r) continue;
+    t.hit.add(b);
+    if (b === orgerBoss) {   // HARPER is tough — the flood only knocks 300 off him
+      const dealt = damageFighter(b, 300, player);
+      popDmg(new THREE.Vector3(b.x, (b.y || 0) + 3.4, b.z), dealt, true);
+      if (b.alive) buildFlash('🌊 The flood hammers HARPER! -300');
+    } else {
+      damageFighter(b, 9999, player);
+      popDmg(new THREE.Vector3(b.x, groundHeight(b.x, b.z, 0) + 2.3, b.z), 999, true);
+    }
+  }
+  // built walls and ramps wash away too
+  for (const s of [...structures]) {
+    if (t.built.has(s) || !structures.includes(s)) continue;
+    if (Math.hypot(s.pos.x - t.x, s.pos.z - t.z) > r) continue;
+    t.built.add(s);
+    damageStructure(s, 90);
+  }
+  // the player rides the wave instead of drowning — it is their flood after all
+  if (!t.hit.has(player) && Math.hypot(player.x - t.x, player.z - t.z) < r) {
+    t.hit.add(player);
+    if (player.alive) {
+      velY = Math.max(velY, 7.5);
+      pitch += .05;
+      buildFlash('🌊 The wave lifts you right up!');
+    }
+  }
+  if (r >= TS_END) {
+    scene.remove(t.group);
+    for (const m of [t.wall, t.foam, t.lip, t.skirt]) { m.geometry.dispose(); m.material.dispose(); }
+    tsunami = null;
+  }
+}
 function launchGrenade() {
   const mesh = buildTntItem();
   mesh.scale.setScalar(.7);
@@ -1248,6 +1400,11 @@ function updateViewmodel() {
     m.rotation.set(-.2, -.6, .1);
     m.scale.setScalar(.45);
     m.position.set(.44, -.62, -.5);
+  } else if (s.type === 'noah') {
+    m = buildNoahItem(false, false);
+    m.rotation.set(-.15, 2.4, .15);
+    m.scale.setScalar(.34);
+    m.position.set(.44, -.56, -.58);
   } else {
     m = buildShield(false);
     m.rotation.set(.15, -.4, .1);
@@ -1385,6 +1542,7 @@ function updateHandItem() {
   else if (s.type === 'shield') { m = buildShield(false); m.rotation.set(.2, -.4, 0); m.scale.setScalar(.4); }
   else if (s.type === 'bigmac') { m = buildBigMac(false); m.scale.setScalar(.42); }
   else if (s.type === 'orger') { m = buildOrgerItem(false); m.scale.setScalar(.4); }
+  else if (s.type === 'noah') { m = buildNoahItem(false, false); m.rotation.set(-.4, .9, 0); m.scale.setScalar(.26); }
   else { m = buildTntItem(false); m.scale.setScalar(.35); }
   if (s.type !== 'weapon') m.position.set(0, -.18, .12);
   handItem = m;
@@ -1414,6 +1572,16 @@ function spawnLoot(near, kind, weaponId) {
     m = buildTntItem();
     // player does not exist yet when the world first scatters its loot
     m.position.set(p.x, groundHeight(p.x, p.z, player ? player.y - 1.7 : 0), p.z);
+  } else if (type === 'noah') {
+    m = buildNoahItem();
+    m.scale.setScalar(1.05);
+    m.position.set(p.x, groundHeight(p.x, p.z, player ? player.y - 1.7 : 0) + .3, p.z);
+    // the rarest thing in the game gets a beam of its own so it is worth hunting
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(.7, .7, 9, 14, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x8fd6ff, transparent: true, opacity: .16, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+    beam.position.y = 4;
+    m.add(beam);
   } else if (type === 'medkit') {
     m = buildMedkit();
     m.position.set(p.x, .85, p.z);
@@ -1543,6 +1711,7 @@ function initGame() {
   clearTimeout(buildFlash.t);
   orgerBoss = null; bossBalls = []; playerBalls = []; fx = []; throwPending = false; bossSeen = false;
   tntBalls = []; grenadeBalls = []; tntPending = false;
+  noahBalls = []; noahPending = false; tsunami = null;
   for (const f of dmgNums) f.el.remove();
   dmgNums.length = 0;
   $('bossbar').style.display = 'none';
@@ -2042,15 +2211,16 @@ function updatePlayer(dt) {
   if (mouseDown && !buildMode) {
     if (heldNow && heldNow.type === 'orger') { if (!throwPending) { throwPending = true; throwOrger(); } }
     else if (heldNow && heldNow.type === 'tnt') { if (!tntPending) { tntPending = true; throwTnt(); } }
+    else if (heldNow && heldNow.type === 'noah') { if (!noahPending) { noahPending = true; throwNoah(); } }
     else playerFire();
   }
-  if (!mouseDown) { throwPending = false; tntPending = false; }
+  if (!mouseDown) { throwPending = false; tntPending = false; noahPending = false; }
   if (player.reloading) {
     player.reloadT -= dt;
     if (player.reloadT <= 0) { player.reloading = false; player.ammo = player.weapon ? WEAPONS[player.weapon].mag : 0; }
   }
   let nearPickup = null;
-  const LOOT_Y = { weapon: 1.1, medkit: .85, shield: .6, ammo: .8, orger: 1, tnt: .75, bigmac: .62 };
+  const LOOT_Y = { weapon: 1.1, medkit: .85, shield: .6, ammo: .8, orger: 1, tnt: .75, bigmac: .62, noah: .95 };
   for (const l2 of loot) {
     const d = Math.hypot(player.x - l2.mesh.position.x, player.z - l2.mesh.position.z);
     l2.mesh.rotation.y += dt * 2;
@@ -2065,7 +2235,7 @@ function updatePlayer(dt) {
   const nearChest = chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3);
   if (nearChest) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to open the chest' : 'Press E to open chest') + ' 🧰'; }
   else if (nearPickup) {
-    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery HARPER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : 'Big Pot 🧪';
+    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery HARPER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : nearPickup.type === 'noah' ? '🌊 NOAH — THE ARK' : 'Big Pot 🧪';
     pr.style.display = 'block';
     pr.textContent = `${isTouch ? 'Tap GRAB for' : 'Press E to pick up'} ${tname}`;
   }
@@ -2126,8 +2296,9 @@ function pickupNearest() {
     if (d < bd) { bd = d; best = l; }
   }
   if (!best) return;
-  if (best.type === 'medkit' || best.type === 'shield' || best.type === 'bigmac' || best.type === 'orger' || best.type === 'tnt') {
-    let idx = player.slots.findIndex(s => s && s.type === best.type && s.count < 2);
+  if (best.type === 'medkit' || best.type === 'shield' || best.type === 'bigmac' || best.type === 'orger' || best.type === 'tnt' || best.type === 'noah') {
+    const MAXC = best.type === 'noah' ? 1 : 2;   // there is only ever one ark
+    let idx = player.slots.findIndex(s => s && s.type === best.type && s.count < MAXC);
     if (idx >= 0) player.slots[idx].count++;
     else {
       idx = player.slots.findIndex(s => !s);
@@ -2189,8 +2360,8 @@ const BIG_MAC_HP = 50;
 const MAX_HP_CAP = 500;
 // how long each thing takes to use — a whole burger takes a bit of chewing
 const USE_TIME = { medkit: 3, shield: 3, bigmac: 4 };
-const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 HARPER', tnt: '💣 TNT' };
-const ITEM_ICON = { medkit: '⛑', shield: '🧪', bigmac: '🍔', orger: '🤢', tnt: '💣' };
+const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 HARPER', tnt: '💣 TNT', noah: '🌊 NOAH' };
+const ITEM_ICON = { medkit: '⛑', shield: '🧪', bigmac: '🍔', orger: '🤢', tnt: '💣', noah: '🌊' };
 // the things you can use by holding them (right-click, or the ⛑ button on a phone)
 const isUsable = s => !!(s && (s.type === 'medkit' || s.type === 'shield' || s.type === 'bigmac'));
 
@@ -2383,6 +2554,7 @@ function drawHud() {
   if (viewmodel && viewmodel._key !== vmKey) { viewmodel._key = vmKey; updateViewmodel(); }
   if (held && held.type === 'orger') setHtml($('wpn'), '🤢 HARPER<br>left-click: THROW!');
   else if (held && held.type === 'tnt') setHtml($('wpn'), '💣 TNT<br>left-click: THROW!');
+  else if (held && held.type === 'noah') setHtml($('wpn'), '🌊 NOAH<br>left-click: SUMMON THE FLOOD!');
   else if (held && held.type !== 'weapon') setHtml($('wpn'), (ITEM_NAME[held.type] || 'item') + '<br>' + (isTouch ? 'tap ⛑ to use' : 'right-click to use'));
   else if (player.weapon) { const w = WEAPONS[player.weapon]; setHtml($('wpn'), `${w.name}<br>${player.reloading ? 'RELOADING…' : player.ammo + ' / ∞'}`); }
   else setHtml($('wpn'), '');
@@ -2945,6 +3117,8 @@ function loop() {
     updatePlayerBalls(dt);
     updateTntBalls(dt);
     updateGrenadeBalls(dt);
+    updateNoahBalls(dt);
+    updateTsunami(dt);
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i];
       f.t -= dt;
