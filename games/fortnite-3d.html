@@ -31,7 +31,7 @@
   #mm { top: 14px; right: 14px; }
   #prompt { bottom: 30%; left: 50%; transform: translateX(-50%); font-size: 20px; background: #000a; padding: 6px 16px; border-radius: 6px; display: none; }
   #flash { position: absolute; inset: 0; background: #f00; opacity: 0; pointer-events: none; z-index: 4; transition: opacity .4s; }
-  #stormvignette { position: absolute; inset: 0; box-shadow: inset 0 0 180px 60px rgba(140,40,220,.7); opacity: 0; pointer-events: none; z-index: 4; }
+  #stormvignette { position: absolute; inset: 0; box-shadow: inset 0 0 180px 60px rgba(140,40,220,.7); opacity: 0; transition: opacity .6s; pointer-events: none; z-index: 4; }
   #bossbar { top: 64px; left: 50%; transform: translateX(-50%); width: 430px; display: none; text-align: center; }
   #mousetip { bottom: 21%; left: 50%; transform: translateX(-50%); font-size: 17px; color: #ffd76e; text-shadow: 1px 1px 0 #000, 0 0 10px #000; display: none; }
   #bosstxt { font-size: 15px; font-weight: bold; color: #b8ff8a; text-shadow: 1px 1px 0 #000; }
@@ -1180,7 +1180,7 @@ function initGame() {
     reloading: false, reloadT: 0, lastShot: 0 };
   bots = NAMES.slice(0, DIFF.bots).map(makeBot);
   for (let i = 0; i < 150; i++) spawnLoot();
-  storm = { x: 0, y: 0, r: HALF * 1.5, tx: 0, tz: 0, tr: HALF * 1.5, phase: 0, nextShrink: 15 * DIFF.storm, shrinking: false, shrinkT: 0, dmg: DIFF.stormDmg, tick: 0 };
+  storm = { x: 0, z: 0, r: HALF * 1.5, tx: 0, tz: 0, tr: HALF * 1.5, phase: 0, nextShrink: 15 * DIFF.storm, shrinking: false, shrinkT: 0, dmg: DIFF.stormDmg, tick: 0 };
   bus = new THREE.Group();
   const busMat = new THREE.MeshLambertMaterial({ color: 0x3f66d4 });
   const busBody = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.5, 9), busMat);
@@ -1195,10 +1195,12 @@ function initGame() {
   bus.rotation.y = Math.atan2(busDir.x, busDir.z);
   scene.add(bus);
   camera.position.set(bus.position.x, bus.position.y - 1, bus.position.z);
+  // fog:false is the important bit — the wall starts far outside the fog range,
+  // so with fog on it was invisible until it was already on top of you
   stormCyl = new THREE.Mesh(
-    new THREE.CylinderGeometry(1, 1, 120, 48, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: .35, side: THREE.BackSide }));
-  stormCyl.position.y = 60;
+    new THREE.CylinderGeometry(1, 1, 220, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x9b45ff, transparent: true, opacity: .5, side: THREE.DoubleSide, fog: false, depthWrite: false }));
+  stormCyl.position.y = 105;
   scene.add(stormCyl);
   gameTime = 0; aliveCount = bots.length + 1; playing = true; gameGen++; paused = false;
   worldDiff = diffKey;   // remember which fight this island was built for
@@ -1210,7 +1212,7 @@ function initGame() {
   $('bossbar').style.display = 'none';
   $('feed').innerHTML = '';
   $('healui').style.display = 'none';
-  $('stormvignette').style.opacity = 0;
+  const vg0 = $('stormvignette'); vg0.style.opacity = 0; vg0._o = '0';
   $('flash').style.opacity = 0;
   $('hitmark').style.opacity = 0;
   $('prompt').style.display = 'none';
@@ -1381,10 +1383,13 @@ function botFire(bot, target, dist) {
 }
 
 function updateBot(bot, dt) {
-  const dStorm = Math.hypot(bot.x - storm.x, bot.z - storm.z);
+  // head for where the storm is GOING, not where it is, so bots stop getting caught napping
+  const cx = storm.shrinking ? storm.tx : storm.x, cz = storm.shrinking ? storm.tz : storm.z;
+  const cr = storm.shrinking ? Math.min(storm.r, storm.tr) : storm.r;
+  const dStorm = Math.hypot(bot.x - cx, bot.z - cz);
   let speed = 5.2;
-  if (dStorm > storm.r - 10) {
-    const a = Math.atan2(storm.z - bot.z, storm.x - bot.x);
+  if (dStorm > cr - 12) {
+    const a = Math.atan2(cz - bot.z, cx - bot.x);
     bot.x += Math.cos(a) * 8 * dt; bot.z += Math.sin(a) * 8 * dt;
     bot.group.position.set(bot.x, 0, bot.z);
     return;
@@ -1463,28 +1468,29 @@ function updateBot(bot, dt) {
 }
 
 function updateStorm(dt) {
-  storm.nextShrink -= dt;
-  if (!storm.shrinking && storm.nextShrink <= 0 && storm.phase < 6) {
+  if (player.state === 'fight') storm.nextShrink -= dt;   // timer starts when your boots hit the ground
+  if (!storm.shrinking && storm.nextShrink <= 0 && storm.phase < 7) {
     storm.shrinking = true; storm.shrinkT = 0; storm.phase++;
     storm.r0 = storm.r; storm.x0 = storm.x; storm.z0 = storm.z;
-    storm.tr = storm.r * .55;
+    storm.tr = storm.phase >= 7 ? 10 : storm.r * .55;
     const lim = Math.max(0, HALF - storm.tr);
     const a = rand(0, 6.28), d = rand(0, (storm.r - storm.tr) * .5);
     storm.tx = clamp(storm.x + Math.cos(a) * d, -lim, lim);
     storm.tz = clamp(storm.z + Math.sin(a) * d, -lim, lim);
     storm.nextShrink = Math.max(15, 25 - storm.phase * 2) * DIFF.storm;
-    feed('⚠ The storm is closing in!');
+    feed(storm.phase >= 7 ? '☠ FINAL STORM — keep moving!' : '⚠ The storm is closing in!');
   }
   if (storm.shrinking) {
     storm.shrinkT += dt;
-    const t = Math.min(1, storm.shrinkT / (12 * DIFF.storm));
+    const dur = (storm.phase >= 7 ? 20 : 12) * DIFF.storm;
+    const t = Math.min(1, storm.shrinkT / dur);
     storm.r = storm.r0 + (storm.tr - storm.r0) * t;
     storm.x = storm.x0 + (storm.tx - storm.x0) * t;
     storm.z = storm.z0 + (storm.tz - storm.z0) * t;
-    if (storm.shrinkT >= 12 * DIFF.storm) { storm.shrinking = false; storm.dmg += DIFF.stormDmg; }
+    if (storm.shrinkT >= dur) { storm.shrinking = false; storm.dmg += DIFF.stormDmg; }
   }
   stormCyl.scale.set(storm.r, 1, storm.r);
-  stormCyl.position.set(storm.x, 60, storm.z);
+  stormCyl.position.set(storm.x, 105, storm.z);
   storm.tick += dt;
   if (storm.tick >= 1) {
     storm.tick = 0;
@@ -1495,7 +1501,8 @@ function updateStorm(dt) {
     }
   }
   const inStorm = player.state === 'fight' && Math.hypot(player.x - storm.x, player.z - storm.z) > storm.r;
-  $('stormvignette').style.opacity = inStorm ? 1 : 0;
+  const vg = $('stormvignette'), want = inStorm ? '1' : '0';
+  if (vg._o !== want) { vg._o = want; vg.style.opacity = want; }
 }
 
 function groundHeight(x, z) {
@@ -1941,7 +1948,9 @@ function drawHud() {
     const cn = 'slot' + (i === player.cur ? ' active' : '');
     if (el.className !== cn) el.className = cn;
   }
-  setTxt($('stormbar'), storm.shrinking ? '⚠ STORM CLOSING' : `Storm in ${Math.ceil(storm.nextShrink)}s`);
+  setTxt($('stormbar'), storm.phase >= 7 && !storm.shrinking ? '☠ FINAL STORM'
+    : storm.shrinking ? '⚠ STORM CLOSING'
+    : `Storm in ${Math.max(0, Math.ceil(storm.nextShrink))}s`);
   $('mousetip').style.display = document.pointerLockElement === renderer.domElement ? 'none' : 'block';
   const bb = $('bossbar');
   if (orgerBoss && orgerBoss.alive) {
