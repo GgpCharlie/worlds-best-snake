@@ -1186,9 +1186,16 @@ function buildPlayerChar() {
   const armL = limb(.19, .6, .19, shirt, true); armL.position.set(-.4, 1.48, 0);
   const armR = limb(.19, .6, .19, shirt, true); armR.position.set(.4, 1.48, 0);
   const head = new THREE.Mesh(new THREE.SphereGeometry(.27, 12, 10), skin); head.position.y = 1.78;
+  // two eyes and a cap peak so you can always tell which way he is looking
+  const eyeMat = new THREE.MeshLambertMaterial({ color: 0x22252b });
+  const eyeL = new THREE.Mesh(new THREE.BoxGeometry(.06, .07, .04), eyeMat); eyeL.position.set(-.1, .05, -.25);
+  const eyeR = new THREE.Mesh(new THREE.BoxGeometry(.06, .07, .04), eyeMat); eyeR.position.set(.1, .05, -.25);
+  head.add(eyeL, eyeR);
   const cap = new THREE.Mesh(new THREE.CylinderGeometry(.3, .3, .13, 12), new THREE.MeshLambertMaterial({ color: 0xd43f5e }));
   cap.position.y = 1.94;
-  const hand = new THREE.Object3D(); hand.position.set(0, -.6, .08); armR.add(hand);
+  const peak = new THREE.Mesh(new THREE.BoxGeometry(.3, .05, .18), new THREE.MeshLambertMaterial({ color: 0xbf3350 }));
+  peak.position.set(0, -.05, -.28); cap.add(peak);
+  const hand = new THREE.Object3D(); hand.position.set(0, -.62, 0); armR.add(hand);
   const chute = new THREE.Group();
   const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 8, 0, 6.283, 0, 1.25),
     new THREE.MeshLambertMaterial({ color: 0xff8a3c, side: THREE.DoubleSide }));
@@ -1257,9 +1264,11 @@ function updatePlayerChar(dt, moving, sprint) {
   u.legR.rotation.x = grounded ? -sw : .25;
   const held = player.slots[player.cur];
   const aiming = held && held.type === 'weapon';
-  u.armR.rotation.x = aiming ? -1.35 : (grounded && moving ? -sw * .7 : -.1);
-  u.armL.rotation.x = grounded && moving ? sw * .7 : -.1;
-  u.head.rotation.x = clamp(-pitch * .3, -.5, .5);
+  // arms swing opposite the legs, and the gun arm reaches FORWARD (+X tilts a hanging limb
+  // toward where you are looking) and lifts with your aim
+  u.armR.rotation.x = aiming ? 1.35 + clamp(pitch, -.9, .9) : (grounded && moving ? sw * .7 : -.1);
+  u.armL.rotation.x = grounded && moving ? -sw * .7 : -.1;
+  u.head.rotation.x = clamp(pitch * .3, -.5, .5);
 }
 
 // whatever is in the active slot shows up in the hand, same as the first-person view
@@ -1273,12 +1282,17 @@ function updateHandItem() {
   handItem = null;
   if (!s) return;
   let m;
-  if (s.type === 'weapon') { m = buildGunModel(s.id); m.rotation.set(0, Math.PI / 2, 0); m.scale.setScalar(.85); }
+  if (s.type === 'weapon') {
+    // the arm reaches out level with the ground, so the gun gets a matching counter-tilt
+    // and then rides with your aim as the arm lifts
+    m = buildGunModel(s.id); m.rotation.set(-1.35, Math.PI / 2, 0); m.scale.setScalar(.85);
+    m.position.set(0, -.08, -.06);
+  }
   else if (s.type === 'medkit') { m = buildMedkit(); m.rotation.set(-.5, .5, 0); m.scale.setScalar(.5); }
   else if (s.type === 'shield') { m = buildShield(false); m.rotation.set(.2, -.4, 0); m.scale.setScalar(.4); }
   else if (s.type === 'orger') { m = buildOrgerItem(false); m.scale.setScalar(.4); }
   else { m = buildTntItem(false); m.scale.setScalar(.35); }
-  m.position.set(0, -.55, .12);
+  if (s.type !== 'weapon') m.position.set(0, -.18, .12);
   handItem = m;
   handItem._key = key;
   hand.add(m);
