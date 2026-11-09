@@ -207,7 +207,7 @@
         <button id="dropBtn">DROP IN</button>
         <div class="lhelp" style="margin-top:12px">
           <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
-          <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪<br>
+          <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪/🍔<br>
           <b>Shift</b> sprint · <b>Q</b> cycle part · <b>V</b> camera · <b>Esc</b> pause<br>
           Shoot trees &amp; rocks for wood — 20 wood per build<br>
           The storm bites for <b>5</b> a second — stay inside the blue circle
@@ -488,6 +488,10 @@ function openChest() {
         n === 0 && tntRoll ? 'tnt' : roll < .6 ? 'weapon' : roll < .8 ? 'shield' : 'medkit');
     }
     if (tntRoll) feed('💣 TNT in this chest! Throw it — it wipes out anyone nearby');
+    if (Math.random() < .16) {
+      spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'bigmac');
+      feed('🍔 BIG MAC in this chest! Eating one fills your health and adds 50 max');
+    }
     if (Math.random() < .1) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'orger');
       feed('🤢 Something STINKY is in this chest... throw it!');
@@ -711,6 +715,43 @@ function buildMedkit() {
   const handle = new THREE.Mesh(new THREE.BoxGeometry(.2, .05, .07), new THREE.MeshLambertMaterial({ color: 0x555555 }));
   handle.position.y = .31;
   g.add(body, top1, top2, fr1, fr2, handle);
+  return g;
+}
+
+// the BIG MAC — full health plus a chunky max-health buff. Built from buns, patty,
+// cheese and lettuce, with a little glow so it catches your eye on the ground.
+function buildBigMac(withGlow) {
+  const g = new THREE.Group();
+  const mat = c => new THREE.MeshLambertMaterial({ color: c });
+  const disc = (r, h, c) => new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 14), mat(c));
+  const bottom = disc(.42, .18, 0xc98c4a); bottom.position.y = .1;
+  const patty1 = disc(.44, .16, 0x6b3f22); patty1.position.y = .27;
+  const cheese = new THREE.Mesh(new THREE.BoxGeometry(.78, .05, .78), mat(0xffc63d));
+  cheese.position.y = .38; cheese.rotation.y = .7;
+  const lettuce = disc(.47, .07, 0x76c250); lettuce.position.y = .44;
+  const patty2 = disc(.43, .15, 0x6b3f22); patty2.position.y = .55;
+  const top = new THREE.Mesh(new THREE.SphereGeometry(.44, 16, 10, 0, 6.283, 0, 1.5), mat(0xe0ac69));
+  top.position.y = .63; top.scale.y = .62;
+  const seedMat = mat(0xf7e3bd);
+  for (let i = 0; i < 7; i++) {
+    const sd = new THREE.Mesh(new THREE.BoxGeometry(.07, .04, .05), seedMat);
+    const a = i * .9, r = .22 + (i % 3) * .08;
+    sd.position.set(Math.cos(a) * r, .82 - r * .18, Math.sin(a) * r);
+    sd.rotation.y = a;
+    g.add(sd);
+  }
+  g.add(bottom, patty1, cheese, lettuce, patty2, top);
+  if (withGlow) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    const c = cv.getContext('2d');
+    const gr = c.createRadialGradient(32, 32, 2, 32, 32, 30);
+    gr.addColorStop(0, 'rgba(255,190,90,.85)'); gr.addColorStop(1, 'rgba(255,190,90,0)');
+    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true }));
+    glow.scale.setScalar(2.2); glow.position.y = .5;
+    g.add(glow);
+  }
   return g;
 }
 
@@ -1163,6 +1204,11 @@ function updateViewmodel() {
     m.rotation.set(0, 1.2, 0);
     m.scale.setScalar(.4);
     m.position.set(.46, -.62, -.5);
+  } else if (s.type === 'bigmac') {
+    m = buildBigMac(false);
+    m.rotation.set(-.2, -.6, .1);
+    m.scale.setScalar(.45);
+    m.position.set(.44, -.62, -.5);
   } else {
     m = buildShield(false);
     m.rotation.set(.15, -.4, .1);
@@ -1298,6 +1344,7 @@ function updateHandItem() {
   }
   else if (s.type === 'medkit') { m = buildMedkit(); m.rotation.set(-.5, .5, 0); m.scale.setScalar(.5); }
   else if (s.type === 'shield') { m = buildShield(false); m.rotation.set(.2, -.4, 0); m.scale.setScalar(.4); }
+  else if (s.type === 'bigmac') { m = buildBigMac(false); m.scale.setScalar(.42); }
   else if (s.type === 'orger') { m = buildOrgerItem(false); m.scale.setScalar(.4); }
   else { m = buildTntItem(false); m.scale.setScalar(.35); }
   if (s.type !== 'weapon') m.position.set(0, -.18, .12);
@@ -1315,8 +1362,9 @@ function toggleCam() {
 
 function spawnLoot(near, kind, weaponId) {
   const roll = Math.random();
-  // TNT is half as common as medkits here (it's a big stick of dynamite)
-  const type = kind || (roll < .40 ? 'weapon' : roll < .62 ? 'medkit' : roll < .73 ? 'tnt' : 'shield');
+  // TNT is half as common as medkits here (it's a big stick of dynamite), and a BIG MAC
+  // is rarer still because it is the best thing in the whole shop
+  const type = kind || (roll < .40 ? 'weapon' : roll < .58 ? 'medkit' : roll < .69 ? 'tnt' : roll < .79 ? 'bigmac' : 'shield');
   const weapon = weaponId || (type === 'weapon' ? (Math.random() < .1 ? 'grenade' : WKEYS[1 + (Math.random() * 3 | 0)]) : null);
   const p = near || freeSpot(1);
   let m;
@@ -1335,6 +1383,10 @@ function spawnLoot(near, kind, weaponId) {
     m = buildOrgerItem();
     m.scale.setScalar(1.4);
     m.position.set(p.x, 1, p.z);
+  } else if (type === 'bigmac') {
+    m = buildBigMac(true);
+    m.scale.setScalar(.9);
+    m.position.set(p.x, .55, p.z);
   } else {
     m = buildShield();
     m.position.set(p.x, .6, p.z);
@@ -1895,20 +1947,30 @@ function updatePlayer(dt) {
   const nearChest = chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3);
   if (nearChest) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to open the chest' : 'Press E to open chest') + ' 🧰'; }
   else if (nearPickup) {
-    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery ORGER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : 'Big Pot 🧪';
+    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery ORGER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : 'Big Pot 🧪';
     pr.style.display = 'block';
     pr.textContent = `${isTouch ? 'Tap GRAB for' : 'Press E to pick up'} ${tname}`;
   }
   else pr.style.display = 'none';
   if (player.healing) {
     player.healing.t += dt;
-    $('healfill').style.width = Math.min(100, player.healing.t / 3 * 100) + '%';
-    if (player.healing.t >= 3) {
+    const dur = player.healing.dur || 3;
+    $('healfill').style.width = Math.min(100, player.healing.t / dur * 100) + '%';
+    if (player.healing.t >= dur) {
       const hs = player.slots[player.cur];
       if (hs && hs.type === player.healing.kind) {
         hs.count--;
         if (hs.count <= 0) player.slots[player.cur] = null;
         if (player.healing.kind === 'medkit') { player.hp = Math.min(player.maxHp, player.hp + 60); sfx(660, .2, 'sine', .15); }
+        else if (player.healing.kind === 'bigmac') {
+          // the whole point of the BIG MAC: a bigger health bar AND a full tank in it
+          player.maxHp += BIG_MAC_HP;
+          player.hp = player.maxHp;
+          sfx(430, .18, 'square', .12);
+          setTimeout(() => sfx(700, .25, 'sine', .15), 120);
+          feed('🍔 BIG MAC! Max health ' + (player.maxHp - BIG_MAC_HP) + ' → ' + player.maxHp + ' and you are all patched up');
+          buildFlash('🍔 MAX HEALTH +' + BIG_MAC_HP);
+        }
         else { player.shield = Math.min(100, player.shield + 50); sfx(520, .25, 'sine', .15); }
       }
       player.healing = null;
@@ -1946,7 +2008,7 @@ function pickupNearest() {
     if (d < bd) { bd = d; best = l; }
   }
   if (!best) return;
-  if (best.type === 'medkit' || best.type === 'shield' || best.type === 'orger' || best.type === 'tnt') {
+  if (best.type === 'medkit' || best.type === 'shield' || best.type === 'bigmac' || best.type === 'orger' || best.type === 'tnt') {
     let idx = player.slots.findIndex(s => s && s.type === best.type && s.count < 2);
     if (idx >= 0) player.slots[idx].count++;
     else {
@@ -1995,7 +2057,7 @@ function dropItem() {
     player.slots[i] = null;
     player.weapon = null; player.ammo = 0; player.reloading = false;
   } else {
-    name = s.type === 'medkit' ? '⛑ Medkit' : s.type === 'orger' ? '🤢 ORGER' : s.type === 'tnt' ? '💣 TNT' : '🧪 Big Pot';
+    name = ITEM_NAME[s.type] || s.type;
     const it = spawnLoot({ x: px, z: pz }, s.type);
     if (it) it.noPick = gameTime + .8;
     if (--s.count <= 0) player.slots[i] = null;
@@ -2004,15 +2066,26 @@ function dropItem() {
   sfx(300, .1, 'triangle', .1);
 }
 
+// a BIG MAC is worth +50 max health, and you can stack them up to MAX_HP_CAP total
+const BIG_MAC_HP = 50;
+const MAX_HP_CAP = 500;
+// how long each thing takes to use — a whole burger takes a bit of chewing
+const USE_TIME = { medkit: 3, shield: 3, bigmac: 4 };
+const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 ORGER', tnt: '💣 TNT' };
+const ITEM_ICON = { medkit: '⛑', shield: '🧪', bigmac: '🍔', orger: '🤢', tnt: '💣' };
+// the things you can use by holding them (right-click, or the ⛑ button on a phone)
+const isUsable = s => !!(s && (s.type === 'medkit' || s.type === 'shield' || s.type === 'bigmac'));
+
 function useHeal(kind) {
   if (!player.alive || player.state !== 'fight' || player.healing) return;
   const s = player.slots[player.cur];
   if (!s || s.type !== kind || s.count <= 0) return;
   if (kind === 'medkit' && player.hp >= player.maxHp) return;
   if (kind === 'shield' && player.shield >= 100) return;
-  player.healing = { kind, t: 0 };
+  if (kind === 'bigmac' && player.maxHp >= MAX_HP_CAP) { buildFlash('Too much burger!! 🍔'); return; }
+  player.healing = { kind, t: 0, dur: USE_TIME[kind] || 3 };
   $('healui').style.display = 'block';
-  $('healtext').textContent = kind === 'medkit' ? '⛑ Using Medkit…' : '🧪 Chugging Big Pot…';
+  $('healtext').textContent = kind === 'medkit' ? '⛑ Using Medkit…' : kind === 'bigmac' ? '🍔 Eating BIG MAC…' : '🧪 Chugging Big Pot…';
 }
 
 function cancelHeal() {
@@ -2192,7 +2265,7 @@ function drawHud() {
   if (viewmodel && viewmodel._key !== vmKey) { viewmodel._key = vmKey; updateViewmodel(); }
   if (held && held.type === 'orger') setHtml($('wpn'), '🤢 ORGER<br>left-click: THROW!');
   else if (held && held.type === 'tnt') setHtml($('wpn'), '💣 TNT<br>left-click: THROW!');
-  else if (held && held.type !== 'weapon') setHtml($('wpn'), (held.type === 'medkit' ? '⛑ Medkit' : '🧪 Big Pot') + '<br>right-click to use');
+  else if (held && held.type !== 'weapon') setHtml($('wpn'), (ITEM_NAME[held.type] || 'item') + '<br>' + (isTouch ? 'tap ⛑ to use' : 'right-click to use'));
   else if (player.weapon) { const w = WEAPONS[player.weapon]; setHtml($('wpn'), `${w.name}<br>${player.reloading ? 'RELOADING…' : player.ammo + ' / ∞'}`); }
   else setHtml($('wpn'), '');
   setTxt($('alive'), 'ALIVE: ' + aliveCount + ' · ' + DIFF.icon + ' ' + DIFF.name + buffTxt());
@@ -2203,7 +2276,7 @@ function drawHud() {
     const el = $('slot' + i), s = player.slots[i];
     setTxt(el, !s ? (i + 1) + '· —'
       : s.type === 'weapon' ? (i + 1) + '· ' + WEAPONS[s.id].name + ' · ' + s.ammo
-      : (i + 1) + '· ' + (s.type === 'medkit' ? '⛑' : s.type === 'orger' ? '🤢' : s.type === 'tnt' ? '💣' : '🧪') + ' ×' + s.count);
+      : (i + 1) + '· ' + (ITEM_ICON[s.type] || '?') + ' ×' + s.count);
     const cn = 'slot' + (i === player.cur ? ' active' : '');
     if (el.className !== cn) el.className = cn;
   }
@@ -2285,7 +2358,7 @@ addEventListener('mousedown', e => {
   }
   if (e.button === 2 && playing && player) {
     const s = player.slots[player.cur];
-    if (s && (s.type === 'medkit' || s.type === 'shield')) useHeal(s.type);
+    if (isUsable(s)) useHeal(s.type);
   }
 });
 document.addEventListener('contextmenu', e => { if (document.pointerLockElement === renderer.domElement) e.preventDefault(); });
@@ -2611,7 +2684,7 @@ function touchHud() {
   const b = $('tBuild');
   if (b._b !== buildMode) { b._b = buildMode; b.classList.toggle('on', buildMode); }
   const s = player.slots[player.cur];
-  const canUse = !!(s && (s.type === 'medkit' || s.type === 'shield'));
+  const canUse = isUsable(s);
   const u = $('tUse');
   if (u._u !== canUse) { u._u = canUse; u.style.opacity = canUse ? 1 : .45; }
   const bus = player.state === 'bus';
@@ -2647,7 +2720,7 @@ tapCtl('tPart', () => { if (buildMode) buildPart = (buildPart + 1) % PARTS.lengt
 tapCtl('tReload', () => startReload());
 tapCtl('tUse', () => {
   const s = player.slots[player.cur];
-  if (s && (s.type === 'medkit' || s.type === 'shield')) useHeal(s.type);
+  if (isUsable(s)) useHeal(s.type);
   else buildFlash('Nothing to use here');
 });
 tapCtl('tGrab', () => { if (!openChest()) pickupNearest(); });
