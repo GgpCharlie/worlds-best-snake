@@ -49,6 +49,10 @@
   .diffbtn.sel { background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; border-color: #ffd76e; }
   #diffdesc { margin: 10px 0 0; font-size: 14px; color: #9fb0ff; min-height: 18px; }
   .diffbtn.dim { opacity: .4; cursor: not-allowed; }
+  /* the lobby camera switch — same setting as the V key mid-match */
+  #camBtn { margin: 0 0 10px; font-size: 16px; padding: 8px 20px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
+  #camBtn:hover { color: #fff; border-color: #8a5cff; }
+  #camBtn small { display: block; font-size: 11px; font-weight: normal; color: #9fb0ff; margin-top: 1px; }
 
   /* ---- the 2D lobby: coins, the shop, and the drop button ---- */
   #lobby { position: absolute; inset: 0; z-index: 11; color: #fff; overflow: hidden auto; }
@@ -204,6 +208,7 @@
         <p id="diffdesc"></p>
         <div class="lpay">Win a match to earn 🪙 — EASY 100 · NORMAL 150 · HARD 200<br>Stack 💰 EXTRA CASH to earn even more on a win</div>
         <div class="lpay">🪂 <span id="fcount">51</span> fighters on the bus</div>
+        <button id="camBtn"></button>
         <button id="dropBtn">DROP IN</button>
         <div class="lhelp" style="margin-top:12px">
           <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
@@ -1354,9 +1359,8 @@ function updateHandItem() {
 }
 
 function toggleCam() {
-  thirdPerson = !thirdPerson;
-  camSnap = true;
-  try { localStorage.setItem('bm3d-cam', thirdPerson ? 'tp' : 'fp'); } catch (e) {}
+  // goes through the lobby's setCam so the button there always shows the right thing
+  setCam(!thirdPerson);
   buildFlash(thirdPerson ? 'Third person camera' : 'First person camera');
 }
 
@@ -2503,6 +2507,7 @@ function showLobby(html) {
   $('overlay').classList.add('hidden');
   shopNote('');
   paintShop();
+  paintCam();
 }
 function startMatch() {
   audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -2615,6 +2620,23 @@ for (const b of document.querySelectorAll('.diffbtn')) {
   b.addEventListener('click', () => { setDiff(b.dataset.diff); sfx(660, .06, 'sine', .08); b.blur(); });
 }
 paintDiff();
+
+// ---- the camera switch in the lobby — same setting the V key flips mid-match ----
+function setCam(tp) {
+  thirdPerson = tp;
+  camSnap = true;
+  try { localStorage.setItem('bm3d-cam', thirdPerson ? 'tp' : 'fp'); } catch (e) {}
+  paintCam();
+}
+function paintCam() {
+  const b = $('camBtn');
+  if (!b) return;
+  b.innerHTML = thirdPerson
+    ? '📷 CAMERA: <b>THIRD PERSON</b><small>you see your fighter</small>'
+    : '📷 CAMERA: <b>FIRST PERSON</b><small>through your own eyes</small>';
+}
+$('camBtn').addEventListener('click', e => { setCam(!thirdPerson); sfx(660, .06, 'sine', .08); e.currentTarget.blur(); });
+paintCam();
 
 $('playBtn').addEventListener('click', () => {
   // this button only lives on the PAUSE screen now — it just un-pauses
