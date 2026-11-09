@@ -295,7 +295,7 @@ const mmCtx = $('mm').getContext('2d');
 let scene, camera, renderer, clock;
 let player, bots, loot, tracers, colliders, obstacleMeshes, killfeed, storm, playing = false, aliveCount, gameTime;
 let wood = 0, buildMode = false, buildPart = 0, preview = {}, structures = [], lastPlace = 0, stamina = 100, gameGen = 0;
-let chests = [], bus = null, busDir = null, viewmodel = null;
+let chests = [], roofs = [], bus = null, busDir = null, viewmodel = null;
 let thirdPerson = true, playerChar = null, handItem = null, camSnap = true, sprintingNow = false;
 try { thirdPerson = localStorage.getItem('bm3d-cam') !== 'fp'; } catch (e) {}
 let paused = false;
@@ -535,7 +535,7 @@ function jumpFromBus() {
 }
 
 function buildWorld() {
-  colliders = []; obstacleMeshes = [];
+  colliders = []; obstacleMeshes = []; roofs = [];
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
   const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e6b2e });
   const rockMat = new THREE.MeshLambertMaterial({ color: 0x9090a0 });
@@ -593,11 +593,17 @@ function buildWorld() {
         panel.position.set(x + d * halfW / 2, wallH + 1.15, z);
         panel.rotation.z = -d * pitch;
         scene.add(panel);
+        panel.userData.kind = 'house'; obstacleMeshes.push(panel);
+        // remember the panel's slope so you can stand on it instead of falling through
+        roofs.push({ shape: 'gable', cx: x + d * halfW / 2, cz: z, half: panelLen * Math.cos(pitch) / 2,
+          hh: (sz + 1.1) / 2, y0: wallH + 1.15 + .25 / Math.cos(pitch), sl: -d * Math.tan(pitch) });
       }
     } else if (style === 'shack') {
       const slab = new THREE.Mesh(new THREE.BoxGeometry(sx + 1, .5, sz + 1), roofMat);
       slab.position.set(x, wallH + .25, z);
       scene.add(slab);
+      slab.userData.kind = 'house'; obstacleMeshes.push(slab);
+      roofs.push({ shape: 'flat', x, z, hw: (sx + 1) / 2, hh: (sz + 1) / 2, y: wallH + .5 });
       const chim = new THREE.Mesh(new THREE.BoxGeometry(.9, 2.4, .9), rockMat);
       chim.position.set(x + hsx * .55, wallH + 1.4, z - hsz * .55);
       scene.add(chim);
@@ -606,6 +612,11 @@ function buildWorld() {
       roof.position.set(x, wallH + (style === 'tower' ? 2.5 : 1.6), z);
       roof.rotation.y = Math.PI / 4;
       scene.add(roof);
+      roof.userData.kind = 'house'; obstacleMeshes.push(roof);
+      // a 4 sided cone is a pyramid: flat square base, point on top
+      const coneH = style === 'tower' ? 4.5 : 3.5;
+      roofs.push({ shape: 'pyr', x, z, w: sx * .78 * Math.SQRT1_2, h: coneH,
+        apex: wallH + (style === 'tower' ? 2.5 : 1.6) + coneH / 2 });
     }
     for (let n = 0, L = Math.round(3 * DIFF.loot); n < L; n++) spawnLoot({ x: x + rand(-hsx + 1.5, hsx - 1.5), z: z + rand(-hsz + 1.5, hsz - 1.5) });
     if (i === toiletHouse) {
@@ -1838,6 +1849,7 @@ function updateStorm(dt) {
 
 const STEP_UP = .7;   // how tall a lip you can walk straight up onto
 const BODY_H = 1.7;   // how tall you are, from your feet to the top of your head
+const ROOF_CLIMB = 1;   // roofs are slopey, so you can step a little higher on them than on a wall
 
 // True when a ramp cuts through the space you are standing in — too high to step onto
 // but too low to duck under. Without this you could stroll sideways through your own ramps.
@@ -1851,6 +1863,41 @@ function rampBlocked(x, z, feet) {
     if (gap > STEP_UP && gap < BODY_H) return true;
   }
   return false;
+}
+
+// Height of the highest house roof right above (x, z), or -1 when there is no roof there.
+// A roof is a floor when you are on top of it and a ceiling when you are under it.
+function roofHeight(x, z) {
+  let top = -1;
+  for (const r of roofs) {
+    let y;
+    if (r.shape === 'flat') {                       // shack: one flat slab
+      if (Math.abs(x - r.x) > r.hw || Math.abs(z - r.z) > r.hh) continue;
+      y = r.y;
+    } else if (r.shape === 'pyr') {                 // cottage/tower: square pyramid
+      const d = Math.max(Math.abs(x - r.x), Math.abs(z - r.z));   // how close to the middle
+      if (d > r.w) continue;
+      y = r.apex - d / r.w * r.h;
+    } else {                                        // barn: one slanted panel, ridge to eave
+      const dx = x - r.cx;
+      if (Math.abs(dx) > r.half || Math.abs(z - r.cz) > r.hh) continue;
+      y = r.y0 + dx * r.sl;
+    }
+    if (y > top) top = y;
+  }
+  return top;
+}
+
+// True when a roof cuts through your body — too high to step up onto, too low to walk under.
+// This is what stops you strolling sideways through the edge of a roof.
+function roofBlocked(x, z, feet) {
+  const y = roofHeight(x, z);
+  return y > 0 && y - feet > ROOF_CLIMB && y - feet < BODY_H;
+}
+
+// Anything sloped that you cannot walk straight through: your own ramps, and house roofs
+function bodyBlocked(x, z, feet) {
+  return rampBlocked(x, z, feet) || roofBlocked(x, z, feet);
 }
 
 // What you are standing on at (x, z). Pass the feet height of whoever is standing there
@@ -1869,6 +1916,10 @@ function groundHeight(x, z, feet) {
     }
     if (top > h && (feet === undefined || top <= feet + STEP_UP)) h = top;
   }
+  // house roofs — solid from above so you can stand on them, and ignored while you are
+  // still under them (no getting yanked up onto a roof you are only walking under)
+  const rf = roofHeight(x, z);
+  if (rf > h && rf <= (feet === undefined ? 0 : feet) + ROOF_CLIMB) h = rf;
   return h;
 }
 
@@ -1943,11 +1994,11 @@ function updatePlayer(dt) {
     const speed = 8 * (sprinting ? 1.6 : 1) * Math.min(1, l);
     const stepX = mx / l * speed * dt, stepZ = mz / l * speed * dt;
     const feetNow = player.y - 1.7;
-    // slide along the underside/side of a ramp instead of walking through it
+    // slide along the underside/side of a ramp or roof instead of walking through it
     // (if you are somehow already inside one, let you walk out rather than sticking you)
-    const stuck = rampBlocked(player.x, player.z, feetNow);
-    if (!stuck || !rampBlocked(player.x + stepX, player.z, feetNow)) player.x += stepX;
-    if (!stuck || !rampBlocked(player.x, player.z + stepZ, feetNow)) player.z += stepZ;
+    const stuck = bodyBlocked(player.x, player.z, feetNow);
+    if (!stuck || !bodyBlocked(player.x + stepX, player.z, feetNow)) player.x += stepX;
+    if (!stuck || !bodyBlocked(player.x, player.z + stepZ, feetNow)) player.z += stepZ;
     walkT += dt * (sprinting ? 14 : 9);
   }
   if (sprinting) stamina = Math.max(0, stamina - 26 * dt);
@@ -1966,6 +2017,14 @@ function updatePlayer(dt) {
     velY = 0;
     grounded = true;
     if (!wasGrounded && player.coyote === 0) sfx(180, .07, 'triangle', .05);
+  }
+  // a roof is solid from underneath too, so getting launched by TNT bounces you off the
+  // underside instead of swimming up through the house and landing on the tiles.
+  // player.y is your eye height, so putting your eyes at the underside is exactly head-touching.
+  if (velY > 0) {
+    const rf = roofHeight(player.x, player.z);
+    const ceil = rf - .45;   // the underside sits a little under the top you stand on
+    if (rf > 0 && ceil > gh && rf > player.y - 1.7 + ROOF_CLIMB && ceil < player.y) { player.y = ceil; velY = 0; }
   }
   if (l > 0 && grounded && gh < 2) player.y = gh + Math.sin(walkT) * .05;
   placeCamera(dt);
