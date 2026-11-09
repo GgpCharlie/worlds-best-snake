@@ -11,7 +11,7 @@
       "model": "litellm/main"
     },
 
-    // Allowed subagent #1 - general builder, runs on "main".
+    // Defined but switched off (see "permissions" at the bottom) - builder, runs on "main".
     "worker": {
       "description": "Builder subagent for implementation work: writing game code, editing pages, vendoring libraries, fixing bugs. Use for build tasks, not research.",
       "mode": "subagent",
@@ -37,10 +37,10 @@
   },
 
   "permissions": [
-    // Only the two declared subagents may be dispatched.
+    // Subagents are switched off for this project (owner's call). Every task - building and
+    // checking - is done by the one agent you are talking to. To bring the helpers back, add
+    // { "action": "subagent", "resource": "worker", "effect": "allow" } (and/or "tester") here.
     { "action": "subagent", "resource": "*", "effect": "deny" },
-    { "action": "subagent", "resource": "worker", "effect": "allow" },
-    { "action": "subagent", "resource": "tester", "effect": "allow" },
 
     // Publishing target is the only place outside the workspace we may write.
     { "action": "external_directory", "resource": "*", "effect": "deny" },

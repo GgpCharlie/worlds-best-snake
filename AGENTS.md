@@ -141,24 +141,22 @@ This project runs on two local endpoints, and **only these two are allowed**:
 
 You **must not** use, switch to, or configure any other model. This is enforced in `opencode.jsonc`.
 
-### Use subagents for bigger work
+### No subagents
 
-When a task is large, **despatch subagents** instead of grinding through it alone in one context.
-Split the work, hand each piece to a subagent, then check and integrate their results yourself.
-Good splits: separate games, separate features, or build-one/verify-another.
+**Do not use subagents.** All building and all checking are done by the agent talking to the user,
+in this one session. The `worker` and `tester` helpers are switched off in `opencode.jsonc`, so
+dispatching one will just be denied.
 
-Only two subagents exist here, and each is pinned to one endpoint:
+Verify your own work instead, with real checks rather than a second model's opinion:
 
-- `worker` → runs on `litellm/main`
-- `tester` → runs on `litellm/test`
+- load the page in headless chromium and look for console errors (`errors: none`), actually play a
+  bit of the match in the harness, and take a screenshot when it is something you should see
+- check links, image paths and vendored paths resolve, on a phone-sized window as well as desktop
+- keep test harnesses in `/tmp/opencode` and copies of the page in the repo folder you are working in,
+  never in the live tree
 
-**Only one subagent may run at a time on each endpoint.** That means at most one `worker` and one
-`tester` running simultaneously — two in total. Never launch two `worker`s at once, and never
-two `tester`s at once. If you need more parallelism than that, queue the work and run it as a
-slot frees up. If a subagent is not available, wait or do the piece yourself.
-
-Use `tester` to check finished work — it is on a separate endpoint, so it catches mistakes the
-build model makes.
+Big jobs are still fine — just break them into steps and do them one at a time. If you ever want the
+helpers back, flip the `subagent` permissions in `opencode.jsonc` and change this section.
 
 ## Ground rules
 
