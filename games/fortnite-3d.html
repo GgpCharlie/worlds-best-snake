@@ -209,7 +209,8 @@
           <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
           <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪<br>
           <b>Shift</b> sprint · <b>Q</b> cycle part · <b>V</b> camera · <b>Esc</b> pause<br>
-          Shoot trees &amp; rocks for wood — 20 wood per build
+          Shoot trees &amp; rocks for wood — 20 wood per build<br>
+          The storm bites for <b>5</b> a second — stay inside the blue circle
         </div>
       </div>
       <div class="lpanel lshop">
@@ -266,11 +267,13 @@ const BUILD_COST = 20;
 
 // difficulty — picked on the start screen, remembered for next time
 const DIFFS = {
-  easy:   { name: 'EASY', icon: '🌱', coins: 100, bots: 24, aim: .55, slow: 1.9, see: 45, take: .65, storm: 1.6, stormDmg: 1, shield: .15, loot: 1.35,
+  // the storm always bites for 5 a second — the difficulty only changes how fast it
+  // closes in and how much meaner each new phase gets
+  easy:   { name: 'EASY', icon: '🌱', coins: 100, bots: 24, aim: .55, slow: 1.9, see: 45, take: .65, storm: 1.6, stormDmg: 5, stormStep: 2, shield: .15, loot: 1.35,
             desc: '25 fighters, bots miss loads and shoot slowly, lazy storm, extra loot, you soak up damage' },
-  normal: { name: 'NORMAL', icon: '⚔️', coins: 150, bots: 50, aim: 1, slow: 1, see: 65, take: 1, storm: 1, stormDmg: 2, shield: .4, loot: 1,
+  normal: { name: 'NORMAL', icon: '⚔️', coins: 150, bots: 50, aim: 1, slow: 1, see: 65, take: 1, storm: 1, stormDmg: 5, stormStep: 3, shield: .4, loot: 1,
             desc: 'The proper battle — 51 fighters, fair bots, ordinary storm' },
-  hard:   { name: 'HARD', icon: '💀', coins: 200, bots: 50, aim: 1.6, slow: .7, see: 85, take: 1.45, storm: .7, stormDmg: 3, shield: .9, loot: .75,
+  hard:   { name: 'HARD', icon: '💀', coins: 200, bots: 50, aim: 1.6, slow: .7, see: 85, take: 1.45, storm: .7, stormDmg: 5, stormStep: 4, shield: .9, loot: .75,
             desc: '51 fighters that hardly ever miss and fire fast, most start shielded, quick storm, every hit stings' },
 };
 let diffKey = 'normal';
@@ -1725,7 +1728,11 @@ function updateStorm(dt) {
     storm.r = storm.r0 + (storm.tr - storm.r0) * t;
     storm.x = storm.x0 + (storm.tx - storm.x0) * t;
     storm.z = storm.z0 + (storm.tz - storm.z0) * t;
-    if (storm.shrinkT >= dur) { storm.shrinking = false; storm.dmg += DIFF.stormDmg; }
+    if (storm.shrinkT >= dur) {
+      storm.shrinking = false;
+      storm.dmg += (DIFF.stormStep || DIFF.stormDmg);
+      feed('☠ Storm is meaner now — ' + storm.dmg + ' damage a second');
+    }
   }
   stormCyl.scale.set(storm.r, 1, storm.r);
   stormCyl.position.set(storm.x, 105, storm.z);
