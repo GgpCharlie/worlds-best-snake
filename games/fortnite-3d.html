@@ -150,7 +150,7 @@
 <div class="hud" id="hitmark">✕</div>
 <div class="hud" id="alive"></div>
 <div class="hud" id="stormbar"></div>
-<div class="hud" id="bossbar"><span id="bosstxt">👹 THE ORGER</span><div class="bar"><div id="bossfill"></div></div></div>
+<div class="hud" id="bossbar"><span id="bosstxt">👹 HARPER THE ORGER</span><div class="bar"><div id="bossfill"></div></div></div>
 <div class="hud" id="mousetip">🖱 Click to grab your mouse back · <b>Esc</b> = pause</div>
 <div class="hud" id="stats">
   <span id="stamnum"></span>
@@ -902,7 +902,7 @@ function awakenOrger(x, z) {
   model.group.position.set(x, groundHeight(x, z), z);
   model.group.scale.setScalar(.01);
   scene.add(model.group);
-  const boss = Object.assign({ name: 'The ORGER', x, z, hp: 1200, maxHp: 1200, shield: 300, alive: true, kills: 0,
+  const boss = Object.assign({ name: 'Harper', x, z, hp: 1200, maxHp: 1200, shield: 300, alive: true, kills: 0,
     nextMelee: gameTime + 2.2, nextBarf: gameTime + 3.5, born: gameTime, hitT: 0, hitOn: false, walk: 0, swipeT: -9 }, model);
   for (const m of boss.meshes) { m.userData.bot = boss; m.userData.part = m === boss.head ? 'head' : 'body'; }
   orgerBoss = boss;
@@ -914,8 +914,8 @@ function awakenOrger(x, z) {
   beam.position.set(x, 30, z);
   scene.add(beam);
   fx.push({ m: beam, t: 2.2, max: 2.2, grow: 0, o0: .3 });
-  feed(`👹 The ORGER gobbled up ${devoured} fighters and rises before you!!`);
-  feed('🤢 KILL THE ORGER TO WIN!');
+  feed(`👹 HARPER the ORGER gobbled up ${devoured} fighters and rises before you!!`);
+  feed('🤢 KILL HARPER TO WIN!');
   sfx(70, .6, 'sawtooth', .25);
   setTimeout(() => sfx(90, .5, 'sawtooth', .22), 200);
   setTimeout(() => sfx(55, .8, 'square', .2), 450);
@@ -1584,7 +1584,7 @@ function damageFighter(v, amt, attacker) {
     } else {
       feed(`${attacker ? attacker.name : 'Storm'} eliminated ${v.name}`);
       v.group.visible = false;
-      if (v === orgerBoss) { orgerBoss = null; splash(v.group.position); feed('🎉 THE ORGER IS DOWN!!!'); }
+      if (v === orgerBoss) { orgerBoss = null; splash(v.group.position); feed('🎉 HARPER IS DOWN!!!'); }
       else if (Math.random() < .5) spawnLoot({ x: v.x, z: v.z }, 'weapon');
       if (player.alive && aliveCount === 1) {
         const gen = gameGen;
@@ -2355,10 +2355,10 @@ function endGame(won, place, gaveUp) {
   savePurse();
   const el = player.kills + ' elimination' + (player.kills === 1 ? '' : 's') + ' · survived ' + Math.floor(gameTime) + 's';
   let html = won
-    ? `<b style="color:#ffd76e;font-size:24px">${bossSeen ? '🏆 #1 — ORGER SLAYER!' : '🏆 #1 — BIG WIN!'}</b><br>${el}`
+    ? `<b style="color:#ffd76e;font-size:24px">${bossSeen ? '🏆 #1 — HARPER SLAYER!' : '🏆 #1 — BIG WIN!'}</b><br>${el}`
     : gaveUp
       ? `<b style="color:#9fb0ff;font-size:22px">🏠 Back to the lobby</b><br>${el}`
-      : `<b style="color:#ff6b6b;font-size:22px">Placement #${place || aliveCount}</b><br>${el}${orgerBoss ? ' · the ORGER got you 👹' : ''}`;
+      : `<b style="color:#ff6b6b;font-size:22px">Placement #${place || aliveCount}</b><br>${el}${orgerBoss ? ' · Harper got you 👹' : ''}`;
   html += `<br><span style="color:#ffd76e;font-size:20px">+${reward.toLocaleString()} 🪙</span> <span style="color:#9fb0ff;font-size:14px">on ${DIFF.icon} ${DIFF.name}` +
     (won && up.cash ? ` · 💰 EXTRA CASH +${Math.round(SHOP.cash.step * up.cash * 100)}%` : '') + `</span>`;
   // the match is over — so are the upgrades you bought for it (unless endless)
@@ -2406,7 +2406,7 @@ function drawHud() {
   if (orgerBoss && orgerBoss.alive) {
     if (bb.style.display !== 'block') bb.style.display = 'block';
     $('bossfill').style.width = clamp((orgerBoss.hp + orgerBoss.shield) / (orgerBoss.maxHp + 300) * 100, 0, 100) + '%';
-    setTxt($('bosstxt'), '👹 THE ORGER — ' + Math.ceil(Math.max(0, orgerBoss.hp)) + ' HP' + (orgerBoss.shield > 0 ? ' +' + Math.ceil(orgerBoss.shield) + ' 🛡' : ''));
+    setTxt($('bosstxt'), '👹 HARPER — ' + Math.ceil(Math.max(0, orgerBoss.hp)) + ' HP' + (orgerBoss.shield > 0 ? ' +' + Math.ceil(orgerBoss.shield) + ' 🛡' : ''));
   }
   else if (bb.style.display !== 'none') bb.style.display = 'none';
   const mm = 150, s = mm / (HALF * 2);
