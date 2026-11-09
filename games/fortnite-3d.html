@@ -854,7 +854,11 @@ function updateBoss(dt) {
   if (grow >= 1 && dist > reach - 1.5) {
     b.x += dx / dist * 2.7 * dt; b.z += dz / dist * 2.7 * dt; b.walk += dt * 3;
   }
-  b.group.position.set(b.x, groundHeight(b.x, b.z) + Math.abs(Math.sin(b.walk)) * .4, b.z);
+  // the ORGER stays on the ground it is actually standing on, so a platform you built
+  // over its head does not suck it up there
+  const gy = groundHeight(b.x, b.z, b.y === undefined ? 0 : b.y);
+  b.y = gy;
+  b.group.position.set(b.x, gy + Math.abs(Math.sin(b.walk)) * .4, b.z);
   const idle = Math.sin(gameTime * 2.2) * .2;
   b.armL.rotation.x = idle; b.armR.rotation.x = -idle;
   if (gameTime - b.swipeT < .45) b.armR.rotation.x = -2.2 * (1 - (gameTime - b.swipeT) / .45);
@@ -896,11 +900,11 @@ function updateBossBalls(dt) {
     let boom = p.t <= 0;
     if (player.alive && player.state === 'fight') {
       if (p.mesh.position.distanceTo(playerPoint()) < 2.6) { boom = true; damageFighter(player, 20, p.owner); sfx(140, .2, 'square', .18); }
-      else if (p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + .5) {
+      else if (p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y) + .5) {
         boom = true;
         if (Math.hypot(p.mesh.position.x - player.x, p.mesh.position.z - player.z) < 3) damageFighter(player, 14, p.owner);
       }
-    } else if (p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + .5) boom = true;
+    } else if (p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y) + .5) boom = true;
     if (boom) { splash(p.mesh.position); scene.remove(p.mesh); bossBalls.splice(i, 1); }
   }
 }
@@ -931,7 +935,7 @@ function updatePlayerBalls(dt) {
     p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
     p.mesh.rotation.z += dt * 8; p.mesh.rotation.y += dt * 4;
     const off = Math.abs(p.mesh.position.x) > HALF - 4 || Math.abs(p.mesh.position.z) > HALF - 4;
-    if (p.t <= 0 || off || p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z) + .3) {
+    if (p.t <= 0 || off || p.mesh.position.y <= groundHeight(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y) + .3) {
       const x = clamp(p.mesh.position.x, -HALF + 6, HALF - 6), z = clamp(p.mesh.position.z, -HALF + 6, HALF - 6);
       splash(p.mesh.position);
       scene.remove(p.mesh);
@@ -1000,7 +1004,7 @@ function explodeTnt(pos, dmg, attacker) {
     const dy = Math.abs((b === orgerBoss ? 1.8 : 1.2) - pos.y);
     if (Math.hypot(b.x - pos.x, b.z - pos.z) < R && dy < 6) {
       const dealt = damageFighter(b, dmg, attacker);
-      popDmg(new THREE.Vector3(b.x, groundHeight(b.x, b.z) + 2.3, b.z), dealt > 999 ? 999 : dealt, true);
+      popDmg(new THREE.Vector3(b.x, groundHeight(b.x, b.z, 0) + 2.3, b.z), dealt > 999 ? 999 : dealt, true);
     }
   }
   if (player.alive && Math.hypot(player.x - pos.x, player.z - pos.z) < R) {
@@ -1033,13 +1037,14 @@ function lobbedUpdate(list, dt, onHit) {
     p.mesh.position.x += p.vx * dt; p.mesh.position.y += p.vy * dt; p.mesh.position.z += p.vz * dt;
     p.mesh.rotation.z += dt * 6; p.mesh.rotation.y += dt * 3;
     if (p.mesh.userData.spark) p.mesh.userData.spark.scale.setScalar(.14 + Math.random() * .16);
-    const g = groundHeight(p.mesh.position.x, p.mesh.position.z);
+    const g = groundHeight(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y);
     const off = Math.abs(p.mesh.position.x) > HALF - 4 || Math.abs(p.mesh.position.z) > HALF - 4;
     // a flying TNT crate that smacks straight into someone goes off instantly
     let hit = null;
     for (const b of [...bots, ...(orgerBoss ? [orgerBoss] : [])]) {
       if (!b.alive) continue;
-      if (p.mesh.position.distanceTo(new THREE.Vector3(b.x, g + 1.1, b.z)) < 1.2) { hit = b; break; }
+      const feet = b === orgerBoss ? (b.y || 0) : groundHeight(b.x, b.z, 0);
+      if (p.mesh.position.distanceTo(new THREE.Vector3(b.x, feet + 1.1, b.z)) < 1.2) { hit = b; break; }
     }
     if (p.t <= 0 || off || p.mesh.position.y <= g + .35 || hit) {
       const pos = p.mesh.position.clone();
@@ -1321,7 +1326,8 @@ function spawnLoot(near, kind, weaponId) {
     m.position.set(p.x, 1.1, p.z);
   } else if (type === 'tnt') {
     m = buildTntItem();
-    m.position.set(p.x, groundHeight(p.x, p.z), p.z);
+    // player does not exist yet when the world first scatters its loot
+    m.position.set(p.x, groundHeight(p.x, p.z, player ? player.y - 1.7 : 0), p.z);
   } else if (type === 'medkit') {
     m = buildMedkit();
     m.position.set(p.x, .85, p.z);
@@ -1751,18 +1757,23 @@ function updateStorm(dt) {
   if (vg._o !== want) { vg._o = want; vg.style.opacity = want; }
 }
 
-function groundHeight(x, z) {
+const STEP_UP = .7;   // how tall a lip you can walk straight up onto
+
+// What you are standing on at (x, z). Pass the feet height of whoever is standing there
+// and anything higher than that turns into a CEILING instead of the floor - without it,
+// ducking under a platform you built yanked you up on top of it.
+function groundHeight(x, z, feet) {
   let h = 0;
   for (const s of structures) {
+    let top = 0;
     if (s.part === 'ramp') {
       const along = (s.axis === 'z' ? z - s.pos.z : x - s.pos.x) * s.riseSign;
       const lat = s.axis === 'z' ? x - s.pos.x : z - s.pos.z;
-      if (along >= -RAMP_RUN / 2 && along <= RAMP_RUN / 2 && Math.abs(lat) <= 2.1) {
-        h = Math.max(h, s.pos.y + along * Math.tan(RAMP_ANGLE));
-      }
+      if (along >= -RAMP_RUN / 2 && along <= RAMP_RUN / 2 && Math.abs(lat) <= 2.1) top = s.pos.y + along * Math.tan(RAMP_ANGLE);
     } else if (s.part === 'floor') {
-      if (Math.abs(x - s.pos.x) < 2 && Math.abs(z - s.pos.z) < 2) h = Math.max(h, s.pos.y + .13);
+      if (Math.abs(x - s.pos.x) < 2 && Math.abs(z - s.pos.z) < 2) top = s.pos.y + .13;
     }
+    if (top > h && (feet === undefined || top <= feet + STEP_UP)) h = top;
   }
   return h;
 }
@@ -1801,7 +1812,7 @@ function updatePlayer(dt) {
     player.z = clamp(player.z, -HALF + 2, HALF - 2);
     velY = Math.max(velY - 30 * dt, -14);
     player.y += velY * dt;
-    const gh2 = 1.7 + groundHeight(player.x, player.z);
+    const gh2 = 1.7 + groundHeight(player.x, player.z, player.y - 1.7);
     if (player.y <= gh2 && velY <= 0) {
       player.y = gh2;
       velY = 0;
@@ -1843,7 +1854,8 @@ function updatePlayer(dt) {
   if (sprinting) stamina = Math.max(0, stamina - 26 * dt);
   else stamina = Math.min(100, stamina + 16 * dt);
   resolveCollisions();
-  const gh = 1.7 + groundHeight(player.x, player.z);
+  // pass your feet height in so a platform above your head counts as a ceiling, not the floor
+  const gh = 1.7 + groundHeight(player.x, player.z, player.y - 1.7);
   player.coyote = grounded ? .12 : Math.max(0, (player.coyote || 0) - dt);
   if (keys[' '] && player.coyote > 0 && velY <= 0) { velY = 9.5; player.coyote = 0; sfx(500, .06, 'sine', .05); }
   velY -= 20 * dt;
