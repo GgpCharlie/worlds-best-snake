@@ -2767,6 +2767,29 @@ function switchSlot(n) {
   sfx(560, .06, 'sine', .1);
 }
 
+// the slot to hand over when the belt is full: the one you are actually holding, so a
+// swap always takes the thing you pointed at rather than whatever sits in slot 1.
+// -1 means there is nothing worth giving up
+function giveUpSlot(type) {
+  const cur = player.slots[player.cur];
+  if (!cur) return -1;
+  if (type && cur.type === type) { buildFlash('Already carrying a full stack ' + (ITEM_ICON[type] || '')); return -1; }
+  return player.cur;
+}
+
+const slotName = s => s.type === 'weapon' ? WEAPONS[s.id].name : (ITEM_NAME[s.type] || s.type);
+
+// throw a whole slot's worth of stuff on the ground so swapping never just eats it
+function dropSlotFor(idx) {
+  const s = player.slots[idx];
+  if (!s) return;
+  const n = s.type === 'weapon' ? 1 : s.count;
+  for (let i = 0; i < n; i++) {
+    const it = spawnLoot({ x: player.x + rand(-1, 1), z: player.z + rand(-1, 1) }, s.type, s.type === 'weapon' ? s.id : undefined);
+    if (it) it.noPick = gameTime + .8;
+  }
+}
+
 function pickupNearest() {
   let best = null, bd = 2.2;
   for (const l of loot) {
@@ -2781,24 +2804,22 @@ function pickupNearest() {
     let idx = player.slots.findIndex(s => s && s.type === best.type && s.count < MAXC);
     let swapOut = null;
     if (idx >= 0) player.slots[idx].count++;
-    else if (best.type === 'watch') { buildFlash('You already have a TIME WATCH ⏱'); return; }
+    else if (best.type === 'watch' && player.slots.some(s => s && s.type === 'watch')) { buildFlash('You already have a TIME WATCH ⏱'); return; }
     else {
       idx = player.slots.findIndex(s => !s);
       if (idx < 0) {
-        // no room left, but a belt full of guns must never lock you out of a medkit —
-        // so sacrifice a gun instead (it lands on the floor, nothing just vanishes).
-        // The gun in your hands goes first, otherwise whichever gun slot we find
-        idx = player.slots[player.cur] && player.slots[player.cur].type === 'weapon' ? player.cur
-          : player.slots.findIndex(s => s && s.type === 'weapon');
-        if (idx < 0) { buildFlash('Inventory full — too many potions and burgers'); return; }
+        // no room left, but a belt full of guns must never lock you out of a medkit:
+        // the thing you are holding is what gets swapped, and it lands on the floor
+        idx = giveUpSlot(best.type);
+        if (idx < 0) return;
         swapOut = player.slots[idx];
       }
       player.slots[idx] = { type: best.type, count: 1 };
     }
     if (swapOut) {
-      const back = spawnLoot({ x: player.x + rand(-1, 1), z: player.z + rand(-1, 1) }, 'weapon', swapOut.id);
-      if (back) back.noPick = gameTime + .8;
-      buildFlash('Swapped your ' + WEAPONS[swapOut.id].name + ' for ' + (ITEM_NAME[best.type] || best.type));
+      cancelHeal();          // swapping out the thing you were using cancels it
+      dropSlotFor(idx);
+      buildFlash('Swapped ' + slotName(swapOut) + ' for ' + (ITEM_NAME[best.type] || best.type));
     }
     // the slot in your hands is no longer a gun, so stop the gun from overwriting it
     const held = player.slots[player.cur];
@@ -2814,11 +2835,14 @@ function pickupNearest() {
     player.slots[empty] = { type: 'weapon', id: best.weapon, ammo: WEAPONS[best.weapon].mag };
     player.cur = empty;
   } else {
-    let idx = player.slots[player.cur] && player.slots[player.cur].type === 'weapon' ? player.cur : player.slots.findIndex(s => s && s.type === 'weapon');
+    // full belt: whatever you are holding is the thing that gets replaced
+    const idx = giveUpSlot(null);
     if (idx < 0) { buildFlash('Inventory full'); return; }
-    spawnLoot({ x: player.x + rand(-1, 1), z: player.z + rand(-1, 1) }, 'weapon', player.slots[idx].id);
+    const old = slotName(player.slots[idx]);
+    dropSlotFor(idx);
     player.slots[idx] = { type: 'weapon', id: best.weapon, ammo: WEAPONS[best.weapon].mag };
     player.cur = idx;
+    buildFlash('Swapped ' + old + ' for ' + WEAPONS[best.weapon].name);
   }
   player.weapon = best.weapon;
   player.ammo = WEAPONS[best.weapon].mag;
