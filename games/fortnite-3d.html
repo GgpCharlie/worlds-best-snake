@@ -2779,13 +2779,30 @@ function pickupNearest() {
     // one ark, one watch — they are both one-time-only things
     const MAXC = (best.type === 'noah' || best.type === 'watch') ? 1 : 2;
     let idx = player.slots.findIndex(s => s && s.type === best.type && s.count < MAXC);
+    let swapOut = null;
     if (idx >= 0) player.slots[idx].count++;
     else if (best.type === 'watch') { buildFlash('You already have a TIME WATCH ⏱'); return; }
     else {
       idx = player.slots.findIndex(s => !s);
-      if (idx < 0) { buildFlash('Inventory full'); return; }
+      if (idx < 0) {
+        // no room left, but a belt full of guns must never lock you out of a medkit —
+        // so sacrifice a gun instead (it lands on the floor, nothing just vanishes).
+        // The gun in your hands goes first, otherwise whichever gun slot we find
+        idx = player.slots[player.cur] && player.slots[player.cur].type === 'weapon' ? player.cur
+          : player.slots.findIndex(s => s && s.type === 'weapon');
+        if (idx < 0) { buildFlash('Inventory full — too many potions and burgers'); return; }
+        swapOut = player.slots[idx];
+      }
       player.slots[idx] = { type: best.type, count: 1 };
     }
+    if (swapOut) {
+      const back = spawnLoot({ x: player.x + rand(-1, 1), z: player.z + rand(-1, 1) }, 'weapon', swapOut.id);
+      if (back) back.noPick = gameTime + .8;
+      buildFlash('Swapped your ' + WEAPONS[swapOut.id].name + ' for ' + (ITEM_NAME[best.type] || best.type));
+    }
+    // the slot in your hands is no longer a gun, so stop the gun from overwriting it
+    const held = player.slots[player.cur];
+    if (held && held.type !== 'weapon') { player.weapon = null; player.ammo = 0; player.reloading = false; }
     removeLoot(best);
     sfx(700, .1, 'sine', .12);
     return;
