@@ -265,6 +265,8 @@ const WEAPONS = {
   shotgun: { name: 'Pump',    dmg: 9,  rate: .85, mag: 6,  pellets: 8, spread: .07 },
   rifle:   { name: 'AR',      dmg: 26, rate: .16, mag: 25, pellets: 1, spread: .008 },
   grenade: { name: 'TNT Launcher', dmg: 100, rate: 1.1, mag: 4, pellets: 1, spread: .02, grenade: true },
+  // everything but the kitchen sink: SMG trigger, AR reach, shotgun spread, TNT shells
+  sink:    { name: 'KITCHEN SINK', dmg: 100, rate: .095, mag: 6, pellets: 1, spread: .07, grenade: true, wide: true, speed: 55, lift: .3 },
 };
 const WKEYS = Object.keys(WEAPONS);
 const PARTS = ['wall', 'ramp', 'floor'];
@@ -322,6 +324,7 @@ function shotSound(kind) {
   else if (kind === 'smg') sfx(500 + rand(-80, 80), .05, 'square', .06);
   else if (kind === 'rifle') sfx(300 + rand(-50, 50), .08, 'square', .1);
   else if (kind === 'grenade') sfx(110, .18, 'square', .2);
+  else if (kind === 'sink') { sfx(520 + rand(-60, 60), .05, 'square', .07); sfx(120, .14, 'square', .16); }
   else sfx(420, .07, 'square', .1);
 }
 
@@ -507,6 +510,10 @@ function openChest() {
     if (Math.random() < .1) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'orger');
       feed('🤢 Something STINKY is in this chest... throw it!');
+    }
+    if (Math.random() < .1) {   // the everything gun, chest only
+      spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'sink');
+      feed('🍳 THE KITCHEN SINK! SMG trigger, AR reach, shotgun spread, TNT shells');
     }
     if (Math.random() < (DIFF.noah || .05)) {   // 15% on easy, 5% anywhere else
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'noah');
@@ -707,7 +714,7 @@ function buildGunModel(id) {
   const g = new THREE.Group();
   const dark = new THREE.MeshLambertMaterial({ color: 0x2a2a2e });
   const wood = new THREE.MeshLambertMaterial({ color: 0x7a4a26 });
-  const col = { pistol: 0xffd76e, smg: 0x7fd4ff, shotgun: 0xff9c5f, rifle: 0x9dff7f, grenade: 0xff7a5f }[id] || 0xffffff;
+  const col = { pistol: 0xffd76e, smg: 0x7fd4ff, shotgun: 0xff9c5f, rifle: 0x9dff7f, grenade: 0xff7a5f, sink: 0xff6ad5 }[id] || 0xffffff;
   const accent = new THREE.MeshLambertMaterial({ color: col, emissive: col, emissiveIntensity: .7 });
   const add = (geo, mat, x, y, z, rz) => {
     const m = new THREE.Mesh(geo, mat);
@@ -722,6 +729,17 @@ function buildGunModel(id) {
     add(new THREE.BoxGeometry(.1, .28, .1), dark, -.18, -.18, 0, .3);
     add(new THREE.BoxGeometry(.08, .08, .08), accent, .78, .06, 0);
     add(new THREE.BoxGeometry(.14, .12, .12), new THREE.MeshLambertMaterial({ color: 0xc0342b }), -.34, .14, 0);
+  } else if (id === 'sink') {
+    // AR barrel, TNT tube on top, a drum mag and a scope — every gun in one
+    add(new THREE.CylinderGeometry(.09, .09, .8, 10), dark, .6, .05, 0, Math.PI / 2);
+    add(new THREE.BoxGeometry(.7, .22, .18), dark, .05, .05, 0);
+    add(new THREE.CylinderGeometry(.13, .13, .36, 10), dark, .16, .2, 0, Math.PI / 2);
+    add(new THREE.CylinderGeometry(.17, .17, .16, 12), dark, -.1, -.18, 0);
+    add(new THREE.BoxGeometry(.1, .26, .1), dark, -.3, -.16, 0, .3);
+    add(new THREE.BoxGeometry(.26, .1, .1), dark, -.52, .02, 0, .08);
+    add(new THREE.BoxGeometry(.16, .1, .1), accent, -.24, .26, 0);
+    add(new THREE.BoxGeometry(.08, .08, .08), accent, 1.0, .05, 0);
+    add(new THREE.BoxGeometry(.12, .1, .1), new THREE.MeshLambertMaterial({ color: 0xc0342b }), -.34, .16, 0);
   } else if (id === 'pistol') {
     add(new THREE.BoxGeometry(.5, .16, .12), dark, 0, .05, 0);
     add(new THREE.BoxGeometry(.12, .28, .12), dark, -.15, -.15, 0, .3);
@@ -1124,7 +1142,7 @@ function updatePlayerBalls(dt) {
 // A red crate with a fizzing fuse. Throw one by hand: it wipes out
 // EVERYTHING in a big blast radius. The grenade launcher fires the same
 // crate, but it only does 100 damage instead of an instant wipe.
-let tntBalls = [], grenadeBalls = [], tntPending = false;
+let tntBalls = [], grenadeBalls = [], tntPending = false, lastBoom = -9;
 function buildTntItem(withLabel) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(.8, .72, .8), new THREE.MeshLambertMaterial({ color: 0xc0342b }));
@@ -1165,11 +1183,15 @@ function explodeTnt(pos, dmg, attacker) {
   light.position.copy(pos).y += 1.2;
   scene.add(light);
   setTimeout(() => scene.remove(light), 160);
-  // sound: low boom + a crack on top
-  sfx(55, .5, 'sawtooth', .5);
-  setTimeout(() => { sfx(120, .25, 'square', .25); sfx(760, .12, 'triangle', .12); }, 40);
+  // sound: low boom + a crack on top — a cluster going off together only gets one
+  const loud = gameTime - lastBoom > .09;
+  if (loud) {
+    lastBoom = gameTime;
+    sfx(55, .5, 'sawtooth', .5);
+    setTimeout(() => { sfx(120, .25, 'square', .25); sfx(760, .12, 'triangle', .12); }, 40);
+  }
   // camera kick when it goes off close by
-  if (player.alive) {
+  if (loud && player.alive) {
     const near = Math.hypot(player.x - pos.x, player.z - pos.z);
     if (near < 16) { const f = 1 - near / 16; pitch += rand(-.05, .05) * f + .04 * f; }
   }
@@ -1228,7 +1250,7 @@ function lobbedUpdate(list, dt, onHit) {
       pos.y = Math.max(pos.y, g + .4);
       scene.remove(p.mesh);
       list.splice(i, 1);
-      onHit(pos);
+      onHit(pos, p);
     }
   }
 }
@@ -1342,21 +1364,25 @@ function updateTsunami(dt) {
     tsunami = null;
   }
 }
-function launchGrenade() {
+function launchGrenade(w) {
+  w = w || WEAPONS.grenade;
   const mesh = buildTntItem();
   mesh.scale.setScalar(.7);
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
+  // a wide gun throws its shells all over the place, just like its bullets
+  if (w.wide) { dir.x += rand(-w.spread, w.spread); dir.y += rand(-w.spread, w.spread); dir.z += rand(-w.spread, w.spread); dir.normalize(); }
+  const sp = w.speed || 25, lift = w.lift === undefined ? 2.4 : w.lift;
   mesh.position.copy(muzzleWorld()).add(dir.clone().multiplyScalar(1.1));
   mesh.position.y -= .1;
   scene.add(mesh);
-  grenadeBalls.push({ mesh, vx: dir.x * 25, vy: dir.y * 25 + 2.4, vz: dir.z * 25, t: 5 });
+  grenadeBalls.push({ mesh, vx: dir.x * sp, vy: dir.y * sp + lift, vz: dir.z * sp, t: 5, dmg: w.dmg || 100 });
   sfx(150, .16, 'square', .22);
   setTimeout(() => sfx(70, .22, 'sawtooth', .28), 30);
-  pitch += .025;
+  pitch += .025 * Math.min(1, w.rate / .3);   // a fast gun kicks less per shot
 }
 function updateGrenadeBalls(dt) {
-  lobbedUpdate(grenadeBalls, dt, pos => explodeTnt(pos, 100, player));
+  lobbedUpdate(grenadeBalls, dt, (pos, ball) => explodeTnt(pos, (ball && ball.dmg) || 100, player));
 }
 
 // muzzle flash -------------------------------------------------------
@@ -1390,7 +1416,7 @@ function makeMuzzleFlash() {
   camera.add(muzzleFlash, muzzleLight);
 }
 // barrel tip sits at a different depth for each gun (viewmodel space)
-const MUZZLE_Z = { pistol: -.9, smg: -.97, shotgun: -1.14, rifle: -1.15, grenade: -1.45 };
+const MUZZLE_Z = { pistol: -.9, smg: -.97, shotgun: -1.14, rifle: -1.15, grenade: -1.45, sink: -1.35 };
 function positionMuzzle(id) {
   if (!muzzleFlash) return;
   const z = MUZZLE_Z[id] || -1;
@@ -1853,9 +1879,9 @@ function playerFire() {
   if (gameTime - player.lastShot < w.rate) return;
   player.lastShot = gameTime; player.ammo--;
   shotSound(player.weapon);
-  flashMuzzle(player.weapon === 'shotgun' || player.weapon === 'grenade');
+  flashMuzzle(w.grenade || player.weapon === 'shotgun');
   if (player.ammo === 0) startReload();
-  if (w.grenade) { launchGrenade(); return; }
+  if (w.grenade) { launchGrenade(w); return; }
   const origin = new THREE.Vector3();
   camera.getWorldPosition(origin);
   const dir = new THREE.Vector3();
