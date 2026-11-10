@@ -27,6 +27,7 @@
   #hotbar .slot.empty { opacity: .4; }
   #healui { bottom: 26%; left: 50%; transform: translateX(-50%); text-align: center; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 0 #000; display: none; }
   #healfill { background: #7fd4ff; width: 0%; }
+  #dropbar { top: 108px; left: 50%; transform: translateX(-50%); font-size: 15px; color: #ffd76e; font-weight: bold; text-shadow: 1px 1px 0 #000; white-space: nowrap; }
   #feed { top: 70px; left: 16px; font-size: 14px; text-shadow: 1px 1px 0 #000; }
   #feed div { margin-bottom: 3px; }
   #mm { top: 14px; right: 14px; }
@@ -121,6 +122,7 @@
   body.touch #feed { top: 176px; left: 8px; font-size: 10px; max-width: 46vw; }
   body.touch #alive { font-size: 13px; top: 6px; max-width: 48vw; }
   body.touch #stormbar { font-size: 11px; top: 24px; }
+  body.touch #dropbar { font-size: 10px; top: 86px; }
   body.touch #mm { top: 8px; right: 8px; width: 82px; height: 82px; }
   body.touch #hotbar { bottom: 4px; gap: 3px; z-index: 8; pointer-events: auto; }
   body.touch #hotbar .slot { width: 64px; padding: 3px 3px; font-size: 9.5px; white-space: nowrap; overflow: hidden; }
@@ -150,6 +152,7 @@
 <div class="hud" id="hitmark">✕</div>
 <div class="hud" id="alive"></div>
 <div class="hud" id="stormbar"></div>
+<div class="hud" id="dropbar"></div>
 <div class="hud" id="bossbar"><span id="bosstxt">👹 HARPER THE ORGER</span><div class="bar"><div id="bossfill"></div></div></div>
 <div class="hud" id="mousetip">🖱 Click to grab your mouse back · <b>Esc</b> = pause</div>
 <div class="hud" id="stats">
@@ -302,6 +305,26 @@ let thirdPerson = true, playerChar = null, handItem = null, camSnap = true, spri
 try { thirdPerson = localStorage.getItem('bm3d-cam') !== 'fp'; } catch (e) {}
 let paused = false;
 let orgerBoss = null, bossBalls = [], playerBalls = [], fx = [], throwPending = false, bossSeen = false;
+// supply drops: a plane crosses the island, a crate on a parachute lands inside the safe circle
+let drops = [], dropPlane = null, nextDropAt = 1e9, puffGeo = null;
+// one sphere shared by every smoke puff — the fx cleanup never disposes, so sharing is safe
+function smokePuff(x, y, z, grow, color, life) {
+  if (!puffGeo) puffGeo = new THREE.SphereGeometry(1, 7, 5);
+  const m = new THREE.Mesh(puffGeo, new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: .55, depthWrite: false }));
+  m.position.set(x, y, z);
+  scene.add(m);
+  // the fx loop grows every puff from size 1 up to 1 + grow
+  fx.push({ m: m, t: life, max: life, grow: grow, o0: .55 });
+}
+// the top of whatever is at a spot, floors and roofs included
+const dropGround = (x, z) => groundHeight(x, z, 1e5);
+// three.js needs to be told when a model is gone for good
+function wipe(obj) {
+  obj.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) o.material.dispose();
+  });
+}
 let yaw = 0, pitch = 0, velY = 0, grounded = true, walkT = 0;
 const keys = {};
 let mouseDown = false;
@@ -1364,6 +1387,240 @@ function updateTsunami(dt) {
     tsunami = null;
   }
 }
+// ── SUPPLY DROPS ─────────────────────────────────────────────────────
+// Every so often a plane crosses the island and pushes a crate out over the safe
+// circle. The crate floats down on a parachute, bursts open when it hits the ground
+// and spills good loot — it always has one legendary (KITCHEN SINK or NOAH).
+function clearDrops() {
+  for (const d of drops) { if (d.mesh) { scene.remove(d.mesh); wipe(d.mesh); } if (d.beam) { scene.remove(d.beam); wipe(d.beam); } }
+  drops = [];
+  if (dropPlane) { scene.remove(dropPlane.group); wipe(dropPlane.group); dropPlane = null; }
+}
+
+// somewhere inside the live safe circle, biased towards the player so it is reachable
+function dropSpot() {
+  const r = Math.max(14, storm.r - 14);
+  const pa = Math.atan2(player.x - storm.x, player.z - storm.z);
+  const pd = Math.hypot(player.x - storm.x, player.z - storm.z);
+  let ang, rad;
+  if (player.alive && pd < r && Math.random() < .6) {
+    ang = pa + rand(-.8, .8);
+    rad = clamp(pd + rand(20, 60), 6, r);
+  } else {
+    ang = Math.random() * Math.PI * 2;
+    rad = r * Math.sqrt(Math.random());
+  }
+  return { x: storm.x + Math.sin(ang) * rad, z: storm.z + Math.cos(ang) * rad };
+}
+
+function buildDropPlane() {
+  const g = new THREE.Group();
+  const body = new THREE.MeshLambertMaterial({ color: 0x8d99ae });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x4a5364 });
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(3, 2.6, 11), body);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(1.4, 2.6, 10), dark);
+  nose.rotation.x = Math.PI / 2; nose.position.z = 6.6;
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(15, .4, 3.4), body);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(5, .35, 1.6), body);
+  tail.position.set(0, .2, -5);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(.4, 2.2, 1.8), dark);
+  fin.position.set(0, 1.4, -5);
+  const prop = new THREE.Mesh(new THREE.BoxGeometry(.3, 3.4, .2), dark);
+  prop.position.set(0, 0, 7.6);
+  g.add(hull, nose, wing, tail, fin, prop);
+  g.userData.prop = prop;
+  return g;
+}
+
+function buildCrateMesh() {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color: 0xa9773f });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x6f4a26 });
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.5, 1.9), wood);
+  box.position.y = .75;
+  const band = (w, h, d, x, y, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), dark);
+    m.position.set(x, y, z); g.add(m);
+  };
+  band(2, .22, 2, 0, 1.34, 0);         // lid lip
+  band(.26, 1.6, 2.05, .95, .75, 0);   // end straps
+  band(.26, 1.6, 2.05, -.95, .75, 0);
+  band(2.05, 1.6, .26, 0, .75, .95);
+  band(2.05, 1.6, .26, 0, .75, -.95);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, 1.1, 5), dark);
+  pole.position.y = 2.0;
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(1, .5),
+    new THREE.MeshLambertMaterial({ color: 0xffd76e, side: THREE.DoubleSide }));
+  flag.position.set(.5, 2.3, 0);
+  g.add(box, pole, flag);
+  const light = new THREE.PointLight(0xffd76e, 1.6, 12);
+  light.position.y = 1.2;
+  g.add(light);
+  return g;
+}
+
+function buildChute() {
+  const g = new THREE.Group();
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(2.6, 16, 9, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshLambertMaterial({ color: 0xff7a5f, side: THREE.DoubleSide }));
+  const stripe = new THREE.Mesh(new THREE.SphereGeometry(2.62, 16, 6, 0, Math.PI * 2, 0, Math.PI / 5),
+    new THREE.MeshLambertMaterial({ color: 0xffe94d, side: THREE.DoubleSide }));
+  const cords = new THREE.Group();
+  const cordMat = new THREE.MeshLambertMaterial({ color: 0xe8e8e8 });
+  for (const [cx, cz] of [[1.6, 1.6], [-1.6, 1.6], [1.6, -1.6], [-1.6, -1.6]]) {
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 3.8, 4), cordMat);
+    c.position.set(cx / 2, -1.75, cz / 2);
+    c.rotation.z = -cx * .19; c.rotation.x = cz * .19;
+    cords.add(c);
+  }
+  g.add(dome, stripe, cords);
+  return g;
+}
+
+function sendPlane() {
+  const spot = dropSpot();
+  const ang = Math.random() * Math.PI * 2;
+  const dir = new THREE.Vector3(Math.sin(ang), 0, Math.cos(ang));
+  const gy = dropGround(spot.x, spot.z);
+  const g = buildDropPlane();
+  g.position.set(spot.x - dir.x * 240, gy + 92, spot.z - dir.z * 240);
+  g.rotation.y = Math.atan2(dir.x, dir.z);
+  scene.add(g);
+  dropPlane = { group: g, dir, spot: { x: spot.x, z: spot.z }, t: 0, puff: 0 };
+  feed('🪂 A plane just crossed the island — supply drop incoming!');
+  sfx(120, .5, 'sawtooth', .14);
+}
+
+function releaseCrate(plane) {
+  const g = buildCrateMesh();
+  const chute = buildChute();
+  chute.position.y = 4.6;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.4, 90, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd76e, transparent: true, opacity: .38, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  beam.position.y = 45;
+  beam.visible = false;      // a 90m pillar following it around the sky just looks like a glitch
+  scene.add(beam);
+  g.add(chute);
+  g.position.set(plane.group.position.x, plane.group.position.y - 2, plane.group.position.z);
+  scene.add(g);
+  drops.push({ mesh: g, chute, beam, spot: plane.spot, state: 'fall', sway: Math.random() * 6, puff: 0 });
+  sfx(210, .3, 'square', .16);
+}
+
+// the good stuff — a drop always carries a legendary
+function dropLoot(d) {
+  // each item sits at the height the crate actually came down on, so a drop that lands on
+  // somebody's floor or a roof spills its loot on top of it instead of under it
+  const out = (r, kind, wid) => {
+    const a = Math.random() * Math.PI * 2;
+    const pos = { x: d.spot.x + Math.sin(a) * r, z: d.spot.z + Math.cos(a) * r };
+    const it = spawnLoot(pos, kind, wid);
+    if (it) it.lift = Math.max(0, dropGround(pos.x, pos.z));   // ride the roof / floor it landed on
+    return it;
+  };
+  let star = 'NOAH';
+  if (Math.random() < .5) { out(1.4, 'weapon', 'sink'); star = 'a KITCHEN SINK'; }
+  else out(1.4, 'noah');
+  out(2.1, 'bigmac');
+  out(2.4, 'tnt');
+  out(2.7, 'shield');
+  out(3, 'shield');
+  out(3.3, 'medkit');
+  feed('📦 Supply drop landed! Inside: ' + star + ', BIG MAC, TNT, 2 shields, medkit');
+}
+
+function updateAirdrops(dt) {
+  // the timer only runs while the fight is actually on
+  let falling = 0, sitting = 0;
+  for (const d of drops) { if (d.state === 'fall') falling++; else sitting++; }
+  if (player.state === 'fight' && !dropPlane && !falling && sitting < 2 && gameTime >= nextDropAt) {
+    nextDropAt = gameTime + rand(55, 85);
+    sendPlane();
+  }
+  if (dropPlane) {
+    const pl = dropPlane;
+    pl.t += dt;
+    pl.group.position.addScaledVector(pl.dir, 42 * dt);
+    pl.group.userData.prop.rotation.z += dt * 24;
+    if (!pl.released) {
+      pl.puff -= dt;
+      if (pl.puff <= 0) {
+        pl.puff = .3;
+        smokePuff(pl.group.position.x - pl.dir.x * 6, pl.group.position.y, pl.group.position.z - pl.dir.z * 6, .9, 0xbfc4cc, 1.4);
+      }
+      const p = pl.group.position;
+      if (Math.hypot(p.x - pl.spot.x, p.z - pl.spot.z) < 4 || pl.t > 12) {
+        pl.released = true;
+        releaseCrate(pl);
+      }
+    }
+    // it keeps flying after the drop and is cleaned up once it is well out of sight
+    if (pl.released && pl.t > 18) {
+      scene.remove(pl.group); wipe(pl.group);
+      dropPlane = null;
+    }
+  }
+  for (let i = drops.length - 1; i >= 0; i--) {
+    const d = drops[i];
+    d.sway += dt;
+    if (d.state === 'fall') {
+      d.mesh.position.y -= 13 * dt;
+      d.mesh.position.x += Math.sin(d.sway * .9) * 2.4 * dt;
+      d.mesh.rotation.y += dt * .5;
+      d.chute.rotation.z = Math.sin(d.sway) * .07;
+      // smoke trail so you can still follow it when the parachute is against the sky
+      d.puff -= dt;
+      if (d.puff <= 0) { d.puff = .3; smokePuff(d.mesh.position.x, d.mesh.position.y + 5, d.mesh.position.z, .8, 0xdfe3e8, 1.5); }
+      const gy = dropGround(d.mesh.position.x, d.mesh.position.z);
+      if (d.mesh.position.y <= gy + .05) {
+        d.mesh.position.y = gy;
+        d.state = 'land';
+        d.landed = gameTime;
+        d.spot = { x: d.mesh.position.x, z: d.mesh.position.z };   // the swing moves it off target
+        d.beam.visible = true;
+        d.mesh.remove(d.chute);
+        wipe(d.chute);
+        sfx(70, .3, 'square', .3);
+        smokePuff(d.mesh.position.x, gy + .8, d.mesh.position.z, 2.2, 0xb09a72, .8);
+        dropLoot(d);
+      }
+    } else {
+      // it sits there glowing, then fades away so the island does not fill up with boxes
+      const age = gameTime - d.landed;
+      d.beam.material.opacity = .38 * clamp((90 - age) / 15, 0, 1);
+      if (age > 90) {
+        scene.remove(d.mesh); wipe(d.mesh); scene.remove(d.beam); wipe(d.beam);
+        drops.splice(i, 1);
+        continue;
+      }
+    }
+    d.beam.position.set(d.mesh.position.x, d.mesh.position.y + 45, d.mesh.position.z);
+  }
+}
+
+// the little yellow HUD line: what is overhead, and how to get to it
+function dropHint() {
+  if (!player || !player.alive || player.state !== 'fight') return '';
+  let best = null, bd = 1e9;
+  for (const d of drops) {
+    const dist = Math.hypot(d.mesh.position.x - player.x, d.mesh.position.z - player.z);
+    if (dist < bd) { bd = dist; best = d; }
+  }
+  if (!best) {
+    const t = Math.max(0, nextDropAt - gameTime);
+    return t < 45 ? '🪂 NEXT SUPPLY DROP IN ' + Math.ceil(t) + 's' : '';
+  }
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const deg = Math.atan2(dir.x, dir.z) * 180 / Math.PI
+    - Math.atan2(best.mesh.position.x - player.x, best.mesh.position.z - player.z) * 180 / Math.PI;
+  // snapped to 12 steps so the HUD is not rewriting its arrow sixty times a second
+  const arrow = '<span style="display:inline-block;transform:rotate(' + (Math.round(deg / 30) * 30) + 'deg)">⬆</span>';
+  return best.state === 'fall' ? '🪂 SUPPLY DROP FALLING — ' + arrow + ' ' + Math.round(bd) + 'm'
+    : '📦 SUPPLY DROP ' + Math.round(bd) + 'm ' + arrow;
+}
+
 function launchGrenade(w) {
   w = w || WEAPONS.grenade;
   const mesh = buildTntItem();
@@ -1788,6 +2045,7 @@ function initGame() {
   orgerBoss = null; bossBalls = []; playerBalls = []; fx = []; throwPending = false; bossSeen = false;
   tntBalls = []; grenadeBalls = []; tntPending = false;
   noahBalls = []; noahPending = false; tsunami = null;
+  clearDrops(); nextDropAt = rand(50, 80); setHtml($('dropbar'), '');
   for (const f of dmgNums) f.el.remove();
   dmgNums.length = 0;
   $('bossbar').style.display = 'none';
@@ -2302,7 +2560,7 @@ function updatePlayer(dt) {
     l2.mesh.rotation.y += dt * 2;
     // every loot type needs a height here — a missing one turns into NaN and the item
     // silently vanishes (that is how BIG MACs went invisible)
-    const baseY = LOOT_Y[l2.type] === undefined ? .8 : LOOT_Y[l2.type];
+    const baseY = (LOOT_Y[l2.type] === undefined ? .8 : LOOT_Y[l2.type]) + (l2.lift || 0);
     l2.mesh.position.y = baseY + Math.sin(gameTime * 3 + l2.mesh.position.x) * .12;
     if (d > 2.2 || l2.type === 'ammo') continue;
     nearPickup = l2;
@@ -2590,6 +2848,8 @@ function damageStructure(s, amt) {
 function endGame(won, place, gaveUp) {
   if (!playing) return;
   playing = false;
+  clearDrops();
+  setHtml($('dropbar'), '');
   document.exitPointerLock();
   // pay out: a win pays the mode's coins (boosted by 💰 EXTRA CASH), a good placement pays a little
   let reward = 0;
@@ -2646,6 +2906,7 @@ function drawHud() {
     const cn = 'slot' + (i === player.cur ? ' active' : '');
     if (el.className !== cn) el.className = cn;
   }
+  setHtml($('dropbar'), dropHint());
   setTxt($('stormbar'), storm.phase >= 7 && !storm.shrinking ? '☠ FINAL STORM'
     : storm.shrinking ? '⚠ STORM CLOSING'
     : `Storm in ${Math.max(0, Math.ceil(storm.nextShrink))}s`);
@@ -2671,6 +2932,10 @@ function drawHud() {
     if (!b.alive) continue;
     mmCtx.fillStyle = '#f55';
     mmCtx.fillRect((b.x + HALF) * s - 2, (b.z + HALF) * s - 2, 4, 4);
+  }
+  for (const d of drops) {
+    mmCtx.fillStyle = '#ffd76e';
+    mmCtx.fillRect((d.mesh.position.x + HALF) * s - 3, (d.mesh.position.z + HALF) * s - 3, 6, 6);
   }
   if (orgerBoss && orgerBoss.alive) {
     mmCtx.fillStyle = '#ff9d2e';
@@ -3195,6 +3460,7 @@ function loop() {
     updateGrenadeBalls(dt);
     updateNoahBalls(dt);
     updateTsunami(dt);
+    updateAirdrops(dt);
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i];
       f.t -= dt;
