@@ -273,8 +273,10 @@ const WEAPONS = {
   shotgun: { name: 'Pump',    dmg: 9,  rate: .85, mag: 6,  pellets: 8, spread: .07 },
   rifle:   { name: 'AR',      dmg: 26, rate: .16, mag: 25, pellets: 1, spread: .008 },
   grenade: { name: 'TNT Launcher', dmg: 100, rate: 1.1, mag: 4, pellets: 1, spread: .02, grenade: true },
-  // everything but the kitchen sink: SMG trigger, AR reach, shotgun spread, TNT shells
-  sink:    { name: 'KITCHEN SINK', dmg: 100, rate: .095, mag: 6, pellets: 1, spread: .07, grenade: true, wide: true, speed: 55, lift: .3 },
+  // everything but the kitchen sink: one heavy TNT shell that goes straight where you
+  // aim, insta-kills whatever it lands on, then breaks into two bombs and each of
+  // those breaks into two more
+  sink:    { name: 'KITCHEN SINK', dmg: 9999, rate: .2, mag: 6, pellets: 1, spread: 0, grenade: true, cluster: 2, speed: 50, lift: .45 },
 };
 const WKEYS = Object.keys(WEAPONS);
 const PARTS = ['wall', 'ramp', 'floor'];
@@ -544,7 +546,7 @@ function openChest() {
     }
     if (Math.random() < .1) {   // the everything gun, chest only
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'sink');
-      feed('🍳 THE KITCHEN SINK! SMG trigger, AR reach, shotgun spread, TNT shells');
+      feed('🍳 THE KITCHEN SINK! One TNT shell — it wipes out whoever it hits, then splits into 2 bombs and those split into 2 more');
     }
     if (Math.random() < (DIFF.noah || .05)) {   // 15% on easy, 5% anywhere else
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'noah');
@@ -1285,24 +1287,31 @@ function buildTntItem(withLabel) {
   return g;
 }
 // the boom itself — used by hand-thrown TNT and by grenade launcher shots
-function explodeTnt(pos, dmg, attacker) {
+// safe: the person who threw it cannot be hurt by this blast (a sink cluster lands at
+//       your feet, so it would be nonsense if it killed you)
+// small: a cluster baby — tighter blast, no light, because three.js rebuilds every
+//        shader whenever the number of lights changes and a screen full of little
+//        bombs would turn the game into a slideshow
+function explodeTnt(pos, dmg, attacker, safe, small) {
   attacker = attacker || player;
-  const R = dmg >= 9999 ? 5.5 : 5.0;
+  const R = small ? 2.7 : dmg >= 9999 ? 5.5 : 5.0;
   // fireball + smoke puff (fx fades them out and the timeouts clean up)
-  const fire = new THREE.Mesh(new THREE.SphereGeometry(1.6, 14, 10),
+  const fire = new THREE.Mesh(new THREE.SphereGeometry(small ? .8 : 1.6, 14, 10),
     new THREE.MeshBasicMaterial({ color: 0xffb43c, transparent: true, opacity: .95, depthWrite: false }));
   fire.position.copy(pos);
   scene.add(fire);
   fx.push({ m: fire, t: .35, max: .35, grow: 7, o0: .95 });
-  const smoke = new THREE.Mesh(new THREE.SphereGeometry(1.2, 10, 8),
+  const smoke = new THREE.Mesh(new THREE.SphereGeometry(small ? .6 : 1.2, 10, 8),
     new THREE.MeshBasicMaterial({ color: 0x5a5a5a, transparent: true, opacity: .7, depthWrite: false }));
   smoke.position.copy(pos).y += 1.4;
   scene.add(smoke);
   fx.push({ m: smoke, t: .9, max: .9, grow: 5, o0: .7 });
-  const light = new THREE.PointLight(0xffa03c, 6, 26);
-  light.position.copy(pos).y += 1.2;
-  scene.add(light);
-  setTimeout(() => scene.remove(light), 160);
+  if (!small) {
+    const light = new THREE.PointLight(0xffa03c, 6, 26);
+    light.position.copy(pos).y += 1.2;
+    scene.add(light);
+    setTimeout(() => scene.remove(light), 160);
+  }
   // sound: low boom + a crack on top — a cluster going off together only gets one
   const loud = gameTime - lastBoom > .09;
   if (loud) {
@@ -1324,7 +1333,7 @@ function explodeTnt(pos, dmg, attacker) {
       popDmg(new THREE.Vector3(b.x, groundHeight(b.x, b.z, 0) + 2.3, b.z), dealt > 999 ? 999 : dealt, true);
     }
   }
-  if (player.alive && Math.hypot(player.x - pos.x, player.z - pos.z) < R) {
+  if (player.alive && !(safe && attacker === player) && Math.hypot(player.x - pos.x, player.z - pos.z) < R) {
     const mine = attacker === player;
     damageFighter(player, dmg, mine ? { name: 'their own TNT 💥' } : attacker);
   }
@@ -1726,19 +1735,39 @@ function launchGrenade(w) {
   mesh.scale.setScalar(.7);
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
-  // a wide gun throws its shells all over the place, just like its bullets
-  if (w.wide) { dir.x += rand(-w.spread, w.spread); dir.y += rand(-w.spread, w.spread); dir.z += rand(-w.spread, w.spread); dir.normalize(); }
   const sp = w.speed || 25, lift = w.lift === undefined ? 2.4 : w.lift;
   mesh.position.copy(muzzleWorld()).add(dir.clone().multiplyScalar(1.1));
   mesh.position.y -= .1;
   scene.add(mesh);
-  grenadeBalls.push({ mesh, vx: dir.x * sp, vy: dir.y * sp + lift, vz: dir.z * sp, t: 5, dmg: w.dmg || 100 });
+  grenadeBalls.push({ mesh, vx: dir.x * sp, vy: dir.y * sp + lift, vz: dir.z * sp, t: 5, dmg: w.dmg || 100, cluster: w.cluster || 0 });
   sfx(150, .16, 'square', .22);
   setTimeout(() => sfx(70, .22, 'sawtooth', .28), 30);
   pitch += .025 * Math.min(1, w.rate / .3);   // a fast gun kicks less per shot
 }
 function updateGrenadeBalls(dt) {
-  lobbedUpdate(grenadeBalls, dt, (pos, ball) => explodeTnt(pos, (ball && ball.dmg) || 100, player));
+  lobbedUpdate(grenadeBalls, dt, (pos, ball) => {
+    const st = (ball && ball.cluster) || 0;
+    if (st) sinkBurst(pos, st, (ball && ball.dmg) || 100);
+    else explodeTnt(pos, (ball && ball.dmg) || 100, player);
+  });
+}
+
+// 🍳 the sink shell going off. stage 2 is the big one (that is the insta-kill), it spits
+// out two stage-1 bombs, and each of those spits out two stage-0 ones. So: 1 → 2 → 4
+function sinkBurst(pos, stage, dmg) {
+  explodeTnt(pos, stage === 2 ? dmg : stage === 1 ? 70 : 45, player, true, stage < 2);
+  if (stage <= 0) return;
+  for (let i = 0; i < 2; i++) {
+    const m = buildTntItem(false);
+    m.scale.setScalar(stage === 1 ? .3 : .45);
+    m.position.copy(pos);
+    m.position.y += .6;
+    scene.add(m);
+    const a = Math.random() * Math.PI * 2, sp = rand(5, 10);
+    grenadeBalls.push({ mesh: m, vx: Math.cos(a) * sp, vy: rand(6, 10), vz: Math.sin(a) * sp,
+      t: rand(.45, .7), dmg: dmg, cluster: stage - 1 });
+  }
+  sfx(stage === 2 ? 320 : 520, .12, 'square', .1);
 }
 
 // muzzle flash -------------------------------------------------------
