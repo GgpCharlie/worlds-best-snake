@@ -273,10 +273,10 @@ const WEAPONS = {
   shotgun: { name: 'Pump',    dmg: 9,  rate: .85, mag: 6,  pellets: 8, spread: .07 },
   rifle:   { name: 'AR',      dmg: 26, rate: .16, mag: 25, pellets: 1, spread: .008 },
   grenade: { name: 'TNT Launcher', dmg: 100, rate: 1.1, mag: 4, pellets: 1, spread: .02, grenade: true },
-  // everything but the kitchen sink: one heavy TNT shell that goes straight where you
-  // aim, insta-kills whatever it lands on, then breaks into two bombs and each of
-  // those breaks into two more
-  sink:    { name: 'KITCHEN SINK', dmg: 9999, rate: .2, mag: 6, pellets: 1, spread: 0, grenade: true, cluster: 2, speed: 50, lift: .45 },
+  // THE BOMBA: one heavy TNT shell that goes straight where you aim, insta-kills
+  // whatever it lands on, then breaks into two bombs and each of those breaks into two
+  // more. The code still calls it `sink` behind the scenes
+  sink:    { name: 'BOMBA', dmg: 9999, rate: .2, mag: 6, pellets: 1, spread: 0, grenade: true, cluster: 2, speed: 50, lift: .45 },
 };
 const WKEYS = Object.keys(WEAPONS);
 const PARTS = ['wall', 'ramp', 'floor'];
@@ -546,7 +546,7 @@ function openChest() {
     }
     if (Math.random() < .1) {   // the everything gun, chest only
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'sink');
-      feed('🍳 THE KITCHEN SINK! One TNT shell — it wipes out whoever it hits, then splits into 2 bombs and those split into 2 more');
+      feed('🧨 THE BOMBA! One TNT shell — it wipes out whoever it hits, then splits into 2 bombs and those split into 2 more');
     }
     if (Math.random() < (DIFF.noah || .05)) {   // 15% on easy, 5% anywhere else
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'noah');
@@ -1287,7 +1287,7 @@ function buildTntItem(withLabel) {
   return g;
 }
 // the boom itself — used by hand-thrown TNT and by grenade launcher shots
-// safe: the person who threw it cannot be hurt by this blast (a sink cluster lands at
+// safe: the person who threw it cannot be hurt by this blast (a bomba cluster lands at
 //       your feet, so it would be nonsense if it killed you)
 // small: a cluster baby — tighter blast, no light, because three.js rebuilds every
 //        shader whenever the number of lights changes and a screen full of little
@@ -1496,7 +1496,7 @@ function updateTsunami(dt) {
 // ── SUPPLY DROPS ─────────────────────────────────────────────────────
 // Every so often a plane crosses the island and pushes a crate out over the safe
 // circle. The crate floats down on a parachute, bursts open when it hits the ground
-// and spills good loot — it always has one legendary (KITCHEN SINK, NOAH or a TIME WATCH).
+// and spills good loot — it always has one legendary (BOMBA, NOAH or a TIME WATCH).
 function clearDrops() {
   for (const d of drops) { if (d.mesh) { scene.remove(d.mesh); wipe(d.mesh); } if (d.beam) { scene.remove(d.beam); wipe(d.beam); } }
   drops = [];
@@ -1627,7 +1627,7 @@ function dropLoot(d) {
   };
   const pick = Math.random();
   let star = 'NOAH';
-  if (pick < .4) { out(1.4, 'weapon', 'sink'); star = 'a KITCHEN SINK'; }
+  if (pick < .4) { out(1.4, 'weapon', 'sink'); star = 'the BOMBA'; }
   else if (pick < .8) out(1.4, 'noah');
   else { out(1.4, 'watch'); star = 'a TIME WATCH'; }
   out(2.1, 'bigmac');
@@ -1752,7 +1752,7 @@ function updateGrenadeBalls(dt) {
   });
 }
 
-// 🍳 the sink shell going off. stage 2 is the big one (that is the insta-kill), it spits
+// 🧨 the bomba shell going off. stage 2 is the big one (that is the insta-kill), it spits
 // out two stage-1 bombs, and each of those spits out two stage-0 ones. So: 1 → 2 → 4
 function sinkBurst(pos, stage, dmg) {
   explodeTnt(pos, stage === 2 ? dmg : stage === 1 ? 70 : 45, player, true, stage < 2);
