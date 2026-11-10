@@ -510,7 +510,7 @@ function openChest() {
     }
     if (Math.random() < .05) {   // the rarest thing in the game by far
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'noah');
-      feed('🌊 NOAH!! The LEGENDARY ark — throw it to flood the whole island');
+      feed('🌊 NOAH!! The rarest thing in the game — throw him!');
     }
     sfx(880, .15, 'sine', .15);
     setTimeout(() => sfx(1175, .25, 'sine', .12), 90);
@@ -849,8 +849,64 @@ function buildOrgerItem(withGlow) {
   return g;
 }
 
-// NOAH — a tiny wooden ark with a rainbow over it. Throw it and the island drowns
-function buildNoahItem(withLabel, withGlow) {
+// NOAH — the man himself: brown flat-top, glasses, standing in a very small ark
+function buildNoahHead() {
+  const g = new THREE.Group();
+  const mat = c => new THREE.MeshLambertMaterial({ color: c });
+  const skin = mat(0xf1c27d), hair = mat(0x5a3a1e), dark = mat(0x23262d);
+  const lens = new THREE.MeshLambertMaterial({ color: 0xbfe4ff, transparent: true, opacity: .5 });
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.56, .6, .54), skin);
+  head.position.y = .3;
+  const flat = new THREE.Mesh(new THREE.BoxGeometry(.62, .2, .6), hair);    // the flat-top
+  flat.position.y = .66;
+  const earL = new THREE.Mesh(new THREE.BoxGeometry(.07, .13, .09), skin); earL.position.set(-.31, .32, 0);
+  const earR = earL.clone(); earR.position.x = .31;
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(.055, 8, 6), dark); eyeL.position.set(-.14, .34, .215);
+  const eyeR = eyeL.clone(); eyeR.position.x = .14;
+  const rimL = new THREE.Mesh(new THREE.BoxGeometry(.23, .17, .04), dark); rimL.position.set(-.14, .34, .29);
+  const rimR = rimL.clone(); rimR.position.x = .14;
+  const panL = new THREE.Mesh(new THREE.BoxGeometry(.17, .12, .045), lens); panL.position.set(-.14, .34, .285);
+  const panR = panL.clone(); panR.position.x = .14;
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(.08, .03, .04), dark); bridge.position.set(0, .35, .29);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(.03, .04, .26), dark); armL.position.set(-.27, .36, .15);
+  const armR = armL.clone(); armR.position.x = .27;
+  const browL = new THREE.Mesh(new THREE.BoxGeometry(.2, .035, .05), hair); browL.position.set(-.14, .46, .28);
+  const browR = browL.clone(); browR.position.x = .14;
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(.2, .04, .04), mat(0x9c5a48));
+  mouth.position.set(0, .12, .28);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(.58, .34, .14), hair);   // hair down the back
+  back.position.set(0, .44, -.24);
+  g.add(head, flat, back, earL, earR, eyeL, eyeR, rimL, rimR, panL, panR, bridge, armL, armR, browL, browR, mouth);
+  return g;
+}
+
+// the little HUD icon — same face, drawn flat so it reads at slot size
+let _faceIcon = null;
+function noahFaceIcon() {
+  if (_faceIcon) return _faceIcon;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const c = cv.getContext('2d');
+  const box = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+  box(11, 3, 42, 15, '#5a3a1e');    // flat-top
+  box(13, 17, 38, 36, '#f1c27d');   // face
+  box(11, 17, 4, 11, '#5a3a1e');    // sideburns
+  box(49, 17, 4, 11, '#5a3a1e');
+  box(13, 26, 17, 12, '#23262d');   // glasses frames
+  box(34, 26, 17, 12, '#23262d');
+  box(28, 30, 8, 3, '#23262d');
+  box(16, 29, 11, 6, '#bfe4ff');    // lenses
+  box(37, 29, 11, 6, '#bfe4ff');
+  box(20, 30, 4, 4, '#1b1f26');     // eyes
+  box(41, 30, 4, 4, '#1b1f26');
+  box(26, 44, 12, 3, '#9c5a48');    // mouth
+  _faceIcon = cv.toDataURL();
+  return _faceIcon;
+}
+const faceImg = () => `<img src="${noahFaceIcon()}" style="height:1.15em;vertical-align:-.22em;border-radius:3px">`;
+const faceTxt = () => '🌊 NOAH';
+
+function buildNoahItem(withGlow) {
   const g = new THREE.Group();
   const plank = new THREE.MeshLambertMaterial({ color: 0x9a6a3a });
   const dark = new THREE.MeshLambertMaterial({ color: 0x6f4a26 });
@@ -860,32 +916,26 @@ function buildNoahItem(withLabel, withGlow) {
   hull.position.y = .26;
   const bow = new THREE.Mesh(new THREE.BoxGeometry(.2, .48, .5), dark);
   bow.position.set(.62, .38, 0);
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(.4, .26, .38), dark);
-  cabin.position.set(-.18, .53, 0);
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.035, .045, .7, 6), dark);
-  mast.position.set(.2, .74, 0);
-  const sail = new THREE.Mesh(new THREE.PlaneGeometry(.34, .3),
-    new THREE.MeshLambertMaterial({ color: 0xf6f1e2, side: THREE.DoubleSide }));
-  sail.position.set(.02, .82, 0);
-  g.add(keel, hull, bow, cabin, mast, sail);
-  // rainbow arching over the deck
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(.3, .26, .34), dark);
+  cabin.position.set(-.44, .5, 0);
+  g.add(keel, hull, bow, cabin);
+  // NOAH rides in the middle of his boat
+  const noah = buildNoahHead();
+  noah.position.set(.12, .4, 0);
+  noah.scale.setScalar(.92);
+  g.add(noah);
+  // and a rainbow behind him
   const RAINBOW = [0xff4d4d, 0xffa03c, 0xffe94d, 0x5ad85a, 0x4aa3ff, 0xb06bff];
   for (let i = 0; i < 6; i++) {
-    const arc = new THREE.Mesh(new THREE.TorusGeometry(.52 - i * .055, .026, 5, 20, Math.PI),
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(.32 - i * .036, .02, 5, 18, Math.PI),
       new THREE.MeshLambertMaterial({ color: RAINBOW[i], emissive: RAINBOW[i], emissiveIntensity: .4 }));
-    arc.position.set(-.1, .42, 0);
+    arc.position.set(-.44, .86, 0);
     g.add(arc);
   }
   if (withGlow !== false) {
     const glow = new THREE.PointLight(0x8fd6ff, 1, 6);
-    glow.position.y = .6;
+    glow.position.y = .7;
     g.add(glow);
-  }
-  if (withLabel !== false) {
-    const lab = makeTag('NOAH', '#8fd6ff');
-    lab.position.y = 1.5;
-    lab.scale.setScalar(.85);
-    g.add(lab);
   }
   return g;
 }
@@ -1192,13 +1242,13 @@ let noahBalls = [], noahPending = false, tsunami = null;
 const TS_END = 380;    // how far the ring travels before it runs out of steam
 
 function throwNoah() {
-  if (tsunami) { buildFlash('The flood is already on its way!'); return; }
+  if (tsunami) { buildFlash('🌊 NOAH is already on its way!'); return; }
   const s = player.slots[player.cur];
   if (!s || s.type !== 'noah') return;
   cancelHeal();
   s.count--;                              // one ark = one flood, that is the whole deal
   if (s.count <= 0) player.slots[player.cur] = null;
-  const ball = buildNoahItem(false, true);
+  const ball = buildNoahItem(true);
   ball.scale.setScalar(1.1);
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
@@ -1236,7 +1286,7 @@ function makeTsunami(x, z) {
   scene.add(g);
   tsunami = { x, z, r: 5, group: g, wall, foam, lip, skirt, light, baseY: g.position.y, hit: new Set(), built: new Set() };
   buildFlash('🌊 NOAH UNLEASHED — RUN!!');
-  feed('🌊 THE GREAT FLOOD is on its way. Nobody outruns this one');
+  feed('🌊 NOAH has arrived — the whole island is going under!');
   sfx(48, 1.1, 'sawtooth', .5);
   setTimeout(() => sfx(90, .9, 'sine', .3), 120);
 }
@@ -1264,7 +1314,7 @@ function updateTsunami(dt) {
     if (b === orgerBoss) {   // HARPER is tough — the flood only knocks 300 off him
       const dealt = damageFighter(b, 300, player);
       popDmg(new THREE.Vector3(b.x, (b.y || 0) + 3.4, b.z), dealt, true);
-      if (b.alive) buildFlash('🌊 The flood hammers HARPER! -300');
+      if (b.alive) buildFlash('🌊 NOAH hammers HARPER! -300');
     } else {
       damageFighter(b, 9999, player);
       popDmg(new THREE.Vector3(b.x, groundHeight(b.x, b.z, 0) + 2.3, b.z), 999, true);
@@ -1401,10 +1451,10 @@ function updateViewmodel() {
     m.scale.setScalar(.45);
     m.position.set(.44, -.62, -.5);
   } else if (s.type === 'noah') {
-    m = buildNoahItem(false, false);
-    m.rotation.set(-.15, 2.4, .15);
-    m.scale.setScalar(.34);
-    m.position.set(.44, -.56, -.58);
+    m = buildNoahItem(false);
+    m.rotation.set(-.1, .4, 0);        // face turned back towards the player
+    m.scale.setScalar(.42);
+    m.position.set(.42, -.6, -.58);
   } else {
     m = buildShield(false);
     m.rotation.set(.15, -.4, .1);
@@ -1542,7 +1592,7 @@ function updateHandItem() {
   else if (s.type === 'shield') { m = buildShield(false); m.rotation.set(.2, -.4, 0); m.scale.setScalar(.4); }
   else if (s.type === 'bigmac') { m = buildBigMac(false); m.scale.setScalar(.42); }
   else if (s.type === 'orger') { m = buildOrgerItem(false); m.scale.setScalar(.4); }
-  else if (s.type === 'noah') { m = buildNoahItem(false, false); m.rotation.set(-.4, .9, 0); m.scale.setScalar(.26); }
+  else if (s.type === 'noah') { m = buildNoahItem(false); m.rotation.set(-.25, .5, 0); m.scale.setScalar(.32); }
   else { m = buildTntItem(false); m.scale.setScalar(.35); }
   if (s.type !== 'weapon') m.position.set(0, -.18, .12);
   handItem = m;
@@ -2235,7 +2285,7 @@ function updatePlayer(dt) {
   const nearChest = chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3);
   if (nearChest) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to open the chest' : 'Press E to open chest') + ' 🧰'; }
   else if (nearPickup) {
-    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery HARPER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : nearPickup.type === 'noah' ? '🌊 NOAH — THE ARK' : 'Big Pot 🧪';
+    const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery HARPER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : nearPickup.type === 'noah' ? faceTxt() : 'Big Pot 🧪';
     pr.style.display = 'block';
     pr.textContent = `${isTouch ? 'Tap GRAB for' : 'Press E to pick up'} ${tname}`;
   }
@@ -2554,7 +2604,7 @@ function drawHud() {
   if (viewmodel && viewmodel._key !== vmKey) { viewmodel._key = vmKey; updateViewmodel(); }
   if (held && held.type === 'orger') setHtml($('wpn'), '🤢 HARPER<br>left-click: THROW!');
   else if (held && held.type === 'tnt') setHtml($('wpn'), '💣 TNT<br>left-click: THROW!');
-  else if (held && held.type === 'noah') setHtml($('wpn'), '🌊 NOAH<br>left-click: SUMMON THE FLOOD!');
+  else if (held && held.type === 'noah') setHtml($('wpn'), faceImg() + ' NOAH<br>left-click: THROW HIM!');
   else if (held && held.type !== 'weapon') setHtml($('wpn'), (ITEM_NAME[held.type] || 'item') + '<br>' + (isTouch ? 'tap ⛑ to use' : 'right-click to use'));
   else if (player.weapon) { const w = WEAPONS[player.weapon]; setHtml($('wpn'), `${w.name}<br>${player.reloading ? 'RELOADING…' : player.ammo + ' / ∞'}`); }
   else setHtml($('wpn'), '');
@@ -2564,9 +2614,9 @@ function drawHud() {
   syncSlot();
   for (let i = 0; i < 5; i++) {
     const el = $('slot' + i), s = player.slots[i];
-    setTxt(el, !s ? (i + 1) + '· —'
+    setHtml(el, !s ? (i + 1) + '· —'
       : s.type === 'weapon' ? (i + 1) + '· ' + WEAPONS[s.id].name + ' · ' + s.ammo
-      : (i + 1) + '· ' + (ITEM_ICON[s.type] || '?') + ' ×' + s.count);
+      : (i + 1) + '· ' + (s.type === 'noah' ? faceImg() + ' NOAH' : (ITEM_ICON[s.type] || '?')) + ' ×' + s.count);
     const cn = 'slot' + (i === player.cur ? ' active' : '');
     if (el.className !== cn) el.className = cn;
   }
