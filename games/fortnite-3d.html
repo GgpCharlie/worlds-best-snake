@@ -249,7 +249,7 @@
         </div>
         <div class="card" id="timedCard">
           <div class="ci">⏳</div>
-          <div class="cn"><b>30-MIN POWER</b><span>Endless power for 30 minutes, then it switches off</span></div>
+          <div class="cn"><b>30-MIN POWER</b><span>Endless power for 30 min + all coins you win are doubled</span></div>
           <button class="buy" id="buyTimed">🪙 1,000</button>
         </div>
         <div class="card" id="permCard">
@@ -3090,6 +3090,8 @@ function endGame(won, place, gaveUp) {
     const frac = place <= 5 ? .25 : place <= 15 ? .15 : .05;
     reward = Math.round(DIFF.coins * frac / 5) * 5;
   }
+  // ⏳ 30-MIN POWER pays double, wins and placements alike
+  if (timedOn()) reward *= 2;
   coins += reward;
   savePurse();
   const el = player.kills + ' elimination' + (player.kills === 1 ? '' : 's') + ' · survived ' + Math.floor(gameTime) + 's';
@@ -3099,7 +3101,8 @@ function endGame(won, place, gaveUp) {
       ? `<b style="color:#9fb0ff;font-size:22px">🏠 Back to the lobby</b><br>${el}`
       : `<b style="color:#ff6b6b;font-size:22px">Placement #${place || aliveCount}</b><br>${el}${orgerBoss ? ' · Harper got you 👹' : ''}`;
   html += `<br><span style="color:#ffd76e;font-size:20px">+${reward.toLocaleString()} 🪙</span> <span style="color:#9fb0ff;font-size:14px">on ${DIFF.icon} ${DIFF.name}` +
-    (won && up.cash ? ` · 💰 EXTRA CASH +${Math.round(SHOP.cash.step * up.cash * 100)}%` : '') + `</span>`;
+    (won && up.cash ? ` · 💰 EXTRA CASH +${Math.round(SHOP.cash.step * up.cash * 100)}%` : '') +
+    (timedOn() ? ' · ⏳ MONEY ×2' : '') + `</span>`;
   // the match is over — so are the upgrades you bought for it (unless endless, or you
   // are still inside a 30-minute power window)
   if (!neverReset()) { up.hp = 0; up.dmg = 0; up.cash = 0; }
@@ -3309,7 +3312,7 @@ function buffTxt() {
   if (up.dmg) bits.push('⚔️+' + Math.round(SHOP.dmg.step * up.dmg * 100) + '%');
   if (up.cash) bits.push('💰+' + Math.round(SHOP.cash.step * up.cash * 100) + '%');
   // so you can see how much of your 30-minute power is left while you are fighting
-  if (timedOn() && !endless) bits.push('⏳' + leftStr());
+  if (timedOn() && !endless) bits.push('⏳' + leftStr() + ' 💰×2');
   return bits.length ? ' · ' + bits.join(' ') : '';
 }
 function shopNote(msg, good) {
@@ -3384,10 +3387,10 @@ function paintShop(bump) {
     tsub.textContent = 'You already own ENDLESS POWER forever';
   } else if (timedOn()) {
     bt.textContent = '⏳ +30 MIN'; bt.disabled = coins < TIMED_COST; tcard.style.opacity = 1;
-    tsub.textContent = `ON — ${leftStr()} left. Buy again to add 30 more minutes`;
+    tsub.textContent = `ON — ${leftStr()} left · coins ×2. Buy again to add 30 more minutes`;
   } else {
     bt.textContent = '🪙 ' + TIMED_COST.toLocaleString(); bt.disabled = coins < TIMED_COST; tcard.style.opacity = 1;
-    tsub.textContent = 'Endless power for 30 minutes, then it switches off';
+    tsub.textContent = 'Endless power for 30 min + double coins, then it switches off';
   }
   const bp = $('buyPerm'), card = $('permCard'), sub = card.querySelector('.cn span');
   if (endless) {
