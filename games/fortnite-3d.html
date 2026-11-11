@@ -277,9 +277,10 @@ const WEAPONS = {
   // whatever it lands on, then breaks into two bombs and each of those breaks into two
   // more. The code still calls it `sink` behind the scenes
   sink:    { name: 'BOMBA', dmg: 9999, rate: .2, mag: 6, pellets: 1, spread: 0, grenade: true, cluster: 2, speed: 50, lift: .45 },
-  // THE MINIGUN: a 200-round belt at 20 shots a second. It sprays, it kicks and it
-  // takes ages to reload — and it only ever turns up inside a chest
-  minigun: { name: 'MINIGUN', dmg: 9, rate: .05, mag: 200, pellets: 1, spread: .05, reload: 4.5 },
+  // THE MINIGUN: a 500-round belt at 40 shots a second. Every bullet is a papercut, so
+  // it is the rain of papercuts that kills. It sprays, it kicks and it takes ages to
+  // reload — and it only ever turns up inside a chest
+  minigun: { name: 'MINIGUN', dmg: 1, rate: .025, mag: 500, pellets: 1, spread: .05, reload: 4.5 },
 };
 const WKEYS = Object.keys(WEAPONS);
 const PARTS = ['wall', 'ramp', 'floor'];
@@ -550,7 +551,7 @@ function openChest() {
     }
     if (Math.random() < .2) {   // the pig — chests only, it never lies about on the ground
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'minigun');
-      feed('🌀 THE MINIGUN! 200 rounds, 20 shots a second — mind the recoil');
+      feed('🌀 THE MINIGUN! 500 rounds, 40 shots a second — each bullet is a papercut');
     }
     if (Math.random() < .1) {   // the everything gun, chest only
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'sink');
@@ -2271,6 +2272,7 @@ function addTracer(from, to) {
 
 // floating damage numbers — white for body, big orange for headshots
 const dmgNums = [];
+let hitTick = 0;      // for very fast guns: only report every 5th hit
 const _dv = new THREE.Vector3();
 function popDmg(pos, amt, crit) {
   const el = document.createElement('div');
@@ -2298,8 +2300,15 @@ function playerFire() {
   if (!player.weapon) return;
   const w = WEAPONS[player.weapon];
   if (player.reloading || player.ammo <= 0) { if (player.ammo <= 0) startReload(); return; }
-  if (gameTime - player.lastShot < w.rate) return;
-  player.lastShot = gameTime; player.ammo--;
+  const since = gameTime - player.lastShot;
+  if (since < w.rate) return;
+  // a 40-a-second gun is faster than a phone frame, so a fast gun pays out the shots it
+  // owes instead of quietly dropping them (max 3 at a time, and a big lag spike does not
+  // mean you owe two hundred bullets). Slow guns like the shotgun just fire one
+  const catchUp = w.rate <= .1;
+  const burst = catchUp ? Math.max(1, Math.min(3, Math.floor(since / w.rate), player.ammo)) : 1;
+  player.lastShot = catchUp ? Math.max(gameTime - w.rate, player.lastShot + w.rate * burst) : gameTime;
+  player.ammo -= burst;
   shotSound(player.weapon);
   flashMuzzle(w.grenade || player.weapon === 'shotgun' || player.weapon === 'minigun');
   if (player.ammo === 0) startReload();
@@ -2324,9 +2333,10 @@ function playerFire() {
     targets.push(...b.meshes);
   }
   if (player.alive && orgerBoss && orgerBoss.alive) targets.push(...orgerBoss.meshes);
-  for (let p = 0; p < w.pellets; p++) {
+  const shots = w.pellets * burst;
+  for (let p = 0; p < shots; p++) {
     const d = dir.clone();
-    if (w.pellets > 1) { d.x += rand(-w.spread, w.spread); d.y += rand(-w.spread, w.spread); d.normalize(); }
+    if (w.pellets > 1 || player.weapon === 'minigun') { d.x += rand(-w.spread, w.spread); d.y += rand(-w.spread, w.spread); d.normalize(); }
     raycaster.set(origin, d);
     raycaster.far = 200;
     const hits = raycaster.intersectObjects([...obstacleMeshes, ...targets]);
@@ -2338,10 +2348,16 @@ function playerFire() {
         const headshot = hits[0].object.userData.part === 'head';
         const dmg = headshot ? w.dmg * 2 : w.dmg;
         const dealt = damageFighter(bot, dmg, player);
-        if (dealt > 0) popDmg(hits[0].point, dealt, headshot);
-        $('hitmark').style.opacity = 1;
-        setTimeout(() => $('hitmark').style.opacity = 0, 90);
-        sfx(880, .06, 'sine', .12);
+        // a minigun lands 40 hits a second — printing every one buries the screen in
+        // little "1"s and hammers the phone with sounds, so it only reports every 5th
+        hitTick = (hitTick + 1) % 5;
+        const tell = player.weapon !== 'minigun' || hitTick === 0;
+        if (dealt > 0 && tell) popDmg(hits[0].point, dealt, headshot);
+        if (tell) {
+          $('hitmark').style.opacity = 1;
+          setTimeout(() => $('hitmark').style.opacity = 0, 90);
+          sfx(880, .06, 'sine', .12);
+        }
       }
       const struct = hits[0].object.userData.struct;
       if (struct) damageStructure(struct, w.dmg);
@@ -2353,7 +2369,7 @@ function playerFire() {
     }
     addTracer(thirdPerson ? muzzleWorld() : origin.clone().add(d.clone().multiplyScalar(1)), end);
   }
-  pitch = clamp(pitch + (player.weapon === 'shotgun' ? .028 : player.weapon === 'minigun' ? .0035 : .008), -1.5, 1.5);
+  pitch = clamp(pitch + (player.weapon === 'shotgun' ? .028 : player.weapon === 'minigun' ? .0035 * burst : .008), -1.5, 1.5);
 }
 
 function startReload() {
