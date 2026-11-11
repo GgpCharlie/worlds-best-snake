@@ -46,57 +46,57 @@
   #overlay button { margin-top: 18px; font-size: 24px; padding: 14px 44px; border: none; border-radius: 8px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; }
   #overlay #quitBtn { font-size: 15px; padding: 9px 22px; background: #4a4a6a; }
   #overlay #quitBtn:hover { background: #5a5a7d; }
-  .diffrow { display: flex; gap: 8px; margin: 4px 0 0; justify-content: center; }
-  .diffbtn { margin: 0; font-size: 17px; padding: 9px 22px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
+  .diffrow { display: flex; gap: 7px; margin: 3px 0 0; justify-content: center; }
+  .diffbtn { margin: 0; font-size: 14px; padding: 5px 15px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
   .diffbtn:hover { color: #fff; border-color: #8a5cff; }
   .diffbtn.sel { background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; border-color: #ffd76e; }
-  #diffdesc { margin: 6px 0 0; font-size: 13px; color: #9fb0ff; min-height: 16px; }
+  #diffdesc { margin: 4px 0 0; font-size: 12px; color: #9fb0ff; min-height: 14px; }
   .diffbtn.dim { opacity: .4; cursor: not-allowed; }
   /* the lobby camera switch — same setting as the V key mid-match */
-  #camBtn { margin: 0 0 8px; font-size: 15px; padding: 6px 18px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
+  #camBtn { margin: 0 0 6px; font-size: 13px; padding: 4px 14px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
   #camBtn:hover { color: #fff; border-color: #8a5cff; }
-  #camBtn small { display: block; font-size: 11px; font-weight: normal; color: #9fb0ff; margin-top: 1px; }
+  #camBtn small { display: block; font-size: 10px; font-weight: normal; color: #9fb0ff; margin-top: 1px; }
 
   /* ---- the 2D lobby: coins, the shop, and the drop button ---- */
   #lobby { position: absolute; inset: 0; z-index: 11; color: #fff; overflow: hidden auto; }
   #lobbyart { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  #lobbyUI { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 10px; box-sizing: border-box; }
-  #lobby h1 { font-size: 31px; margin: 0; color: #ffd76e; text-shadow: 3px 3px 0 #4a2a91, 0 0 22px #000; }
-  #lobResult { font-size: 15px; min-height: 18px; text-shadow: 1px 1px 0 #000; }
-  #purse { font-size: 17px; font-weight: bold; text-shadow: 2px 2px 0 #000; background: rgba(0,0,0,.55); display: inline-block; padding: 2px 14px; border-radius: 20px; border: 2px solid rgba(255,215,110,.5); }
+  #lobbyUI { position: relative; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 10px; box-sizing: border-box; }
+  #lobby h1 { font-size: 24px; margin: 0; color: #ffd76e; text-shadow: 3px 3px 0 #4a2a91, 0 0 22px #000; }
+  #lobResult { font-size: 13.5px; min-height: 16px; text-shadow: 1px 1px 0 #000; }
+  #purse { font-size: 15px; font-weight: bold; text-shadow: 2px 2px 0 #000; background: rgba(0,0,0,.55); display: inline-block; padding: 1px 12px; border-radius: 20px; border: 2px solid rgba(255,215,110,.5); }
   #purse.bump { animation: bump .3s ease-out; }
   @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.16); } 100% { transform: scale(1); } }
-  #lobBody { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; justify-content: center; margin-top: 2px; width: 100%; max-width: 880px; }
-  .lpanel { flex: 1 1 300px; min-width: 0; box-sizing: border-box; background: rgba(10,8,32,.88); border: 2px solid #5a2ecb; border-radius: 12px; padding: 9px 13px; text-align: center; max-width: 430px; box-shadow: 0 6px 26px rgba(0,0,0,.5); overflow-wrap: break-word; }
-  .lpanel h3 { margin: 0 0 6px; font-size: 15px; color: #ffd76e; letter-spacing: 1.5px; }
-  .lhelp { font-size: 11.5px; line-height: 1.45; color: #a8b3ff; }
-  .lpay { font-size: 12.5px; margin: 3px 0 8px; color: #9fe8a0; }
+  #lobBody { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; justify-content: center; margin-top: 2px; width: 100%; max-width: 880px; }
+  .lpanel { flex: 1 1 300px; min-width: 0; box-sizing: border-box; background: rgba(10,8,32,.88); border: 2px solid #5a2ecb; border-radius: 11px; padding: 7px 11px; text-align: center; max-width: 430px; box-shadow: 0 6px 26px rgba(0,0,0,.5); overflow-wrap: break-word; }
+  .lpanel h3 { margin: 0 0 4px; font-size: 14px; color: #ffd76e; letter-spacing: 1.5px; }
+  .lhelp { font-size: 10.5px; line-height: 1.35; color: #a8b3ff; }
+  .lpay { font-size: 11.5px; margin: 2px 0 6px; color: #9fe8a0; }
   .lshop { max-width: 430px; }
   /* the shop has more cards than a phone screen, so the list scrolls on its own and the
      tip and the message line stay put */
-  #shopScroll { max-height: min(52vh, 470px); overflow-y: auto; overscroll-behavior: contain;
+  #shopScroll { max-height: min(46vh, 430px); overflow-y: auto; overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch; padding-right: 6px; scrollbar-width: thin;
     scrollbar-color: #8a5cff rgba(255,255,255,.08); }
   #shopScroll::-webkit-scrollbar { width: 8px; }
   #shopScroll::-webkit-scrollbar-thumb { background: #8a5cff; border-radius: 8px; }
   #shopScroll::-webkit-scrollbar-track { background: rgba(255,255,255,.08); border-radius: 8px; }
-  #shophint { font-size: 11.5px; color: #9fb0ff; margin: 1px 0 4px; display: none; }
-  .ltip { font-size: 11.5px; color: #9fb0ff; margin: 0 0 7px; line-height: 1.4; }
-  .card { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 6px 9px; margin-bottom: 6px; text-align: left; }
-  .card .ci { font-size: 21px; width: 26px; text-align: center; }
+  #shophint { font-size: 10.5px; color: #9fb0ff; margin: 1px 0 3px; display: none; }
+  .ltip { font-size: 10.5px; color: #9fb0ff; margin: 0 0 5px; line-height: 1.35; }
+  .card { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-radius: 9px; padding: 4px 8px; margin-bottom: 5px; text-align: left; }
+  .card .ci { font-size: 19px; width: 23px; text-align: center; }
   .card .cn { flex: 1 1 110px; min-width: 96px; }
-  .card .cn b { display: block; font-size: 15px; }
-  .card .cn span { font-size: 12px; color: #9fb0ff; }
+  .card .cn b { display: block; font-size: 13.5px; }
+  .card .cn span { font-size: 11px; color: #9fb0ff; }
   .pips { display: flex; gap: 3px; min-width: 60px; }
-  .pip { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); }
+  .pip { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); }
   .pip.on { background: #ffd76e; border-color: #fff; box-shadow: 0 0 6px #ffd76e; }
-  .buy { border: none; border-radius: 8px; padding: 6px 10px; font-weight: bold; font-size: 14px; cursor: pointer; background: linear-gradient(#43c96a,#1f8f3f); color: #fff; min-width: 82px; }
+  .buy { border: none; border-radius: 7px; padding: 5px 9px; font-weight: bold; font-size: 13px; cursor: pointer; background: linear-gradient(#43c96a,#1f8f3f); color: #fff; min-width: 72px; }
   .buy:hover { filter: brightness(1.15); }
   .buy:disabled { background: #2c2c39; color: #7d7d90; cursor: not-allowed; }
   #permCard { border-color: rgba(255,215,110,.6); background: rgba(255,215,110,.09); }
   #permCard .buy { background: linear-gradient(#ffd76e,#d59a1c); color: #3a2600; }
-  #shopnote { font-size: 12.5px; min-height: 16px; color: #ffb0b0; margin: 3px 0 0; }
-  #dropBtn { font-size: 21px; padding: 10px 38px; border: none; border-radius: 9px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; margin-top: 2px; }
+  #shopnote { font-size: 11.5px; min-height: 14px; color: #ffb0b0; margin: 2px 0 0; }
+  #dropBtn { font-size: 18px; padding: 8px 32px; border: none; border-radius: 9px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; margin-top: 2px; }
   #dropBtn:hover { filter: brightness(1.12); }
   .hidden { display: none !important; }
 
@@ -143,8 +143,12 @@
   body.touch #prompt { font-size: 15px; }
   body.touch #overlay h1 { font-size: 36px; }
   body.touch #overlay p { font-size: 14px; padding: 0 18px; }
-  body.touch #lobby h1 { font-size: 24px; }
-  body.touch #dropBtn { font-size: 19px; padding: 10px 28px; }
+  body.touch #lobby h1 { font-size: 20px; }
+  body.touch #dropBtn { font-size: 17px; padding: 7px 24px; }
+  /* thumb-sized buttons on phones even though everything is squashed down */
+  body.touch .diffbtn { font-size: 15px; padding: 7px 16px; }
+  body.touch #camBtn { font-size: 14px; padding: 6px 16px; }
+  body.touch .buy { font-size: 13.5px; padding: 7px 10px; min-width: 76px; }
   /* phones lying on their side are short, so tuck the buttons in */
   @media (max-height: 430px) {
     body.touch #tFire { width: 84px; height: 84px; bottom: 74px; }
