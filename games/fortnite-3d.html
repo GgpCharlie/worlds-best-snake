@@ -247,6 +247,12 @@
           <div class="pips" id="pipsCash"></div>
           <button class="buy" id="buyCash">🪙 45</button>
         </div>
+        <div class="card" id="cardLuck">
+          <div class="ci">🍀</div>
+          <div class="cn"><b>LUCKY</b><span>+5% loot in every chest you open, each stack</span></div>
+          <div class="pips" id="pipsLuck"></div>
+          <button class="buy" id="buyLuck">🪙 50</button>
+        </div>
         <div class="card" id="cardBelly">
           <div class="ci">🍔</div>
           <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +25 more room for max health</span></div>
@@ -538,6 +544,12 @@ function makeChest(x, z) {
   chests.push({ group: g, lid, glow, beam, gem, x, z, opened: false });
 }
 
+// 🍀 LUCKY from the shop: every stack is worth +5%. `lucky` lifts a chance by 5 points
+// (never past sure), `lootLuck` makes the chest spill out 5% more things
+const chestLuck = () => .05 * up.luck;
+const lucky = p => Math.min(1, p + chestLuck());
+const lootLuck = () => 1 + chestLuck();
+
 function openChest() {
   for (const c of chests) {
     if (c.opened || Math.hypot(player.x - c.x, player.z - c.z) > 3) continue;
@@ -545,34 +557,34 @@ function openChest() {
     c.openT = gameTime;          // used to fade the glow out — an empty chest sits dark
     c.lid.rotation.x = -1.7;
     c.glow.intensity = 2.6;      // one last bright pop as the lid comes up
-    const tntRoll = Math.random() < .17;   // 17% of chests hide a stick of TNT
-    for (let n = 0, L = Math.max(2, Math.round(3 * DIFF.loot)); n < L; n++) {
+    const tntRoll = Math.random() < lucky(.17);   // 17% of chests hide a stick of TNT
+    for (let n = 0, L = Math.max(2, Math.round(3 * DIFF.loot * lootLuck())); n < L; n++) {
       const roll = Math.random();
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) },
         n === 0 && tntRoll ? 'tnt' : roll < .6 ? 'weapon' : roll < .8 ? 'shield' : 'medkit');
     }
     if (tntRoll) feed('💣 TNT in this chest! Throw it — it wipes out anyone nearby');
-    if (Math.random() < .16) {
+    if (Math.random() < lucky(.16)) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'bigmac');
       feed('🍔 BIG MAC in this chest! Eating one fills your health and shields and adds 25 max');
     }
-    if (Math.random() < .1) {
+    if (Math.random() < lucky(.1)) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'orger');
       feed('🤢 Something STINKY is in this chest... throw it!');
     }
-    if (Math.random() < .2) {   // the pig — chests only, it never lies about on the ground
+    if (Math.random() < lucky(.2)) {   // the pig — chests only, it never lies about on the ground
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'minigun');
       feed('🌀 THE MINIGUN! 500 rounds, 40 shots a second, dead accurate — 3 damage a pop');
     }
-    if (Math.random() < .1) {   // the everything gun, chest only
+    if (Math.random() < lucky(.1)) {   // the everything gun, chest only
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'sink');
       feed('🧨 THE BOMBA! One TNT shell — it wipes out whoever it hits, then splits into 2 bombs and those split into 2 more');
     }
-    if (Math.random() < (DIFF.noah || .05)) {   // 15% on easy, 5% anywhere else
+    if (Math.random() < lucky(DIFF.noah || .05)) {   // 15% on easy, 5% anywhere else
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'noah');
       feed('🌊 NOAH!! The rarest thing in the game — throw him!');
     }
-    if (Math.random() < .07) {   // a rare one for a rare effect
+    if (Math.random() < lucky(.07)) {   // a rare one for a rare effect
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'watch');
       feed('⏱ A TIME WATCH! Use it and the whole island freezes for 30 seconds');
     }
@@ -3121,7 +3133,7 @@ function endGame(won, place, gaveUp) {
     (timedOn() ? ' · ⏳ MONEY ×2' : '') + `</span>`;
   // the match is over — so are the upgrades you bought for it (unless endless, or you
   // are still inside a 30-minute power window)
-  if (!neverReset()) { up.hp = up.dmg = up.cash = up.belly = 0; }
+  if (!neverReset()) { up.hp = up.dmg = up.cash = up.belly = up.luck = 0; }
   showLobby(html);
   paintDiff();
 }
@@ -3286,8 +3298,9 @@ const SHOP = {
   dmg: { base: 35, step: .15, label: '+15% damage' },
   cash: { base: 45, step: .25, label: '+25% win coins' },
   belly: { base: 55, step: 1, label: '🍔 BIGGER BELLY' },
+  luck: { base: 50, step: .05, label: '🍀 LUCKY', linear: true },
 };
-let coins = 0, endless = false, timedTill = 0, up = { hp: 0, dmg: 0, cash: 0, belly: 0 };
+let coins = 0, endless = false, timedTill = 0, up = { hp: 0, dmg: 0, cash: 0, belly: 0, luck: 0 };
 // 30-minute power runs on the clock, so it keeps counting even with the page shut
 const timedOn = () => Date.now() < timedTill;
 // the one question every shop rule asks: do my upgrades survive the match?
@@ -3302,6 +3315,7 @@ try {
     up.dmg = Math.max(0, +localStorage.getItem('bm3d-up-dmg') | 0);
     up.cash = Math.max(0, +localStorage.getItem('bm3d-up-cash') | 0);
     up.belly = Math.max(0, +localStorage.getItem('bm3d-up-belly') | 0);
+    up.luck = Math.max(0, +localStorage.getItem('bm3d-up-luck') | 0);
   }
 } catch (e) {}
 function savePurse() {
@@ -3314,12 +3328,14 @@ function savePurse() {
     localStorage.setItem('bm3d-up-dmg', keep ? up.dmg : 0);
     localStorage.setItem('bm3d-up-cash', keep ? up.cash : 0);
     localStorage.setItem('bm3d-up-belly', keep ? up.belly : 0);
+    localStorage.setItem('bm3d-up-luck', keep ? up.luck : 0);
   } catch (e) {}
 }
 function stackCap() { return neverReset() ? Infinity : MAX_STACK; }
 // per-match prices climb 1.7x a stack; endless mode climbs slowly but never stops
 function upCost(k) {
   const b = SHOP[k].base;
+  if (SHOP[k].linear && !neverReset()) return b * (up[k] + 1);
   return neverReset() ? Math.round(b * (up[k] + 1) * 3) : Math.round(b * Math.pow(1.7, up[k]));
 }
 function hpBonus() { return SHOP.hp.step * up.hp; }
@@ -3331,6 +3347,7 @@ function buffTxt() {
   if (up.dmg) bits.push('⚔️+' + Math.round(SHOP.dmg.step * up.dmg * 100) + '%');
   if (up.cash) bits.push('💰+' + Math.round(SHOP.cash.step * up.cash * 100) + '%');
   if (up.belly) bits.push('🍔×' + macStack() + ' ' + macRoom() + ' room');
+  if (up.luck) bits.push('🍀+' + Math.round(SHOP.luck.step * up.luck * 100) + '% loot');
   // so you can see how much of your 30-minute power is left while you are fighting
   if (timedOn() && !endless) bits.push('⏳' + leftStr() + ' 💰×2');
   return bits.length ? ' · ' + bits.join(' ') : '';
@@ -3397,7 +3414,8 @@ function paintShop(bump) {
   pips($('pipsDmg'), up.dmg);
   pips($('pipsCash'), up.cash);
   pips($('pipsBelly'), up.belly);
-  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash'], ['buyBelly', 'belly']]) {
+  pips($('pipsLuck'), up.luck);
+  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash'], ['buyBelly', 'belly'], ['buyLuck', 'luck']]) {
     const b = $(id);
     b.textContent = '🪙 ' + upCost(k);
     b.disabled = coins < upCost(k) || up[k] >= stackCap();
@@ -3427,6 +3445,7 @@ $('buyHp').addEventListener('click', () => buyUp('hp'));
 $('buyDmg').addEventListener('click', () => buyUp('dmg'));
 $('buyCash').addEventListener('click', () => buyUp('cash'));
 $('buyBelly').addEventListener('click', () => buyUp('belly'));
+$('buyLuck').addEventListener('click', () => buyUp('luck'));
 $('buyPerm').addEventListener('click', buyEndless);
 $('buyTimed').addEventListener('click', buyTimed);
 
@@ -3439,7 +3458,7 @@ setInterval(() => {
     timedWas = on;
     const inLobby = $('lobby').classList.contains('hidden') === false;
     if (!on && inLobby) {
-      up.hp = up.dmg = up.cash = up.belly = 0;
+      up.hp = up.dmg = up.cash = up.belly = up.luck = 0;
       savePurse();
       shopNote('⏳ Your 30-MIN POWER ran out — upgrades are back to normal');
     }
