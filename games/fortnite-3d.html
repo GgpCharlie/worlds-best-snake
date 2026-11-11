@@ -249,7 +249,7 @@
         </div>
         <div class="card" id="cardBelly">
           <div class="ci">🍔</div>
-          <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +100 to the max-health limit</span></div>
+          <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +25 to the max-health limit</span></div>
           <div class="pips" id="pipsBelly"></div>
           <button class="buy" id="buyBelly">🪙 55</button>
         </div>
@@ -554,7 +554,7 @@ function openChest() {
     if (tntRoll) feed('💣 TNT in this chest! Throw it — it wipes out anyone nearby');
     if (Math.random() < .16) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'bigmac');
-      feed('🍔 BIG MAC in this chest! Eating one fills your health and shields and adds 75 max');
+      feed('🍔 BIG MAC in this chest! Eating one fills your health and shields and adds 25 max');
     }
     if (Math.random() < .1) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'orger');
@@ -2927,14 +2927,14 @@ function dropItem() {
   sfx(300, .1, 'triangle', .1);
 }
 
-// A BIG MAC is worth +75 max health and fills your shields, and you can stack them up to
-// MAX_HP_CAP total. A 🍔 BIGGER BELLY from the shop lets you carry more of them and lifts
-// that cap by 100 a stack.
-const BIG_MAC_HP = 75;
+// A BIG MAC is worth +25 max health and fills your shields, and you can stack them up to
+// MAX_HP_CAP total. A 🍔 BIGGER BELLY from the shop lets you carry one more and lifts that
+// cap by 25 a stack.
+const BIG_MAC_HP = 25;
 const MAX_HP_CAP = 500;
 const MAX_SHIELD = 100;
 const macStack = () => 2 + up.belly;          // how many burgers fit in one slot
-const hpCap = () => MAX_HP_CAP + up.belly * 100;
+const hpCap = () => MAX_HP_CAP + up.belly * 25;
 // how long each thing takes to use — a whole burger takes a bit of chewing
 const USE_TIME = { medkit: 3, shield: 3, bigmac: 4, watch: 1.5 };
 const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 HARPER', tnt: '💣 TNT', noah: '🌊 NOAH', watch: '⏱ TIME WATCH' };
@@ -3327,7 +3327,7 @@ function buffTxt() {
   if (up.hp) bits.push('❤️+' + hpBonus());
   if (up.dmg) bits.push('⚔️+' + Math.round(SHOP.dmg.step * up.dmg * 100) + '%');
   if (up.cash) bits.push('💰+' + Math.round(SHOP.cash.step * up.cash * 100) + '%');
-  if (up.belly) bits.push('🍔×' + macStack() + ' +' + (up.belly * 100) + ' cap');
+  if (up.belly) bits.push('🍔×' + macStack() + ' +' + (up.belly * 25) + ' cap');
   // so you can see how much of your 30-minute power is left while you are fighting
   if (timedOn() && !endless) bits.push('⏳' + leftStr() + ' 💰×2');
   return bits.length ? ' · ' + bits.join(' ') : '';
