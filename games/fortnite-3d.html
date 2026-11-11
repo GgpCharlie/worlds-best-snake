@@ -249,7 +249,7 @@
         </div>
         <div class="card" id="cardBelly">
           <div class="ci">🍔</div>
-          <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +25 to the max-health limit</span></div>
+          <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +25 more room for max health</span></div>
           <div class="pips" id="pipsBelly"></div>
           <button class="buy" id="buyBelly">🪙 55</button>
         </div>
@@ -2178,7 +2178,7 @@ function initGame() {
   player = { isPlayer: true, name: 'You', x: sp.x, z: sp.z, y: 79, hp: 200 + hpBonus(), maxHp: 200 + hpBonus(), shield: 0, alive: true, kills: 0, state: 'bus',
     weapon: 'pistol', ammo: WEAPONS.pistol.mag, cur: 0,
     slots: [{ type: 'weapon', id: 'pistol', ammo: WEAPONS.pistol.mag }, null, null, null, null],
-    healing: null,
+    healing: null, macTaken: 0,   // how much +max health this fighter has eaten
     reloading: false, reloadT: 0, lastShot: 0 };
   bots = NAMES.slice(0, DIFF.bots).map(makeBot);
   for (let i = 0; i < 150; i++) spawnLoot();
@@ -2780,11 +2780,13 @@ function updatePlayer(dt) {
           // the whole point of the BIG MAC: a bigger health bar, a full tank in it, and
           // your shields back to the top as well
           player.maxHp += BIG_MAC_HP;
+          player.macTaken = (player.macTaken | 0) + BIG_MAC_HP;
           player.hp = player.maxHp;
           player.shield = MAX_SHIELD;
           sfx(430, .18, 'square', .12);
           setTimeout(() => sfx(700, .25, 'sine', .15), 120);
-          feed('🍔 BIG MAC! Max health ' + (player.maxHp - BIG_MAC_HP) + ' → ' + player.maxHp + ', shields topped up');
+          feed('🍔 BIG MAC! Max health ' + (player.maxHp - BIG_MAC_HP) + ' → ' + player.maxHp + ', shields topped up' +
+            (macLeft() >= BIG_MAC_HP ? ' · room for ' + Math.floor(macLeft() / BIG_MAC_HP) + ' more' : ' · belly is full 🍔'));
           buildFlash('🍔 MAX HEALTH +' + BIG_MAC_HP + ' · SHIELDS FULL');
         }
         else if (player.healing.kind === 'watch') stopTime();
@@ -2927,14 +2929,15 @@ function dropItem() {
   sfx(300, .1, 'triangle', .1);
 }
 
-// A BIG MAC is worth +25 max health and fills your shields, and you can stack them up to
-// MAX_HP_CAP total. A 🍔 BIGGER BELLY from the shop lets you carry one more and lifts that
-// cap by 25 a stack.
+// A BIG MAC is worth +25 max health and fills your shields. There is only so much a
+// fighter can squeeze in: room for 100 of extra max health to start with. A 🍔 BIGGER
+// BELLY from the shop gives room for 25 more a stack, plus one extra burger in a slot.
 const BIG_MAC_HP = 25;
-const MAX_HP_CAP = 500;
+const MAC_ROOM = 100;
 const MAX_SHIELD = 100;
-const macStack = () => 2 + up.belly;          // how many burgers fit in one slot
-const hpCap = () => MAX_HP_CAP + up.belly * 25;
+const macStack = () => 2 + up.belly;                        // how many burgers fit in a slot
+const macRoom = () => MAC_ROOM + up.belly * 25;             // total +max health a belly fits
+const macLeft = () => Math.max(0, macRoom() - (player.macTaken | 0));
 // how long each thing takes to use — a whole burger takes a bit of chewing
 const USE_TIME = { medkit: 3, shield: 3, bigmac: 4, watch: 1.5 };
 const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 HARPER', tnt: '💣 TNT', noah: '🌊 NOAH', watch: '⏱ TIME WATCH' };
@@ -2948,7 +2951,7 @@ function useHeal(kind) {
   if (!s || s.type !== kind || s.count <= 0) return;
   if (kind === 'medkit' && player.hp >= player.maxHp) return;
   if (kind === 'shield' && player.shield >= MAX_SHIELD) return;
-  if (kind === 'bigmac' && player.maxHp >= hpCap()) { buildFlash('Too much burger!! 🍔 (BIGGER BELLY lifts this)'); return; }
+  if (kind === 'bigmac' && macLeft() < BIG_MAC_HP) { buildFlash('Too much burger!! 🍔 (BIGGER BELLY lifts this)'); return; }
   if (kind === 'watch' && freeze > 0) { buildFlash('Time is already frozen! ⏱'); return; }
   player.healing = { kind, t: 0, dur: USE_TIME[kind] || 3 };
   $('healui').style.display = 'block';
@@ -3327,7 +3330,7 @@ function buffTxt() {
   if (up.hp) bits.push('❤️+' + hpBonus());
   if (up.dmg) bits.push('⚔️+' + Math.round(SHOP.dmg.step * up.dmg * 100) + '%');
   if (up.cash) bits.push('💰+' + Math.round(SHOP.cash.step * up.cash * 100) + '%');
-  if (up.belly) bits.push('🍔×' + macStack() + ' +' + (up.belly * 25) + ' cap');
+  if (up.belly) bits.push('🍔×' + macStack() + ' ' + macRoom() + ' room');
   // so you can see how much of your 30-minute power is left while you are fighting
   if (timedOn() && !endless) bits.push('⏳' + leftStr() + ' 💰×2');
   return bits.length ? ' · ' + bits.join(' ') : '';
