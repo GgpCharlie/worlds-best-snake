@@ -277,10 +277,10 @@ const WEAPONS = {
   // whatever it lands on, then breaks into two bombs and each of those breaks into two
   // more. The code still calls it `sink` behind the scenes
   sink:    { name: 'BOMBA', dmg: 9999, rate: .2, mag: 6, pellets: 1, spread: 0, grenade: true, cluster: 2, speed: 50, lift: .45 },
-  // THE MINIGUN: a 500-round belt at 40 shots a second. Every bullet is a papercut, so
-  // it is the rain of papercuts that kills. It sprays, it kicks and it takes ages to
-  // reload — and it only ever turns up inside a chest
-  minigun: { name: 'MINIGUN', dmg: 1, rate: .025, mag: 500, pellets: 1, spread: .05, reload: 4.5 },
+  // THE MINIGUN: a 500-round belt at 40 shots a second. Each bullet is small, so it is
+  // the rain of them that kills. It sprays, it kicks and it takes ages to reload — and it
+  // only ever turns up inside a chest
+  minigun: { name: 'MINIGUN', dmg: 3, rate: .025, mag: 500, pellets: 1, spread: .05, reload: 4.5 },
 };
 const WKEYS = Object.keys(WEAPONS);
 const PARTS = ['wall', 'ramp', 'floor'];
@@ -551,7 +551,7 @@ function openChest() {
     }
     if (Math.random() < .2) {   // the pig — chests only, it never lies about on the ground
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'minigun');
-      feed('🌀 THE MINIGUN! 500 rounds, 40 shots a second — each bullet is a papercut');
+      feed('🌀 THE MINIGUN! 500 rounds, 40 shots a second — 3 damage a pop');
     }
     if (Math.random() < .1) {   // the everything gun, chest only
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'sink');
