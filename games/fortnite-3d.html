@@ -247,6 +247,12 @@
           <div class="pips" id="pipsCash"></div>
           <button class="buy" id="buyCash">🪙 45</button>
         </div>
+        <div class="card" id="cardBelly">
+          <div class="ci">🍔</div>
+          <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +100 to the max-health limit</span></div>
+          <div class="pips" id="pipsBelly"></div>
+          <button class="buy" id="buyBelly">🪙 55</button>
+        </div>
         <div class="card" id="timedCard">
           <div class="ci">⏳</div>
           <div class="cn"><b>30-MIN POWER</b><span>Endless power for 30 min + all coins you win are doubled</span></div>
@@ -548,7 +554,7 @@ function openChest() {
     if (tntRoll) feed('💣 TNT in this chest! Throw it — it wipes out anyone nearby');
     if (Math.random() < .16) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'bigmac');
-      feed('🍔 BIG MAC in this chest! Eating one fills your health and adds 50 max');
+      feed('🍔 BIG MAC in this chest! Eating one fills your health and shields and adds 75 max');
     }
     if (Math.random() < .1) {
       spawnLoot({ x: c.x + rand(-1, 1), z: c.z + rand(-1, 1) }, 'orger');
@@ -2771,16 +2777,18 @@ function updatePlayer(dt) {
         if (hs.count <= 0) player.slots[player.cur] = null;
         if (player.healing.kind === 'medkit') { player.hp = Math.min(player.maxHp, player.hp + 60); sfx(660, .2, 'sine', .15); }
         else if (player.healing.kind === 'bigmac') {
-          // the whole point of the BIG MAC: a bigger health bar AND a full tank in it
+          // the whole point of the BIG MAC: a bigger health bar, a full tank in it, and
+          // your shields back to the top as well
           player.maxHp += BIG_MAC_HP;
           player.hp = player.maxHp;
+          player.shield = MAX_SHIELD;
           sfx(430, .18, 'square', .12);
           setTimeout(() => sfx(700, .25, 'sine', .15), 120);
-          feed('🍔 BIG MAC! Max health ' + (player.maxHp - BIG_MAC_HP) + ' → ' + player.maxHp + ' and you are all patched up');
-          buildFlash('🍔 MAX HEALTH +' + BIG_MAC_HP);
+          feed('🍔 BIG MAC! Max health ' + (player.maxHp - BIG_MAC_HP) + ' → ' + player.maxHp + ', shields topped up');
+          buildFlash('🍔 MAX HEALTH +' + BIG_MAC_HP + ' · SHIELDS FULL');
         }
         else if (player.healing.kind === 'watch') stopTime();
-        else { player.shield = Math.min(100, player.shield + 50); sfx(520, .25, 'sine', .15); }
+        else { player.shield = Math.min(MAX_SHIELD, player.shield + 50); sfx(520, .25, 'sine', .15); }
       }
       player.healing = null;
       $('healui').style.display = 'none';
@@ -2842,7 +2850,7 @@ function pickupNearest() {
   if (!best) return;
   if (best.type === 'medkit' || best.type === 'shield' || best.type === 'bigmac' || best.type === 'orger' || best.type === 'tnt' || best.type === 'noah' || best.type === 'watch') {
     // one ark, one watch — they are both one-time-only things
-    const MAXC = (best.type === 'noah' || best.type === 'watch') ? 1 : 2;
+    const MAXC = (best.type === 'noah' || best.type === 'watch') ? 1 : best.type === 'bigmac' ? macStack() : 2;
     let idx = player.slots.findIndex(s => s && s.type === best.type && s.count < MAXC);
     let swapOut = null;
     if (idx >= 0) player.slots[idx].count++;
@@ -2919,9 +2927,14 @@ function dropItem() {
   sfx(300, .1, 'triangle', .1);
 }
 
-// a BIG MAC is worth +50 max health, and you can stack them up to MAX_HP_CAP total
-const BIG_MAC_HP = 50;
+// A BIG MAC is worth +75 max health and fills your shields, and you can stack them up to
+// MAX_HP_CAP total. A 🍔 BIGGER BELLY from the shop lets you carry more of them and lifts
+// that cap by 100 a stack.
+const BIG_MAC_HP = 75;
 const MAX_HP_CAP = 500;
+const MAX_SHIELD = 100;
+const macStack = () => 2 + up.belly;          // how many burgers fit in one slot
+const hpCap = () => MAX_HP_CAP + up.belly * 100;
 // how long each thing takes to use — a whole burger takes a bit of chewing
 const USE_TIME = { medkit: 3, shield: 3, bigmac: 4, watch: 1.5 };
 const ITEM_NAME = { medkit: '⛑ Medkit', shield: '🧪 Big Pot', bigmac: '🍔 BIG MAC', orger: '🤢 HARPER', tnt: '💣 TNT', noah: '🌊 NOAH', watch: '⏱ TIME WATCH' };
@@ -2934,8 +2947,8 @@ function useHeal(kind) {
   const s = player.slots[player.cur];
   if (!s || s.type !== kind || s.count <= 0) return;
   if (kind === 'medkit' && player.hp >= player.maxHp) return;
-  if (kind === 'shield' && player.shield >= 100) return;
-  if (kind === 'bigmac' && player.maxHp >= MAX_HP_CAP) { buildFlash('Too much burger!! 🍔'); return; }
+  if (kind === 'shield' && player.shield >= MAX_SHIELD) return;
+  if (kind === 'bigmac' && player.maxHp >= hpCap()) { buildFlash('Too much burger!! 🍔 (BIGGER BELLY lifts this)'); return; }
   if (kind === 'watch' && freeze > 0) { buildFlash('Time is already frozen! ⏱'); return; }
   player.healing = { kind, t: 0, dur: USE_TIME[kind] || 3 };
   $('healui').style.display = 'block';
@@ -3105,7 +3118,7 @@ function endGame(won, place, gaveUp) {
     (timedOn() ? ' · ⏳ MONEY ×2' : '') + `</span>`;
   // the match is over — so are the upgrades you bought for it (unless endless, or you
   // are still inside a 30-minute power window)
-  if (!neverReset()) { up.hp = 0; up.dmg = 0; up.cash = 0; }
+  if (!neverReset()) { up.hp = up.dmg = up.cash = up.belly = 0; }
   showLobby(html);
   paintDiff();
 }
@@ -3269,8 +3282,9 @@ const SHOP = {
   hp: { base: 25, step: 25, label: '+25 max HP' },
   dmg: { base: 35, step: .15, label: '+15% damage' },
   cash: { base: 45, step: .25, label: '+25% win coins' },
+  belly: { base: 55, step: 1, label: '🍔 BIGGER BELLY' },
 };
-let coins = 0, endless = false, timedTill = 0, up = { hp: 0, dmg: 0, cash: 0 };
+let coins = 0, endless = false, timedTill = 0, up = { hp: 0, dmg: 0, cash: 0, belly: 0 };
 // 30-minute power runs on the clock, so it keeps counting even with the page shut
 const timedOn = () => Date.now() < timedTill;
 // the one question every shop rule asks: do my upgrades survive the match?
@@ -3284,6 +3298,7 @@ try {
     up.hp = Math.max(0, +localStorage.getItem('bm3d-up-hp') | 0);
     up.dmg = Math.max(0, +localStorage.getItem('bm3d-up-dmg') | 0);
     up.cash = Math.max(0, +localStorage.getItem('bm3d-up-cash') | 0);
+    up.belly = Math.max(0, +localStorage.getItem('bm3d-up-belly') | 0);
   }
 } catch (e) {}
 function savePurse() {
@@ -3295,6 +3310,7 @@ function savePurse() {
     localStorage.setItem('bm3d-up-hp', keep ? up.hp : 0);
     localStorage.setItem('bm3d-up-dmg', keep ? up.dmg : 0);
     localStorage.setItem('bm3d-up-cash', keep ? up.cash : 0);
+    localStorage.setItem('bm3d-up-belly', keep ? up.belly : 0);
   } catch (e) {}
 }
 function stackCap() { return neverReset() ? Infinity : MAX_STACK; }
@@ -3311,6 +3327,7 @@ function buffTxt() {
   if (up.hp) bits.push('❤️+' + hpBonus());
   if (up.dmg) bits.push('⚔️+' + Math.round(SHOP.dmg.step * up.dmg * 100) + '%');
   if (up.cash) bits.push('💰+' + Math.round(SHOP.cash.step * up.cash * 100) + '%');
+  if (up.belly) bits.push('🍔×' + macStack() + ' +' + (up.belly * 100) + ' cap');
   // so you can see how much of your 30-minute power is left while you are fighting
   if (timedOn() && !endless) bits.push('⏳' + leftStr() + ' 💰×2');
   return bits.length ? ' · ' + bits.join(' ') : '';
@@ -3376,7 +3393,8 @@ function paintShop(bump) {
   pips($('pipsHp'), up.hp);
   pips($('pipsDmg'), up.dmg);
   pips($('pipsCash'), up.cash);
-  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash']]) {
+  pips($('pipsBelly'), up.belly);
+  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash'], ['buyBelly', 'belly']]) {
     const b = $(id);
     b.textContent = '🪙 ' + upCost(k);
     b.disabled = coins < upCost(k) || up[k] >= stackCap();
@@ -3405,6 +3423,7 @@ function paintShop(bump) {
 $('buyHp').addEventListener('click', () => buyUp('hp'));
 $('buyDmg').addEventListener('click', () => buyUp('dmg'));
 $('buyCash').addEventListener('click', () => buyUp('cash'));
+$('buyBelly').addEventListener('click', () => buyUp('belly'));
 $('buyPerm').addEventListener('click', buyEndless);
 $('buyTimed').addEventListener('click', buyTimed);
 
@@ -3417,7 +3436,7 @@ setInterval(() => {
     timedWas = on;
     const inLobby = $('lobby').classList.contains('hidden') === false;
     if (!on && inLobby) {
-      up.hp = up.dmg = up.cash = 0;
+      up.hp = up.dmg = up.cash = up.belly = 0;
       savePurse();
       shopNote('⏳ Your 30-MIN POWER ran out — upgrades are back to normal');
     }
