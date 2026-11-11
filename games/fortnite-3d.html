@@ -277,10 +277,10 @@ const WEAPONS = {
   // whatever it lands on, then breaks into two bombs and each of those breaks into two
   // more. The code still calls it `sink` behind the scenes
   sink:    { name: 'BOMBA', dmg: 9999, rate: .2, mag: 6, pellets: 1, spread: 0, grenade: true, cluster: 2, speed: 50, lift: .45 },
-  // THE MINIGUN: a 500-round belt at 40 shots a second. Each bullet is small, so it is
-  // the rain of them that kills. It sprays, it kicks and it takes ages to reload — and it
-  // only ever turns up inside a chest
-  minigun: { name: 'MINIGUN', dmg: 3, rate: .025, mag: 500, pellets: 1, spread: .05, reload: 4.5 },
+  // THE MINIGUN: a 500-round belt at 40 shots a second, and every single one of them
+  // goes exactly where the crosshair is. Each bullet is small, so it is the rain of them
+  // that kills. It takes ages to reload — and it only ever turns up inside a chest
+  minigun: { name: 'MINIGUN', dmg: 3, rate: .025, mag: 500, pellets: 1, spread: 0, reload: 4.5 },
 };
 const WKEYS = Object.keys(WEAPONS);
 const PARTS = ['wall', 'ramp', 'floor'];
@@ -551,7 +551,7 @@ function openChest() {
     }
     if (Math.random() < .2) {   // the pig — chests only, it never lies about on the ground
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'minigun');
-      feed('🌀 THE MINIGUN! 500 rounds, 40 shots a second — 3 damage a pop');
+      feed('🌀 THE MINIGUN! 500 rounds, 40 shots a second, dead accurate — 3 damage a pop');
     }
     if (Math.random() < .1) {   // the everything gun, chest only
       spawnLoot({ x: c.x + rand(-1.6, 1.6), z: c.z + rand(-1.6, 1.6) }, 'weapon', 'sink');
@@ -2336,7 +2336,7 @@ function playerFire() {
   const shots = w.pellets * burst;
   for (let p = 0; p < shots; p++) {
     const d = dir.clone();
-    if (w.pellets > 1 || player.weapon === 'minigun') { d.x += rand(-w.spread, w.spread); d.y += rand(-w.spread, w.spread); d.normalize(); }
+    if (w.pellets > 1) { d.x += rand(-w.spread, w.spread); d.y += rand(-w.spread, w.spread); d.normalize(); }
     raycaster.set(origin, d);
     raycaster.far = 200;
     const hits = raycaster.intersectObjects([...obstacleMeshes, ...targets]);
