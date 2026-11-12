@@ -243,7 +243,7 @@
           <b>WASD</b> move · <b>Mouse</b> look · <b>Click</b> shoot · <b>R</b> build mode · <b>F</b> reload<br>
           <b>Scroll/1–5</b> select slot · <b>E</b> pick up · <b>G</b> drop · <b>Right-click</b> use held ⛑/🧪/🍔<br>
           <b>Shift</b> sprint · <b>Q</b> cycle part · <b>V</b> camera · <b>Esc</b> pause<br>
-          Shoot trees &amp; rocks for wood — 20 wood per build<br>
+          Shoot trees &amp; rocks for wood — 20 wood per build · 🚗 <b>E</b> next to a car to drive it<br>
           The storm bites for <b>5</b> a second — stay inside the blue circle
         </div>
       </div>
@@ -352,7 +352,7 @@ const mmCtx = $('mm').getContext('2d');
 let scene, camera, renderer, clock;
 let player, bots, loot, tracers, colliders, obstacleMeshes, killfeed, storm, playing = false, aliveCount, gameTime;
 let wood = 0, buildMode = false, buildPart = 0, preview = {}, structures = [], lastPlace = 0, stamina = 100, gameGen = 0;
-let chests = [], roofs = [], bus = null, busDir = null, viewmodel = null;
+let chests = [], roofs = [], bus = null, busDir = null, viewmodel = null, cars = [];
 let thirdPerson = true, playerChar = null, handItem = null, camSnap = true, sprintingNow = false;
 try { thirdPerson = localStorage.getItem('bm3d-cam') !== 'fp'; } catch (e) {}
 let paused = false;
@@ -463,6 +463,7 @@ function resolveCollisions() {
     // Walls stop at their own height. They used to stretch up into the sky, so landing on
     // a roof meant being trapped behind an invisible wall you could never walk past.
     if (c.top !== undefined && feet > c.top - 1.2) continue;
+    if (c.car && c.car === player.car) continue;   // your own car is not in your way
     if (c.type === 'r') collideCircle(c.x, c.z, c.r, .5);
     else collideRect(c.x, c.z, c.hw, c.hh, .5);
   }
@@ -473,6 +474,7 @@ function pointBlocked(x, z, r, feet) {
   for (const c of colliders) {
     // same idea as resolveCollisions: pass how high you are standing and walls above you stop counting
     if (feet !== undefined && c.top !== undefined && feet > c.top - 1.2) continue;
+    if (c.car && player && c.car === player.car) continue;   // a car drives through its own bulk
     if (c.type === 'r' && Math.hypot(x - c.x, z - c.z) < c.r + r) return true;
     if (c.type === 'rect' && x > c.x - c.hw - r && x < c.x + c.hw + r && z > c.z - c.hh - r && z < c.z + c.hh + r) return true;
   }
@@ -644,6 +646,180 @@ function jumpFromBus() {
   sfx(320, .25, 'sawtooth', .12);
 }
 
+// ── 🚗 CARS ──────────────────────────────────────────────────────────
+// A handful of cars sit around the island. Walk up to one and press E (or GRAB) to hop in,
+// then W/S to drive and brake, A/D to steer, SPACE for the handbrake, E again to hop out.
+// Looking around steers the car too, so on a phone the stick does everything.
+const CAR_MAX = 22, CAR_REV = 9, CAR_ACCEL = 13, CAR_TURN = 2.1;
+const CAR_COLORS = [0xd94f4f, 0x3f7fd9, 0xe0b13a, 0x46bf72, 0xf2f2f7, 0x2b2b33, 0xb04fd4, 0xff7a2e];
+
+// the model faces -Z, same as the camera, so one heading number drives both
+function buildCar(color) {
+  const g = new THREE.Group();
+  const paint = new THREE.MeshLambertMaterial({ color });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x1b1d26 });
+  const glass = new THREE.MeshLambertMaterial({ color: 0x9fd8ff });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, .8, 4.4), paint);
+  body.position.y = .85;
+  const bonnet = new THREE.Mesh(new THREE.BoxGeometry(1.95, .45, 1.5), paint);
+  bonnet.position.set(0, 1.2, -1.05);
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.8, .85, 1.9), paint);
+  cab.position.set(0, 1.5, .62);
+  const win = new THREE.Mesh(new THREE.BoxGeometry(1.68, .58, 2.0), glass);
+  win.position.set(0, 1.58, .62);
+  const bump = new THREE.Mesh(new THREE.BoxGeometry(2.2, .35, .45), dark);
+  bump.position.set(0, .6, -2.15);
+  const bump2 = bump.clone();
+  bump2.position.z = 2.15;
+  const lamp = new THREE.MeshBasicMaterial({ color: 0xfff3b8 });
+  for (const dx of [-.68, .68]) {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(.42, .26, .12), lamp);
+    hl.position.set(dx, .95, -2.21);
+    g.add(hl);
+  }
+  const tail = new THREE.MeshBasicMaterial({ color: 0xff4a3a });
+  for (const dx of [-.72, .72]) {
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(.4, .22, .12), tail);
+    tl.position.set(dx, .95, 2.21);
+    g.add(tl);
+  }
+  g.add(body, bonnet, cab, win, bump, bump2);
+  for (const [wx, wz] of [[-1, -1.35], [1, -1.35], [-1, 1.45], [1, 1.45]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(.52, .52, .42, 10), dark);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(wx, .52, wz);
+    g.add(w);
+  }
+  return g;
+}
+
+function makeCar(x, z, h) {
+  const mesh = buildCar(CAR_COLORS[cars.length % CAR_COLORS.length]);
+  mesh.position.set(x, 0, z);
+  mesh.rotation.y = h;
+  scene.add(mesh);
+  const c = { x, z, y: 0, h, speed: 0, mesh, lookYaw: h, crashT: 0, driver: null };
+  c.col = { type: 'r', x, z, r: 1.7, car: c };   // solid, so you can hide behind one
+  colliders.push(c.col);
+  cars.push(c);
+  return c;
+}
+
+// the closest car you are not already sitting in
+function nearestCar(range) {
+  let best = null, bd = range;
+  for (const c of cars) {
+    if (c.driver) continue;
+    const d = Math.hypot(player.x - c.x, player.z - c.z);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+
+// E / GRAB: hop in if a car is next to you, hop out if you are already driving
+function useCar() {
+  if (!player || !player.alive || player.state !== 'fight') return false;
+  if (player.car) { hopOut(); return true; }
+  const c = nearestCar(3.6);
+  if (!c) return false;
+  cancelHeal();
+  buildMode = false;      // no point trying to hammer out a wall from the driver's seat
+  if (handItem && playerChar) { playerChar.userData.hand.remove(handItem); handItem = null; }
+  player.car = c; c.driver = player;
+  player.x = c.x; player.z = c.z; player.y = c.y + 2;
+  yaw = c.h; c.lookYaw = c.h;
+  velY = 0; camSnap = true; sprintingNow = false;
+  sfx(85, .3, 'sawtooth', .13);
+  setTimeout(() => sfx(135, .26, 'sawtooth', .11), 130);
+  buildFlash(isTouch ? '🚗 VROOM! Push the stick to drive' : '🚗 VROOM! <b>W</b>/<b>S</b> drive · <b>A</b>/<b>D</b> steer · <b>SPACE</b> handbrake');
+  return true;
+}
+
+function hopOut() {
+  const c = player.car;
+  c.speed = 0; c.driver = null; player.car = null;
+  const rx = Math.cos(c.h), rz = -Math.sin(c.h);   // the kerb side of the car
+  let px = c.x + rx * 2.9, pz = c.z + rz * 2.9;
+  if (pointBlocked(px, pz, .6, 0)) { px = c.x - rx * 2.9; pz = c.z - rz * 2.9; }
+  if (pointBlocked(px, pz, .6, 0)) { px = c.x + Math.sin(c.h) * 3.4; pz = c.z + Math.cos(c.h) * 3.4; }
+  player.x = clamp(px, -HALF + 3, HALF - 3);
+  player.z = clamp(pz, -HALF + 3, HALF - 3);
+  player.y = 1.7 + groundHeight(player.x, player.z, 0);
+  velY = 0; camSnap = true;
+  sfx(190, .1, 'triangle', .08);
+}
+
+function driveCar(dt) {
+  const c = player.car;
+  let thr = 0, steer = 0;
+  if (keys['w']) thr++;
+  if (keys['s']) thr--;
+  if (keys['a']) steer--;
+  if (keys['d']) steer++;
+  if (isTouch) { thr += touchMove.y; steer += touchMove.x; }
+  thr = clamp(thr, -1, 1); steer = clamp(steer, -1, 1);
+  // whatever the mouse or a drag did to the camera, the car follows — so looking steers
+  const swing = yaw - c.lookYaw;
+  if (Math.abs(swing) < .6) c.h += swing * .4;   // damped, or a fast flick spins you
+  c.speed += (thr > 0 ? CAR_ACCEL : CAR_ACCEL * .7) * thr * dt;
+  if (!thr) c.speed *= Math.max(0, 1 - 1.2 * dt);         // coasting to a stop
+  if (keys[' ']) c.speed *= Math.max(0, 1 - 3.4 * dt);    // handbrake
+  c.speed = clamp(c.speed, -CAR_REV, CAR_MAX);
+  if (Math.abs(c.speed) < .06) c.speed = 0;
+  const grip = clamp(Math.abs(c.speed) / 5, 0, 1);        // no steering from a dead stop
+  c.h -= steer * CAR_TURN * dt * grip * (c.speed < 0 ? -1 : 1);   // turning right means the heading drops
+  const nx = c.x - Math.sin(c.h) * c.speed * dt;
+  const nz = c.z - Math.cos(c.h) * c.speed * dt;
+  const crashed = Math.abs(nx) > HALF - 5 || Math.abs(nz) > HALF - 5 || pointBlocked(nx, nz, 1.8, 0);
+  if (crashed) {
+    c.crashT -= dt;
+    if (Math.abs(c.speed) > 8 && c.crashT <= 0) {
+      c.crashT = .7;
+      const hard = Math.abs(c.speed) > 14;
+      smokePuff(c.x, c.y + 1.2, c.z, 1.6, 0xdcdcdc, .5);
+      sfx(65, .26, 'square', .17);
+      if (hard) damageFighter(player, 6, null);
+      buildFlash(hard ? '💥 CRASH!' : '🚗 Mind the paint!');
+    }
+    c.speed *= -.3;      // bounce back off whatever you hit
+  } else { c.x = nx; c.z = nz; c.crashT = Math.max(0, c.crashT - dt); }
+  // ride the ground (and up ramps and roofs) instead of clipping through it
+  const gy = groundHeight(c.x, c.z, c.y);
+  c.y += (gy - c.y) * Math.min(1, dt * 10);
+  c.mesh.position.set(c.x, c.y, c.z);
+  c.mesh.rotation.set(clamp(c.speed * .004, -.05, .06), c.h, -steer * grip * .06);
+  c.col.x = c.x; c.col.z = c.z;
+  // anyone dumb enough to stand in the road
+  if (Math.abs(c.speed) > 7) {
+    for (const b of bots) {
+      if (!b.alive || Math.hypot(b.x - c.x, b.z - c.z) > 2.6) continue;
+      smokePuff(b.x, b.y - .8, b.z, 1.4, 0xffcc66, .5);
+      damageFighter(b, 150, player);
+      feed('🚗 You ran ' + b.name + ' over!');
+    }
+  }
+  player.x = c.x; player.z = c.z; player.y = c.y + 2;
+  velY = 0;
+  yaw = c.h; c.lookYaw = c.h;
+  placeCamera(dt);
+  // you can still shoot from the passenger-free comfort of the driving seat
+  const heldNow = player.slots[player.cur];
+  if (mouseDown && !buildMode) {
+    if (heldNow && heldNow.type === 'orger') { if (!throwPending) { throwPending = true; throwOrger(); } }
+    else if (heldNow && heldNow.type === 'tnt') { if (!tntPending) { tntPending = true; throwTnt(); } }
+    else if (heldNow && heldNow.type === 'noah') { if (!noahPending) { noahPending = true; throwNoah(); } }
+    else playerFire();
+  }
+  if (!mouseDown) { throwPending = false; tntPending = false; noahPending = false; }
+  if (player.reloading) {
+    player.reloadT -= dt;
+    if (player.reloadT <= 0) { player.reloading = false; player.ammo = player.weapon ? WEAPONS[player.weapon].mag : 0; }
+  }
+  const pr = $('prompt');
+  pr.style.display = 'block';
+  pr.textContent = '🚗 ' + Math.round(Math.abs(c.speed) * 3.4) + ' km/h · ' + (isTouch ? 'GRAB to hop out' : 'E to hop out');
+}
+
 function buildWorld() {
   colliders = []; obstacleMeshes = []; roofs = [];
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
@@ -776,7 +952,16 @@ function buildWorld() {
     crate.rotation.y = rand(0, 6.28);
     scene.add(crate);
     obstacleMeshes.push(crate);
-    colliders.push({ type: 'c', x, z, r: 1.5 });
+    colliders.push({ type: 'r', x, z, r: 1.5 });
+  }
+  // 🚗 cars — parked in the open, well away from the walls so you can actually reach them
+  cars = [];
+  for (let i = 0; i < 8; i++) {
+    let x, z, t = 0;
+    do { x = rand(-(HALF - 25), HALF - 25); z = rand(-(HALF - 25), HALF - 25); t++; }
+    while (t < 60 && (!ok(x, z, 5) || pointBlocked(x, z, 2.4)));
+    positions.push({ x, z, r: 5 });
+    makeCar(x, z, rand(0, 6.28));
   }
   // open-field chests — 1 in 5 likes to hide right next to a big rock
   for (let i = 0; i < 24; i++) {
@@ -2020,16 +2205,18 @@ function placeCamera(dt) {
   camera.rotateY(yaw);
   camera.rotateX(pitch);
   if (viewmodel) viewmodel.visible = !thirdPerson;
-  if (playerChar) playerChar.visible = thirdPerson && player.alive;
+  if (playerChar) playerChar.visible = thirdPerson && player.alive && !player.car;
   if (!thirdPerson) { camera.position.set(player.x, player.y, player.z); return; }
   camera.getWorldDirection(_camDir);
   // sits over the right shoulder so your own head is not dead centre
   _camAnchor.set(player.x + Math.cos(yaw) * .55, player.y + .12, player.z - Math.sin(yaw) * .55).addScaledVector(_camDir, 1);
   // a phone held upright is narrow, so give the camera more room there or your own body fills the screen
   const narrow = clamp((1.6 - innerWidth / Math.max(1, innerHeight)) / 1.14, 0, 1);
-  const back = (player.state === 'drop' ? 6.4 : 5.4) * (1 + narrow * .45);
+  const back = (player.car ? 7.6 : player.state === 'drop' ? 6.4 : 5.4) * (1 + narrow * .45);
   _camWant.copy(_camAnchor).addScaledVector(_camDir, -camClearance(_camAnchor, _camDir, back));
-  if (_camWant.y < player.y - .6) _camWant.y = player.y - .6;   // never dip under the floor when looking up
+  // never dip under the floor when looking up — and stay above the roof when driving
+  const floorY = player.y - (player.car ? .1 : .6);
+  if (_camWant.y < floorY) _camWant.y = floorY;
   const k = camSnap ? 1 : Math.min(1, dt * 18);
   camSnap = false;
   camera.position.lerp(_camWant, k);
@@ -2214,7 +2401,7 @@ function initGame() {
   player = { isPlayer: true, name: 'You', x: sp.x, z: sp.z, y: 79, hp: 200 + hpBonus(), maxHp: 200 + hpBonus(), shield: 0, alive: true, kills: 0, state: 'bus',
     weapon: 'pistol', ammo: WEAPONS.pistol.mag, cur: 0,
     slots: [{ type: 'weapon', id: 'pistol', ammo: WEAPONS.pistol.mag }, null, null, null, null],
-    healing: null, macTaken: 0,   // how much +max health this fighter has eaten
+    healing: null, macTaken: 0, car: null,   // how much +max health this fighter has eaten
     reloading: false, reloadT: 0, lastShot: 0 };
   bots = NAMES.slice(0, DIFF.bots).map(makeBot);
   for (let i = 0; i < 150; i++) spawnLoot();
@@ -2268,6 +2455,7 @@ function initGame() {
   $('hitmark').style.opacity = 0;
   $('prompt').style.display = 'none';
   feed('🚌 The battle bus has departed!');
+  if (cars.length) feed('🚗 ' + cars.length + ' cars are parked on the island — hop in one and drive!');
 }
 
 let stormCyl, stormBand, stormLine;
@@ -2718,6 +2906,7 @@ function updatePlayer(dt) {
     pr0.textContent = isTouch ? '🪂 Drag the stick to steer' : '🪂 WASD to steer';
     return;
   }
+  if (player.car) { driveCar(dt); return; }
   const fwdX = -Math.sin(yaw), fz = -Math.cos(yaw);
   const rx = Math.cos(yaw), rz = -Math.sin(yaw);
   let mx = 0, mz = 0;
@@ -2794,8 +2983,9 @@ function updatePlayer(dt) {
     nearPickup = l2;
   }
   const pr = $('prompt');
-  const nearChest = chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3);
-  if (nearChest) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to open the chest' : 'Press E to open chest') + ' 🧰'; }
+  const nearCar = nearestCar(3.6);
+  if (nearCar) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to drive' : 'Press E to get in the car') + ' 🚗'; }
+  else if (chests.some(c => !c.opened && Math.hypot(player.x - c.x, player.z - c.z) < 3)) { pr.style.display = 'block'; pr.textContent = (isTouch ? 'Tap GRAB to open the chest' : 'Press E to open chest') + ' 🧰'; }
   else if (nearPickup) {
     const tname = nearPickup.type === 'weapon' ? WEAPONS[nearPickup.weapon].name : nearPickup.type === 'medkit' ? 'Medkit ⛑' : nearPickup.type === 'orger' ? 'mystery HARPER 🤢' : nearPickup.type === 'tnt' ? 'TNT 💣' : nearPickup.type === 'bigmac' ? 'BIG MAC 🍔' : nearPickup.type === 'noah' ? faceTxt() : nearPickup.type === 'watch' ? 'TIME WATCH ⏱' : 'Big Pot 🧪';
     pr.style.display = 'block';
@@ -3090,6 +3280,7 @@ function buildFlash(text) {
 }
 
 function tryPlace() {
+  if (player.car) { buildFlash('You can\'t build while driving 🚗'); return; }
   if (gameTime - lastPlace < .18) return;
   const { pos, rotY, tilt, axis, riseSign, ok, part, level } = computePlacement();
   if (!ok) { buildFlash('Can\'t build here'); return; }
@@ -3229,6 +3420,10 @@ function drawHud() {
     mmCtx.fillStyle = '#ffd76e';
     mmCtx.fillRect((d.mesh.position.x + HALF) * s - 3, (d.mesh.position.z + HALF) * s - 3, 6, 6);
   }
+  for (const c of cars) {
+    mmCtx.fillStyle = '#8fd6ff';
+    mmCtx.fillRect((c.x + HALF) * s - 2.5, (c.z + HALF) * s - 2.5, 5, 5);
+  }
   if (orgerBoss && orgerBoss.alive) {
     mmCtx.fillStyle = '#ff9d2e';
     mmCtx.beginPath();
@@ -3249,7 +3444,7 @@ addEventListener('keydown', e => {
   if (!playing) return;
   if (k === 'escape') { if (player.alive && !paused) { paused = true; showPause(); } return; }
   if (k === ' ') jumpFromBus();
-  if (k === 'e') { if (!openChest()) pickupNearest(); }
+  if (k === 'e') { if (!useCar()) { if (!openChest()) pickupNearest(); } }
   if (k === 'f') startReload();
   if (k === 'g' && !e.repeat) dropItem();
   if (k === 'r' && player.alive && player.state === 'fight') { buildMode = !buildMode; sfx(buildMode ? 620 : 400, .08, 'sine', .1); }
@@ -3747,7 +3942,7 @@ tapCtl('tUse', () => {
   if (isUsable(s)) useHeal(s.type);
   else buildFlash('Nothing to use here');
 });
-tapCtl('tGrab', () => { if (!openChest()) pickupNearest(); });
+tapCtl('tGrab', () => { if (!useCar()) { if (!openChest()) pickupNearest(); } });
 tapCtl('tCam', () => toggleCam());
 tapCtl('tPause', () => { paused = true; showPause(); });
 for (let i = 0; i < 5; i++) {
@@ -3800,7 +3995,7 @@ if (isTouch) {
   if (help) help.innerHTML =
     '<b>Left thumb</b> = move (push to the edge to sprint) · <b>drag</b> the rest of the screen to look<br>' +
     '<b>FIRE</b> shoot / place · <b>BUILD</b> build mode · <b>PART</b> part · <b>JUMP</b> jump / leave the bus<br>' +
-    '<b>GRAB</b> open chest or pick up · <b>RELOAD</b> · <b>⛑</b> use held ⛑/🧪 · <b>⏸</b> pause<br>' +
+    '<b>GRAB</b> open chest / pick up / <b>drive a car</b> · <b>RELOAD</b> · <b>⛑</b> use held ⛑/🧪 · <b>⏸</b> pause<br>' +
     'Tap a slot at the bottom to carry that item · Shoot trees &amp; rocks for wood';
 }
 
