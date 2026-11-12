@@ -104,12 +104,15 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="vendor/three/three.global.js"></script>
 <script>
 // ─── AUDIO ENGINE (Web Audio API, no external files) ───
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx;
-function initAudio() { if (!audioCtx) audioCtx = new AudioCtx(); }
+function initAudio() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume(); // phones start audio paused
+}
 
 function playTone(freq, duration, type='sine', vol=0.15) {
   if (!audioCtx) return;
@@ -158,18 +161,18 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x1a1a2e);
 document.body.prepend(renderer.domElement);
 
-// Lights
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+// Lights (the vendored r160 build needs bigger numbers than the old CDN one to look the same)
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.6);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
 dirLight.position.set(5, 10, 7);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 1024;
 dirLight.shadow.mapSize.height = 1024;
 scene.add(dirLight);
 
-const pointLight = new THREE.PointLight(0x667eea, 0.6, 20);
+const pointLight = new THREE.PointLight(0x667eea, 6, 20);
 pointLight.position.set(0, 5, 0);
 scene.add(pointLight);
 
@@ -179,6 +182,7 @@ camera.lookAt(0, 2, 0);
 
 // ─── GAME STATE ───
 let rings = [];
+let base = null;
 let ball;
 let ballVelocity = 0;
 let ballOnRingIndex = 0;
@@ -186,11 +190,13 @@ let score = 0;
 let livesLeft = LIVES;
 let combo = 0;
 let gameState = 'menu'; // menu, playing, gameover
-let highScore = parseInt(localStorage.getItem('stackJumpHigh') || '0');
+let highScore = parseInt(localStorage.getItem('stackJumpHigh') || '0', 10);
+if (!Number.isFinite(highScore) || highScore < 0) highScore = 0; // junk save data
 let cameraTargetY = 6;
 let shakeAmount = 0;
 let isHolding = false;     // whether user is holding touch/click
 let falling = false;       // whether ball is currently falling
+let fallingSpeed = 0;      // how fast the ball is dropping right now
 let nextRingToCheck = 0;   // which ring index to check next during fall
 
 // ─── RING CREATION ───
@@ -339,20 +345,28 @@ function updateParticles(dt) {
 }
 
 // ─── LEVEL GENERATION ───
+function disposeObject(obj) {
+  obj.traverse(child => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  });
+}
+
 function generateLevel() {
   // Clear existing
-  rings.forEach(r => scene.remove(r.mesh));
+  rings.forEach(r => { if (r.mesh) { scene.remove(r.mesh); disposeObject(r.mesh); } });
   rings = [];
+  if (base) { scene.remove(base); base.geometry.dispose(); base.material.dispose(); }
   particles.forEach(p => { scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); });
   particles = [];
 
-  if (ball) scene.remove(ball);
+  if (ball) { scene.remove(ball); disposeObject(ball); }
   ball = createBall();
 
   // Base platform at bottom
   const baseGeo = new THREE.CylinderGeometry(RING_RADIUS * 1.2, RING_RADIUS * 1.2, 0.5, 32);
   const baseMat = new THREE.MeshPhongMaterial({ color: 0x333355 });
-  const base = new THREE.Mesh(baseGeo, baseMat);
+  base = new THREE.Mesh(baseGeo, baseMat);
   base.position.y = -0.25;
   base.receiveShadow = true;
   scene.add(base);
@@ -438,17 +452,19 @@ function findHighestRemainingRing() {
 }
 
 function breakRing(ring) {
-  // Mark ring for breaking and animate it falling
+  // Mark ring for breaking and animate it tumbling away
   ring.breaking = true;
-  ring.breakVelocity = -100; // initial upward pop
+  ring.breakVelocity = 5;                         // little pop upwards first
+  ring.breakingMeshY = 0;
+  ring.breakRotation = 0;                         // must start at 0, or the maths below turns to NaN
   ring.breakRotationSpeed = (Math.random() - 0.5) * 8;
-  ring.breakColor = SAFE_COLOR;
 }
 
 function handleRingPass(ringIndex) {
-  // Called when ball passes through a ring level
+  // Called when the ball falls through a ring level.
+  // Returns true if it was a danger hit (the caller stops checking rings for that frame).
   const targetRing = rings[ringIndex];
-  if (!targetRing || targetRing.passed || targetRing.crashed) return;
+  if (!targetRing || targetRing.passed || targetRing.crashed) return false;
 
   // Ball is at front of ring (x=0, z=positive) = geometry angle 3PI/2
   const ballAngle = 3 * Math.PI / 2;
@@ -465,6 +481,7 @@ function handleRingPass(ringIndex) {
     if (combo > 1) playCombo(combo);
     else playSafe();
     spawnParticles(new THREE.Vector3(0, targetRing.y, RING_RADIUS - BALL_RADIUS), SAFE_COLOR, 10);
+    return false;
   } else {
     // Danger hit - lose a life
     playCrash();
@@ -479,14 +496,12 @@ function handleRingPass(ringIndex) {
 
     // Remove the danger ring from scene
     scene.remove(targetRing.mesh);
-    targetRing.mesh.children.forEach(child => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) child.material.dispose();
-    });
+    disposeObject(targetRing.mesh);
+    targetRing.mesh = null;
 
     if (livesLeft <= 0) {
       gameOver();
-      return;
+      return true;
     }
 
     // Stop falling and reset to highest remaining ring
@@ -495,6 +510,9 @@ function handleRingPass(ringIndex) {
     ballOnRingIndex = findHighestRemainingRing();
     nextRingToCheck = ballOnRingIndex;
     ball.position.y = rings[ballOnRingIndex].y + RING_HEIGHT / 2 + BALL_RADIUS;
+    // Keep on falling if their finger/mouse is still held down
+    if (isHolding) falling = true;
+    return true;
   }
 }
 
@@ -591,10 +609,13 @@ function handleInputEnd(e) {
 }
 
 renderer.domElement.addEventListener('mousedown', handleInputStart);
-renderer.domElement.addEventListener('mouseup', handleInputEnd);
 renderer.domElement.addEventListener('touchstart', handleInputStart, { passive: false });
 renderer.domElement.addEventListener('touchend', handleInputEnd, { passive: false });
 renderer.domElement.addEventListener('touchcancel', handleInputEnd, { passive: false });
+// Letting go outside the window, alt-tabbing or switching tabs mid-hold still stops the fall
+window.addEventListener('mouseup', handleInputEnd);
+window.addEventListener('blur', handleInputEnd);
+document.addEventListener('visibilitychange', () => { if (document.hidden) handleInputEnd(); });
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space') handleInputStart(e);
 });
@@ -624,7 +645,7 @@ function animate(now) {
   if (gameState === 'playing') {
     // Rotate rings
     rings.forEach((ring, i) => {
-      if (!ring.crashed && !ring.breaking) {
+      if (ring.mesh && !ring.crashed && !ring.breaking) {
         // Speed increases slightly with height
         const speed = ROTATION_SPEED * (1 + i * 0.005);
         ring.rotation += speed * dt;
@@ -632,20 +653,29 @@ function animate(now) {
       }
     });
 
-    // Animate broken rings falling
+    // Animate broken rings: pop up, tumble, fade out, then clean up
     rings.forEach(ring => {
       if (ring.breaking && ring.mesh) {
-        ring.breakVelocity += 1500 * dt; // gravity for broken rings
-        ring.breakingMeshY = (ring.breakingMeshY || 0) + ring.breakVelocity * dt;
+        ring.breakVelocity -= 60 * dt; // gravity pulls it back down
+        ring.breakingMeshY += ring.breakVelocity * dt;
         ring.breakRotation += ring.breakRotationSpeed * dt;
         ring.mesh.position.y = ring.y + ring.breakingMeshY;
         ring.mesh.rotation.y = ring.rotation + ring.breakRotation;
+
+        let opacity = 1;
         ring.mesh.children.forEach(child => {
-          if (child.material && child.material.transparent !== undefined) {
+          if (child.material) {
             child.material.transparent = true;
-            child.material.opacity = Math.max(0, (child.material.opacity !== undefined ? child.material.opacity : 1) - dt * 2);
+            child.material.opacity = Math.max(0, (child.material.opacity !== undefined ? child.material.opacity : 1) - dt * 1.5);
+            opacity = Math.min(opacity, child.material.opacity);
           }
         });
+
+        if (opacity <= 0) { // gone — drop it so it stops costing anything to draw
+          scene.remove(ring.mesh);
+          disposeObject(ring.mesh);
+          ring.mesh = null;
+        }
       }
     });
 
@@ -663,7 +693,8 @@ function animate(now) {
           const ringTop = ring.y + RING_HEIGHT / 2;
           if (ball.position.y < ringTop) {
             ballOnRingIndex = nextRingToCheck - 1;
-            handleRingPass(nextRingToCheck);
+            const crashed = handleRingPass(nextRingToCheck);
+            if (crashed) break; // ball got put back up the tower, nextRingToCheck was fixed already
             nextRingToCheck--;
             if (gameState !== 'playing') break;
           } else {
