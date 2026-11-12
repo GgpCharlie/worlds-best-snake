@@ -43,6 +43,7 @@
   #message {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
     text-align: center; pointer-events: auto;
+    width: 92vw; max-width: 620px;
   }
 
   #message h1 {
@@ -74,6 +75,18 @@
   }
   #message button:hover { transform: scale(1.05); box-shadow: 0 8px 30px rgba(102,126,234,0.7); }
   #message button:active { transform: scale(0.97); }
+  #message .btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  #message button.ghost {
+    background: rgba(255,255,255,0.12); box-shadow: none;
+    border: 2px solid rgba(255,255,255,0.35); padding: 14px 34px; font-size: 18px;
+  }
+  #message .stat { font-size: 46px; font-weight: 900; color: #ffd700; margin-bottom: 6px;
+    text-shadow: 0 4px 18px rgba(255,215,0,0.35); }
+
+  #level {
+    position: absolute; top: 30px; left: 30px; font-size: 18px; font-weight: 700;
+    color: rgba(255,255,255,0.55); letter-spacing: 2px;
+  }
 
   #combo {
     position: absolute; top: 100px; right: 30px;
@@ -94,6 +107,7 @@
 <div id="ui">
   <div id="score">0</div>
   <div id="lives"></div>
+  <div id="level"></div>
   <div id="combo"></div>
   <div id="highScore"></div>
   <div id="fallIndicator"></div>
@@ -146,19 +160,20 @@ function playClear()   { playTone(523, 0.15, 'triangle', 0.16); setTimeout(()=>p
 
 // ─── GAME CONSTANTS ───
 const RING_RADIUS    = 3;
-const RING_HEIGHT    = 0.3;
+const RING_HEIGHT    = 0.28;
 const BALL_RADIUS    = 0.5;
-const RING_SPACING   = 1.5;   // gap between ring centres, so the ball has room to build up speed
+const RING_SPACING   = 0.85;  // ring centres — tight enough to read as a stack
 const TOTAL_RINGS    = 40;
-const GRAVITY        = 32;    // normal pull (idle bounces, coasting after you let go)
-const HOLD_GRAVITY   = 56;    // pull while you hold — this is the dive
-const SETTLE_SPEED   = 7;     // how fast the ball drifts down after you let go
-const MAX_FALL       = 14;    // terminal speed, units per second
-const HOP_HEIGHT     = 0.6;   // how high the ball bounces while it is just sitting on a ring
+const GRAVITY        = 38;    // normal pull (idle bounces, coasting after you let go)
+const HOLD_GRAVITY   = 46;    // pull while you hold — this is the dive
+const SETTLE_SPEED   = 5.5;   // how fast the ball drifts down after you let go
+const MAX_FALL       = 9;     // terminal speed, units per second
+const HOP_HEIGHT     = 0.5;   // how high the ball bounces while it is just sitting on a ring
 const ROTATION_SPEED = 1.2;   // radians per second
 const LIVES          = 3;
 const SAFE_RATIO     = 0.75;  // 75% safe, 25% danger
 const BALL_ANGLE     = 3 * Math.PI / 2; // the ball sits at the front of every ring
+const HOP_VY         = Math.sqrt(2 * GRAVITY * HOP_HEIGHT); // speed of one idle bounce, used by the camera
 
 // ─── COLORS ───
 const SAFE_COLOR = 0x4ade80;
@@ -217,10 +232,16 @@ let cameraTargetY = 6;
 let shakeAmount = 0;
 let isHolding = false;     // whether user is holding touch/click
 let armed = true;          // one hold = one smash attempt; let go to re-arm after a bounce off red
+let diving = false;        // true from the moment you press until the ball next comes to rest
 let ballVY = 0;            // ball's vertical speed (negative = dropping)
 let squash = 0;            // 0 = round ball, 1 = fully flattened (impact squash and stretch)
 let hitStop = 0;           // tiny freeze-frame when the ball smashes through a ring
 let nextRingToCheck = 0;   // which ring the ball will meet next
+let anchorY = 0;           // the height the camera sits on while the ball is just bobbing
+let camAnchored = false;   // keeps the camera still so the idle bounce doesn't wobble the view
+let diveMix = 0;           // smoothed speed 0..1, used for the camera pull-back
+let level = 1;             // which tower you are on — each one spins a bit faster
+let scoreAtTowerStart = 0; // so REPLAY puts your score back to the start of this tower
 
 // ─── RING CREATION ───
 function createRingGeometry(radius, innerRadius, thickness, arcStart, arcEnd) {
@@ -408,16 +429,17 @@ function generateLevel() {
   // Rings from the bottom up, spaced out so the ball has room to build up speed.
   // You start at the top, so the rings further down are the harder ones.
   let safeStart = Math.random() * Math.PI * 2;
+  const spinBoost = 1 + (level - 1) * 0.08; // each tower you clear spins a bit faster
 
   for (let i = 0; i < TOTAL_RINGS; i++) {
     const progress = 1 - i / TOTAL_RINGS;   // 0 at the top, almost 1 at the bottom
     const y = (i + 1) * RING_SPACING;
 
-    // The safe window shrinks as you go down (never below 45% of the ring)
-    const safeLen = Math.max(0.45, SAFE_RATIO - 0.3 * progress) * Math.PI * 2;
+    // The safe window shrinks as you go down, and with every tower (never below 40%)
+    const safeLen = Math.max(0.4, SAFE_RATIO - 0.3 * progress - (level - 1) * 0.03) * Math.PI * 2;
 
     // And the rings spin faster down there too
-    const spinSpeed = 1 + progress * 0.9;
+    const spinSpeed = (1 + progress * 0.9) * spinBoost;
 
     // Occasionally line a safe zone up with the ring below it so combos are possible
     if (i > 2 && Math.random() < 0.15) {
@@ -437,6 +459,9 @@ function generateLevel() {
   ballVY = 0;
   squash = 0;
   cameraTargetY = ball.position.y + 4.5; // start the camera up here, not down at the base
+  camAnchored = false;
+  anchorY = ball.position.y;
+  diveMix = 0;
   nextRingToCheck = rings.length - 1;
   armed = true;
 }
@@ -466,6 +491,8 @@ function ringTopY(ring) {
 // ─── BREAKING A RING: shards blast outwards so they never clip through the rings below ───
 let shards = [];
 let waves = [];
+let confetti = [];
+const CONFETTI_COLORS = [0xff6b6b, 0xfeca57, 0x48dbfb, 0x1dd1a1, 0xf368e0, 0xffd700];
 
 function shatterRing(ring, impactSpeed) {
   const chunks = 8;
@@ -506,6 +533,31 @@ function shatterRing(ring, impactSpeed) {
   waves.push({ mesh: wave, life: 1, grow: 2.5 + impactSpeed * 0.08 });
 }
 
+function launchConfetti(fromY) {
+  for (let i = 0; i < 110; i++) {
+    const geo = new THREE.BoxGeometry(0.22, 0.04, 0.13);
+    const mat = new THREE.MeshBasicMaterial({
+      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length], transparent: true,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * 1.6;
+    mesh.position.set(Math.cos(a) * r, fromY + Math.random() * 0.6, Math.sin(a) * r);
+    mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    scene.add(mesh);
+    confetti.push({
+      mesh: mesh,
+      vx: Math.cos(a) * (0.8 + Math.random() * 2),
+      vz: Math.sin(a) * (0.8 + Math.random() * 2),
+      vy: 7 + Math.random() * 8,
+      spinX: (Math.random() - 0.5) * 12,
+      spinY: (Math.random() - 0.5) * 12,
+      life: 1,
+      decay: 0.4 + Math.random() * 0.3,
+    });
+  }
+}
+
 function updateEffects(dt) {
   for (let i = shards.length - 1; i >= 0; i--) {
     const s = shards[i];
@@ -532,6 +584,28 @@ function updateEffects(dt) {
       waves.splice(i, 1);
     }
   }
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const c = confetti[i];
+    c.vy -= 17 * dt;                    // floats down slow, like real paper
+    c.vx = Math.max(0, c.vx - c.vx * 1.4 * dt);
+    c.vz = Math.max(0, c.vz - c.vz * 1.4 * dt);
+    c.mesh.position.x += c.vx * dt;
+    c.mesh.position.y += c.vy * dt;
+    c.mesh.position.z += c.vz * dt;
+    c.mesh.rotation.x += c.spinX * dt;
+    c.mesh.rotation.y += c.spinY * dt;
+    if (c.mesh.position.y < 0.05 && c.vy < 0) { // it lands on the base platform and settles
+      c.mesh.position.y = 0.05;
+      c.vy = 0;
+      c.spinX *= 0.9; c.spinY *= 0.9;
+    }
+    c.life -= c.decay * dt;
+    c.mesh.material.opacity = Math.max(0, c.life);
+    if (c.life <= 0) {
+      scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh.material.dispose();
+      confetti.splice(i, 1);
+    }
+  }
 }
 
 function removeRingMesh(ring) {
@@ -544,8 +618,9 @@ function removeRingMesh(ring) {
 function clearEffects() {
   shards.forEach(s => { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); });
   waves.forEach(w => { scene.remove(w.mesh); w.mesh.geometry.dispose(); w.mesh.material.dispose(); });
+  confetti.forEach(c => { scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh.material.dispose(); });
   particles.forEach(p => { scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); });
-  shards = []; waves = []; particles = [];
+  shards = []; waves = []; confetti = []; particles = [];
 }
 
 function smashRing(ringIndex, impactSpeed) {
@@ -554,13 +629,14 @@ function smashRing(ringIndex, impactSpeed) {
   ring.passed = true;
   shatterRing(ring, impactSpeed);
   removeRingMesh(ring);
+  camAnchored = false; // the camera follows the ball again while it is diving
 
   score++;
   combo++;
   updateScoreDisplay();
   updateComboDisplay();
   playSmash(impactSpeed, combo);
-  hitStop = Math.min(0.06, 0.015 + impactSpeed * 0.0015);
+  hitStop = Math.min(0.045, 0.01 + impactSpeed * 0.0025);
   shakeAmount = Math.min(0.3, 0.05 + impactSpeed * 0.011);
   squash = Math.min(0.3, 0.08 + impactSpeed * 0.008);
   spawnParticles(new THREE.Vector3(0, ringTopY(ring), RING_RADIUS - BALL_RADIUS), SAFE_COLOR,
@@ -585,6 +661,8 @@ function bounceOffDanger(ring, impactSpeed) {
   ball.position.y = ringTopY(ring) + BALL_RADIUS;
   ballVY = Math.max(5, impactSpeed * 0.5); // thump back upwards
   armed = false; // let go and press again to have another go at this ring
+  camAnchored = true;
+  anchorY = ringTopY(ring) + BALL_RADIUS;
 
   if (livesLeft <= 0) gameOver();
 }
@@ -598,15 +676,32 @@ function landOnRing(ring, surfaceY, impact) {
   ballVY = Math.max(hop, Math.min(hop * 2.2, impact * 0.5)); // hard landings rebound, then settle
   ring.wobble = Math.max(ring.wobble, 0.4 + strength * 0.6);
   ring.pulse = 1;
-  if (impact < hop * 1.15) return; // the little idle bob stays quiet — only real landings get heard
+  camAnchored = true;   // the view stops here and stays put while the ball bobs
+  anchorY = surfaceY;
+  const wasDive = diving;
+  diving = false;
+  if (!wasDive) return; // the little idle bob stays quiet — only real landings get heard
   playThud(impact);
   shakeAmount = Math.max(shakeAmount, strength * 0.15);
   spawnParticles(new THREE.Vector3(0, surfaceY - BALL_RADIUS, RING_RADIUS - BALL_RADIUS), 0x9999bb,
                  2 + Math.round(strength * 8));
 }
 
-function endGame(title) {
+function bindBtn(id, fn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('click', (e) => { e.preventDefault(); fn(); });
+  el.addEventListener('touchend', (e) => { e.preventDefault(); fn(); });
+}
+
+// title, the line under it, and the buttons to offer: [{ label, fn }, ...]
+function endGame(title, note, actions) {
   gameState = 'gameover';
+  isHolding = false;
+  armed = true;
+  diving = false;
+  document.getElementById('fallIndicator').classList.remove('active');
+
   const beatBest = score > highScore;
   if (beatBest) {
     highScore = score;
@@ -618,24 +713,36 @@ function endGame(title) {
     const msg = document.getElementById('message');
     msg.innerHTML = `
       <h1>${title}</h1>
-      <div class="sub">Score: ${score} ${beatBest && score > 0 ? '🏆 New Best!' : ''}</div>
-      <button id="restartBtn">PLAY AGAIN</button>
+      <div class="stat">${score}</div>
+      <div class="sub">${note}</div>
+      <div class="btns">
+        ${actions.map((a, i) => `<button id="act${i}"${i ? ' class="ghost"' : ''}>${a.label}</button>`).join('')}
+      </div>
     `;
-    document.getElementById('restartBtn').addEventListener('click', startGame);
-    document.getElementById('restartBtn').addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });
-  }, 450);
+    msg.style.display = 'block'; // this is what was missing — the panel stayed hidden after PLAY
+    actions.forEach((a, i) => bindBtn('act' + i, a.fn));
+  }, 600);
 }
 
 function gameOver() {
   playGameOver();
   shakeAmount = 0.5;
-  endGame('GAME OVER');
+  endGame('GAME OVER', `Tower ${level} · Best ${highScore}`, [
+    { label: 'RETRY',   fn: () => startTower(level, false) },
+    { label: 'MENU',    fn: showMenu },
+  ]);
 }
 
 function towerCleared() {
   playClear();
   shakeAmount = 0.3;
-  endGame('TOWER CLEARED');
+  launchConfetti(0.4);
+  endGame(`TOWER ${level} CLEARED! 🎉`,
+          `All ${TOTAL_RINGS} rings smashed${score > highScore ? ' — new best score!' : ` · Best ${highScore}`}`, [
+    { label: 'NEXT TOWER', fn: () => startTower(level + 1, true) },
+    { label: 'REPLAY',     fn: () => startTower(level, false) },
+    { label: 'MENU',       fn: showMenu },
+  ]);
 }
 
 // ─── UI UPDATES ───
@@ -661,24 +768,66 @@ function updateComboDisplay() {
   }
 }
 
+function updateLevelDisplay() {
+  document.getElementById('level').textContent = `TOWER ${level}`;
+}
+
 // ─── GAME START ───
 function startGame() {
   initAudio();
   gameState = 'playing';
-  score = 0;
+  scoreAtTowerStart = score; // where REPLAY will put you back to
   livesLeft = LIVES;
   combo = 0;
   shakeAmount = 0;
   hitStop = 0;
   isHolding = false;
   armed = true;
+  diving = false;
+  diveMix = 0;
 
   document.getElementById('message').style.display = 'none';
+  updateLevelDisplay();
   updateScoreDisplay();
   updateLivesDisplay();
   updateComboDisplay();
 
   generateLevel();
+}
+
+// startTower(n, keepScore) — "next" keeps your score, a restart puts it back
+function startTower(n, keepScore) {
+  level = Math.max(1, n);
+  if (!keepScore) score = scoreAtTowerStart;
+  startGame();
+}
+
+function showMenu() {
+  gameState = 'menu';
+  level = 1;
+  score = 0;
+  scoreAtTowerStart = 0;
+  livesLeft = LIVES;
+  combo = 0;
+  hitStop = 0;
+  isHolding = false;
+  generateLevel(); // leave a fresh tower standing behind the title
+  ball.position.y = ringTopY(rings[rings.length - 1]) + BALL_RADIUS; // sat still on the top ring
+  camAnchored = true;
+  anchorY = ball.position.y;
+  cameraTargetY = ball.position.y + 4.5;
+  updateScoreDisplay();
+  updateLivesDisplay();
+  updateComboDisplay();
+  document.getElementById('level').textContent = '';
+  const msg = document.getElementById('message');
+  msg.innerHTML = `
+    <h1>STACK JUMP</h1>
+    <div class="sub">Hold to dive — smash through the green</div>
+    <div class="btns"><button id="startBtn">PLAY</button></div>
+  `;
+  msg.style.display = 'block';
+  bindBtn('startBtn', () => startTower(1, false));
 }
 
 // ─── INPUT ───
@@ -687,7 +836,11 @@ function handleInputStart(e) {
   if (gameState !== 'playing' || isHolding) return;
   isHolding = true;
   document.getElementById('fallIndicator').classList.add('active');
-  if (armed && ballVY > -2) ballVY = -3; // shove off the ring so the dive starts instantly
+  if (armed) {
+    diving = true;        // next landing counts as a real landing, not an idle bob
+    camAnchored = false;  // let the camera chase the ball again
+    if (ballVY > -2) ballVY = -3; // shove off the ring so the dive starts instantly
+  }
 }
 
 function handleInputEnd(e) {
@@ -712,9 +865,6 @@ document.addEventListener('keyup', (e) => {
   if (e.code === 'Space') handleInputEnd(e);
 });
 
-document.getElementById('startBtn').addEventListener('click', startGame);
-document.getElementById('startBtn').addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });
-
 // ─── RESIZE ───
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -738,19 +888,19 @@ function animate(now) {
     dt = 0;
   }
 
-  if (gameState === 'playing') {
-    // Rings spin (faster further down the tower) and wobble after being hit
-    rings.forEach(ring => {
-      if (!ring.mesh) return;
-      if (!ring.passed) ring.rotation += ROTATION_SPEED * ring.spinSpeed * dt;
-      ring.wobble = Math.max(0, ring.wobble - dt * 2.5);
-      ring.pulse = Math.max(0, ring.pulse - dt * 4);
-      ring.mesh.rotation.y = ring.rotation;
-      ring.mesh.rotation.z = Math.sin(now * 0.03) * 0.07 * ring.wobble;
-      const squashXZ = 1 - ring.pulse * 0.1;
-      ring.mesh.scale.set(squashXZ, 1, squashXZ);
-    });
+  // Rings spin (faster further down the tower) and wobble after being hit.
+  // This runs outside the "playing" check so the tower is still alive behind the menus.
+  rings.forEach(ring => {
+    if (!ring.mesh) return;
+    if (!ring.passed) ring.rotation += ROTATION_SPEED * ring.spinSpeed * dt;
+    ring.wobble = Math.max(0, ring.wobble - dt * 2.5);
+    ring.pulse = Math.max(0, ring.pulse - dt * 4);
+    ring.mesh.rotation.y = ring.rotation;
+    ring.mesh.rotation.z = Math.sin(now * 0.03) * 0.07 * ring.wobble;
+    ring.mesh.scale.set(1 - ring.pulse * 0.1, 1, 1 - ring.pulse * 0.1);
+  });
 
+  if (gameState === 'playing') {
     // ─── BALL PHYSICS ───
     // Gravity: a normal pull normally, a proper dive while holding
     ballVY -= ((isHolding && armed) ? HOLD_GRAVITY : GRAVITY) * dt;
@@ -802,20 +952,25 @@ function animate(now) {
     ball.scale.set(ballXZ, (1 - squash) * (1 + stretch), ballXZ);
     ball.rotation.x -= (2 + Math.abs(ballVY) * 0.3) * dt;
     ball.rotation.z += dt * 1.5;
+  }
 
-    // Camera follows, and pulls back as the ball builds momentum
-    const speedMix = Math.min(1, Math.abs(ballVY) / MAX_FALL);
-    cameraTargetY += ((ball.position.y + 4.5) - cameraTargetY) * (5 + speedMix * 7) * dt;
+  // ─── CAMERA ─── sits on the ring the ball is bobbing on, so the idle bounce never
+  // nudges the view. It only chases the ball while it is actually diving.
+  if (ball) {
+    const focusY = camAnchored ? anchorY : ball.position.y;
+    // While the ball is just bobbing there is no dive at all, so the lens never creeps
+    // in or out. It only pulls back once the ball is genuinely falling.
+    const rawDive = camAnchored ? 0 : Math.min(1, Math.max(0, Math.abs(ballVY) - HOP_VY) / (MAX_FALL - HOP_VY));
+    diveMix += (rawDive - diveMix) * Math.min(1, 6 * dt); // smoothed, so nothing pops
+    cameraTargetY += ((focusY + 4.5) - cameraTargetY) * (5 + diveMix * 7) * dt;
     camera.position.y = cameraTargetY;
-    camera.position.z = 9.5 + speedMix * 2.5;
-    camera.lookAt(0, ball.position.y - 0.5, 0);
+    camera.position.z = 9.5 + diveMix * 2.5;
+    camera.lookAt(0, focusY - 0.5, 0);
 
-    // Point light follows ball
-    pointLight.position.set(0, ball.position.y + 3, 0);
-
-    // The sun follows too, so shadows stay put all the way up the tower
-    dirLight.position.set(5, ball.position.y + 10, 7);
-    dirLight.target.position.set(0, ball.position.y, 0);
+    // Lights follow the same anchor, so the shading does not pulse either
+    pointLight.position.set(0, focusY + 3, 0);
+    dirLight.position.set(5, focusY + 10, 7);
+    dirLight.target.position.set(0, focusY, 0);
   }
 
   // The squash always wears off, so the ball rounds back up even after the run ends
@@ -843,6 +998,9 @@ function animate(now) {
 if (highScore > 0) {
   document.getElementById('highScore').textContent = `Best: ${highScore}`;
 }
+
+// Start the title screen (builds the first tower and wires the PLAY button)
+showMenu();
 
 // Start render loop
 animate(performance.now());
