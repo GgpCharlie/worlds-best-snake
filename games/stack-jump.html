@@ -168,12 +168,11 @@ const GRAVITY        = 38;    // normal pull (idle bounces, coasting after you l
 const HOLD_GRAVITY   = 46;    // pull while you hold — this is the dive
 const SETTLE_SPEED   = 5.5;   // how fast the ball drifts down after you let go
 const MAX_FALL       = 9;     // terminal speed, units per second
-const HOP_HEIGHT     = 0.5;   // how high the ball bounces while it is just sitting on a ring
+const HOP_HEIGHT     = 1.0;   // how high the ball bounces while it is just sitting on a ring
 const ROTATION_SPEED = 1.2;   // radians per second
 const LIVES          = 3;
 const SAFE_RATIO     = 0.75;  // 75% safe, 25% danger
 const BALL_ANGLE     = 3 * Math.PI / 2; // the ball sits at the front of every ring
-const HOP_VY         = Math.sqrt(2 * GRAVITY * HOP_HEIGHT); // speed of one idle bounce, used by the camera
 
 // ─── COLORS ───
 const SAFE_COLOR = 0x4ade80;
@@ -960,7 +959,7 @@ function animate(now) {
     const focusY = camAnchored ? anchorY : ball.position.y;
     // While the ball is just bobbing there is no dive at all, so the lens never creeps
     // in or out. It only pulls back once the ball is genuinely falling.
-    const rawDive = camAnchored ? 0 : Math.min(1, Math.max(0, Math.abs(ballVY) - HOP_VY) / (MAX_FALL - HOP_VY));
+    const rawDive = camAnchored ? 0 : Math.min(1, Math.abs(ballVY) / MAX_FALL);
     diveMix += (rawDive - diveMix) * Math.min(1, 6 * dt); // smoothed, so nothing pops
     cameraTargetY += ((focusY + 4.5) - cameraTargetY) * (5 + diveMix * 7) * dt;
     camera.position.y = cameraTargetY;
