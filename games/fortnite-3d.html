@@ -50,70 +50,72 @@
   .diffbtn { margin: 0; font-size: 14px; padding: 5px 15px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
   .diffbtn:hover { color: #fff; border-color: #8a5cff; }
   .diffbtn.sel { background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; border-color: #ffd76e; }
-  #diffdesc { margin: 4px 0 0; font-size: 12px; color: #9fb0ff; min-height: 14px; }
+  #diffdesc { margin: 3px 0 0; font-size: 11.5px; color: #9fb0ff; min-height: 14px; }
   .diffbtn.dim { opacity: .4; cursor: not-allowed; }
   /* the lobby camera switch — same setting as the V key mid-match */
-  #camBtn { margin: 0 0 6px; font-size: 13px; padding: 4px 14px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
+  #camBtn { margin: 1px 0 0; font-size: 12px; padding: 3px 12px; border: 2px solid #5a2ecb; border-radius: 8px; background: rgba(255,255,255,.07); color: #b9c2ff; cursor: pointer; font-weight: bold; }
   #camBtn:hover { color: #fff; border-color: #8a5cff; }
-  #camBtn small { display: block; font-size: 10px; font-weight: normal; color: #9fb0ff; margin-top: 1px; }
+  #camBtn small { display: inline; font-size: 9.5px; font-weight: normal; color: #9fb0ff; margin-left: 5px; }
 
   /* ---- the 2D lobby: coins, the shop, and the drop button ---- */
   #lobby { position: absolute; inset: 0; z-index: 11; color: #fff; overflow: hidden; }
   #lobbyart { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  #lobbyUI { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 10px; box-sizing: border-box; }
-  #lobby h1 { font-size: 21px; margin: 0; color: #ffd76e; text-shadow: 3px 3px 0 #4a2a91, 0 0 22px #000; }
-  .lobhead { display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap; }
-  #lobResult { font-size: 13.5px; min-height: 16px; text-shadow: 1px 1px 0 #000; }
+  #lobbyUI { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; box-sizing: border-box; }
+  #lobby h1 { font-size: 19px; margin: 0; color: #ffd76e; text-shadow: 3px 3px 0 #4a2a91, 0 0 22px #000; }
+  /* one row up top: the name, your purse and DROP IN — no row of its own for the button */
+  .lobhead { display: flex; align-items: center; gap: 8px; row-gap: 3px; justify-content: center; flex-wrap: wrap; flex: 0 0 auto; }
+  #lobResult { flex: 0 0 auto; font-size: 12.5px; line-height: 1.25; text-align: center; text-shadow: 1px 1px 0 #000; }
+  #lobResult b { font-size: 15px; }
   #lobResult:empty { display: none; }
-  /* the DROP row lives on its own so a long shop list can never push it off the screen */
-  #lobFoot { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 10px;
-    padding: 3px 0 2px; }
-  #lobFoot #camBtn { margin: 0; }
   /* the controls list folds up so the lobby fits the screen — tap it to read them */
-  .lmore { margin-top: 6px; }
+  .lmore { margin-top: 3px; }
   .lmore > summary { cursor: pointer; font-size: 11.5px; font-weight: bold; color: #ffd76e; list-style: none; }
   .lmore > summary::-webkit-details-marker { display: none; }
   .lmore > summary::before { content: '▸ '; }
   .lmore[open] > summary::before { content: '▾ '; }
-  #purse { font-size: 15px; font-weight: bold; text-shadow: 2px 2px 0 #000; background: rgba(0,0,0,.55); display: inline-block; padding: 1px 12px; border-radius: 20px; border: 2px solid rgba(255,215,110,.5); }
+  #purse { font-size: 14px; font-weight: bold; text-shadow: 2px 2px 0 #000; background: rgba(0,0,0,.55); display: inline-block; padding: 0 10px; border-radius: 20px; border: 2px solid rgba(255,215,110,.5); }
   #purse.bump { animation: bump .3s ease-out; }
   @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.16); } 100% { transform: scale(1); } }
-  #lobBody { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; justify-content: center; margin-top: 2px; width: 100%; max-width: 880px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-  .lpanel { flex: 1 1 300px; min-width: 0; box-sizing: border-box; background: rgba(10,8,32,.88); border: 2px solid #5a2ecb; border-radius: 11px; padding: 7px 11px; text-align: center; max-width: 430px; min-height: 0; max-height: 100%; box-shadow: 0 6px 26px rgba(0,0,0,.5); overflow-wrap: break-word; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  .lpanel h3 { margin: 0 0 4px; font-size: 14px; color: #ffd76e; letter-spacing: 1.5px; }
-  .lhelp { font-size: 10.5px; line-height: 1.35; color: #a8b3ff; }
-  .lpay { font-size: 11.5px; margin: 2px 0 6px; color: #9fe8a0; }
-  .lshop { max-width: 430px; min-height: 120px; display: flex; flex-direction: column; overflow: hidden; }
+  #lobBody { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 980px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .lpanel { flex: 1 1 280px; min-width: 0; box-sizing: border-box; background: rgba(10,8,32,.88); border: 2px solid #5a2ecb; border-radius: 10px; padding: 5px 9px; text-align: center; max-width: 400px; min-height: 0; max-height: 100%; box-shadow: 0 6px 26px rgba(0,0,0,.5); overflow-wrap: break-word; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .lpanel h3 { margin: 0 0 3px; font-size: 13.5px; color: #ffd76e; letter-spacing: 1.5px; }
+  .lhelp { font-size: 10.5px; line-height: 1.3; color: #a8b3ff; }
+  .lpay { font-size: 11px; margin: 1px 0 3px; color: #9fe8a0; line-height: 1.3; }
+  .lshop { flex: 1 1 330px; max-width: 560px; min-height: 96px; display: flex; flex-direction: column; overflow: hidden; }
   .lshop > h3, .lshop > .ltip, .lshop > #shophint, .lshop > #shopnote { flex: 0 0 auto; }
   /* the shop has more cards than a phone screen, so the list scrolls on its own and the
      tip and the message line stay put */
   #shopScroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch; touch-action: pan-y; padding-right: 6px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 4px; align-content: start;
+    -webkit-overflow-scrolling: touch; touch-action: pan-y; padding-right: 5px;
     scrollbar-width: thin; scrollbar-color: #8a5cff rgba(255,255,255,.08); }
   #shopScroll::-webkit-scrollbar { width: 8px; }
   #shopScroll::-webkit-scrollbar-thumb { background: #8a5cff; border-radius: 8px; }
   #shopScroll::-webkit-scrollbar-track { background: rgba(255,255,255,.08); border-radius: 8px; }
-  #shophint { font-size: 10.5px; color: #9fb0ff; margin: 1px 0 3px; display: none; }
+  #shophint { font-size: 10.5px; color: #9fb0ff; margin: 0 0 2px; display: none; }
   #shopcoins { display: inline-block; font-size: 12px; color: #ffd76e; background: rgba(0,0,0,.5);
     border: 1px solid rgba(255,215,110,.55); border-radius: 20px; padding: 0 9px; margin-left: 2px; }
-  .ltip { font-size: 10.5px; color: #9fb0ff; margin: 0 0 5px; line-height: 1.35; }
-  .card { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-radius: 9px; padding: 4px 8px; margin-bottom: 5px; text-align: left; }
-  .card .ci { font-size: 19px; width: 23px; text-align: center; }
-  .card .cn { flex: 1 1 110px; min-width: 96px; }
-  .card .cn b { display: block; font-size: 13.5px; }
-  .card .cn span { font-size: 11px; color: #9fb0ff; }
-  .pips { display: flex; gap: 3px; min-width: 60px; }
-  .pip { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); }
+  .ltip { font-size: 10.5px; color: #9fb0ff; margin: 0 0 4px; line-height: 1.25; }
+  /* one slim line per upgrade: icon, name, what it does, then your stacks and the price over
+     on the right. .cn is display:contents so its pieces join the row and only wrap when space
+     really runs out — that keeps the whole shop short enough to see at once. */
+  .card { display: flex; align-items: center; flex-wrap: wrap; gap: 0 5px; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 2px 7px; margin: 0; text-align: left; }
+  .card .ci { font-size: 15px; width: 17px; text-align: center; }
+  .card .cn { display: contents; }
+  .card .cn b { font-size: 12.5px; white-space: nowrap; }
+  .card .cn span { font-size: 9.5px; color: #9fb0ff; line-height: 1.1; }
+  .card .pips { display: flex; gap: 2px; min-width: 0; margin-left: auto; }
+  .pip { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); }
   .pip.on { background: #ffd76e; border-color: #fff; box-shadow: 0 0 6px #ffd76e; }
-  .buy { border: none; border-radius: 7px; padding: 5px 9px; font-weight: bold; font-size: 13px; cursor: pointer; background: linear-gradient(#43c96a,#1f8f3f); color: #fff; min-width: 72px; }
+  .buy { border: none; border-radius: 7px; padding: 3px 8px; font-weight: bold; font-size: 11.5px; cursor: pointer; background: linear-gradient(#43c96a,#1f8f3f); color: #fff; min-width: 58px; }
   .buy:hover { filter: brightness(1.15); }
-  /* the "N more 🪙" line that shows up under a card you cannot afford yet */
-  .card .need { flex: 1 1 100%; text-align: right; font-size: 10.5px; font-weight: bold; margin: -2px 2px 0 0; }
   .buy:disabled { background: #2c2c39; color: #7d7d90; cursor: not-allowed; }
   #permCard { border-color: rgba(255,215,110,.6); background: rgba(255,215,110,.09); }
   #permCard .buy { background: linear-gradient(#ffd76e,#d59a1c); color: #3a2600; }
-  #shopnote { font-size: 11.5px; min-height: 14px; color: #ffb0b0; margin: 2px 0 0; }
-  #dropBtn { font-size: 18px; padding: 8px 32px; border: none; border-radius: 9px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; margin-top: 2px; }
+  #shopnote { font-size: 11px; color: #ffb0b0; margin: 0; }
+  #shopnote:empty { display: none; }
+  #dropBtn { font-size: 17px; padding: 6px 26px; border: none; border-radius: 9px; background: linear-gradient(#8a5cff,#5a2ecb); color: #fff; cursor: pointer; font-weight: bold; margin: 0; box-shadow: 0 0 16px rgba(138,92,255,.6); }
   #dropBtn:hover { filter: brightness(1.12); }
   .hidden { display: none !important; }
 
@@ -160,23 +162,22 @@
   body.touch #prompt { font-size: 15px; }
   body.touch #overlay h1 { font-size: 36px; }
   body.touch #overlay p { font-size: 14px; padding: 0 18px; }
-  body.touch #lobby h1 { font-size: 20px; }
-  body.touch #dropBtn { font-size: 17px; padding: 7px 24px; }
+  body.touch #lobby h1 { font-size: 18px; }
+  body.touch #dropBtn { font-size: 16px; padding: 6px 20px; }
   /* thumb-sized buttons on phones even though everything is squashed down */
   body.touch .diffbtn { font-size: 15px; padding: 7px 16px; }
   body.touch #camBtn { font-size: 14px; padding: 6px 16px; }
-  body.touch .buy { font-size: 13.5px; padding: 7px 10px; min-width: 76px; }
+  body.touch .buy { font-size: 12.5px; padding: 5px 9px; min-width: 62px; }
   /* phones lying on their side are short, so tuck the buttons in */
   @media (max-width: 700px) {
     #lobBody { flex-wrap: nowrap; flex-direction: column; align-items: stretch; }
     .lpanel { max-width: none; flex: 0 1 auto; max-height: none; }
     .lshop { flex: 1 1 auto; min-height: 0; }
-    /* phones get a tall shop box with its own up-and-down scrollbar */
-    #shopScroll { max-height: 40vh; }
-    #dropBtn { font-size: 17px; padding: 9px 30px; }
+    /* the shop list takes whatever room is left and scrolls inside itself */
+    #shopScroll { max-height: none; }
   }
   /* short screens give the title back so the panels keep their room */
-  @media (max-height: 620px) { #lobby h1 { font-size: 19px; } #lobResult { font-size: 12.5px; min-height: 14px; } }
+  @media (max-height: 620px) { #lobby h1 { font-size: 17px; } #lobResult { font-size: 12px; } .ltip { display: none; } }
   @media (max-height: 430px) {
     body.touch #tFire { width: 84px; height: 84px; bottom: 74px; }
     body.touch #tUse { width: 52px; height: 52px; bottom: 176px; }
@@ -245,6 +246,7 @@
     <div class="lobhead">
       <h1>BATTLE MINI 3D</h1>
       <div id="purse">🪙 <span id="coinCount">0</span></div>
+      <button id="dropBtn">DROP IN</button>
     </div>
     <div id="lobResult"></div>
     <div id="lobBody">
@@ -256,7 +258,8 @@
           <button class="diffbtn" data-diff="hard">💀 HARD</button>
         </div>
         <p id="diffdesc"></p>
-        <div class="lpay">Win a match for 🪙 EASY 100 · NORMAL 150 · HARD 200 — stack 💰 EXTRA CASH for more<br>🪂 <span id="fcount">51</span> fighters on the bus</div>
+        <div class="lpay">Win a match for 🪙 EASY 100 · NORMAL 150 · HARD 200 — stack 💰 EXTRA CASH<br>🪂 <span id="fcount">51</span> fighters on the bus</div>
+        <button id="camBtn"></button>
         <details class="lmore">
           <summary>🎮 Controls</summary>
           <div class="lhelp">
@@ -292,40 +295,36 @@
         </div>
         <div class="card" id="cardLuck">
           <div class="ci">🍀</div>
-          <div class="cn"><b>LUCKY</b><span>+5% loot in every chest you open, each stack</span></div>
+          <div class="cn"><b>LUCKY</b><span>+5% chest loot</span></div>
           <div class="pips" id="pipsLuck"></div>
           <button class="buy" id="buyLuck">🪙 50</button>
         </div>
         <div class="card" id="cardTurbo">
           <div class="ci">🏁</div>
-          <div class="cn"><b>TURBO</b><span>+15% car speed and pull-away, each stack</span></div>
+          <div class="cn"><b>TURBO</b><span>+15% car speed</span></div>
           <div class="pips" id="pipsTurbo"></div>
           <button class="buy" id="buyTurbo">🪙 60</button>
         </div>
         <div class="card" id="cardBelly">
           <div class="ci">🍔</div>
-          <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +25 more room for max health</span></div>
+          <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC, +25 room</span></div>
           <div class="pips" id="pipsBelly"></div>
           <button class="buy" id="buyBelly">🪙 55</button>
         </div>
         <div class="card" id="timedCard">
           <div class="ci">⏳</div>
-          <div class="cn"><b>30-MIN POWER</b><span>Endless power for 30 min + all coins you win are doubled</span></div>
+          <div class="cn"><b>30-MIN POWER</b><span>30 min endless power + 🪙×2</span></div>
           <button class="buy" id="buyTimed">🪙 1,000</button>
         </div>
         <div class="card" id="permCard">
           <div class="ci">🔓</div>
-          <div class="cn"><b>ENDLESS POWER</b><span>Upgrades never expire and stack past 5 — forever</span></div>
+          <div class="cn"><b>ENDLESS POWER</b><span>Never expires, stack past 5</span></div>
           <button class="buy" id="buyPerm">🪙 50000</button>
         </div>
         </div>
         <div id="shophint"></div>
         <div id="shopnote"></div>
       </div>
-    </div>
-    <div id="lobFoot">
-      <button id="camBtn"></button>
-      <button id="dropBtn">DROP IN</button>
     </div>
   </div>
 </div>
@@ -3376,13 +3375,13 @@ function endGame(won, place, gaveUp) {
   savePurse();
   const el = player.kills + ' elimination' + (player.kills === 1 ? '' : 's') + ' · survived ' + Math.floor(gameTime) + 's';
   let html = won
-    ? `<b style="color:#ffd76e;font-size:24px">${bossSeen ? '🏆 #1 — HARPER SLAYER!' : '🏆 #1 — BIG WIN!'}</b><br>${el}`
+    ? `<b style="color:#ffd76e">${bossSeen ? '🏆 #1 — HARPER SLAYER!' : '🏆 #1 — BIG WIN!'}</b> ${el}`
     : gaveUp
-      ? `<b style="color:#9fb0ff;font-size:22px">🏠 Back to the lobby</b><br>${el}`
-      : `<b style="color:#ff6b6b;font-size:22px">Placement #${place || aliveCount}</b><br>${el}${orgerBoss ? ' · Harper got you 👹' : ''}`;
-  html += `<br><span style="color:#ffd76e;font-size:20px">+${reward.toLocaleString()} 🪙</span> <span style="color:#9fb0ff;font-size:14px">on ${DIFF.icon} ${DIFF.name}` +
-    (won && up.cash ? ` · 💰 EXTRA CASH +${Math.round(SHOP.cash.step * up.cash * 100)}%` : '') +
-    (timedOn() ? ' · ⏳ MONEY ×2' : '') + `</span>`;
+      ? `<b style="color:#9fb0ff">🏠 Back to the lobby</b> ${el}`
+      : `<b style="color:#ff8a8a">Placement #${place || aliveCount}</b> ${el}${orgerBoss ? ' · Harper got you 👹' : ''}`;
+  html += ` · <b style="color:#ffd76e">+${reward.toLocaleString()} 🪙</b><span style="color:#9fb0ff"> on ${DIFF.icon} ${DIFF.name}` +
+    (won && up.cash ? ` · 💰+${Math.round(SHOP.cash.step * up.cash * 100)}%` : '') +
+    (timedOn() ? ' · ⏳🪙×2' : '') + `</span>`;
   // the match is over — so are the upgrades you bought for it (unless endless, or you
   // are still inside a 30-minute power window)
   if (!neverReset()) { up.hp = up.dmg = up.cash = up.belly = up.luck = up.turbo = 0; }
@@ -3633,7 +3632,7 @@ function buyUp(k) {
   // the shop only works while you are standing in the lobby — never mid-fight
   if ($('lobby').classList.contains('hidden')) return;
   if (playing && player && player.alive) return;
-  if (up[k] >= stackCap()) { shopNote('That is as tall as it goes — grab ⏳ 30-MIN POWER or 🔓 ENDLESS POWER to keep stacking'); return; }
+  if (up[k] >= stackCap()) { shopNote(SHOP[k].label + ' is MAXED OUT ⭐ — grab ⏳ 30-MIN POWER or 🔓 ENDLESS POWER to keep stacking'); return; }
   const c = upCost(k);
   if (coins < c) { shopNote(`Not enough coins yet — ${(c - coins).toLocaleString()} more to go`); sfx(150, .12, 'square', .06); return; }
   coins -= c; up[k]++;
@@ -3680,13 +3679,6 @@ function pips(el, n) {
   }
 }
 // the little line under a shop card: how many more 🪙 you need, or why it is shut
-function needTip(btn, cost, maxed) {
-  const card = btn.parentElement;
-  let need = card.querySelector('.need');
-  if (!need) { need = document.createElement('div'); need.className = 'need'; card.appendChild(need); }
-  need.textContent = maxed ? maxed : coins < cost ? ((cost - coins).toLocaleString() + ' more 🪙') : '';
-  need.style.color = maxed ? '#ffd76e' : '#ff9d9d';
-}
 function paintShop(bump) {
   $('coinCount').textContent = coins.toLocaleString();
   // the shop keeps its own 🪙 chip so the number you are spending is right next to the prices
@@ -3700,34 +3692,28 @@ function paintShop(bump) {
   pips($('pipsTurbo'), up.turbo);
   for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash'], ['buyBelly', 'belly'], ['buyLuck', 'luck'], ['buyTurbo', 'turbo']]) {
     const b = $(id), cost = upCost(k), maxed = up[k] >= stackCap();
-    b.textContent = '🪙 ' + cost;
+    b.textContent = maxed ? 'MAX ⭐' : '🪙 ' + cost;      // a maxed card says so on the button itself
     b.disabled = coins < cost || maxed;
-    needTip(b, cost, maxed ? 'MAXED OUT ⭐' : '');        // say exactly what is missing, do not just grey it out
   }
   const bt = $('buyTimed'), tcard = $('timedCard'), tsub = tcard.querySelector('.cn span');
   if (endless) {
     bt.textContent = 'NOT NEEDED'; bt.disabled = true; tcard.style.opacity = .6;
-    needTip(bt, 0, 'YOU OWN ENDLESS POWER ⭐');
-    tsub.textContent = 'You already own ENDLESS POWER forever';
+    tsub.textContent = 'Already yours forever';
   } else if (timedOn()) {
     bt.textContent = '⏳ +30 MIN'; bt.disabled = coins < TIMED_COST; tcard.style.opacity = 1;
-    needTip(bt, TIMED_COST, false);
-    tsub.textContent = `ON — ${leftStr()} left · coins ×2. Buy again to add 30 more minutes`;
+    tsub.textContent = `ON — ${leftStr()} left · 🪙×2`;
   } else {
     bt.textContent = '🪙 ' + TIMED_COST.toLocaleString(); bt.disabled = coins < TIMED_COST; tcard.style.opacity = 1;
-    needTip(bt, TIMED_COST, false);
-    tsub.textContent = 'Endless power for 30 min + double coins, then it switches off';
+    tsub.textContent = '30 min endless power + 🪙×2';
   }
   const bp = $('buyPerm'), card = $('permCard'), sub = card.querySelector('.cn span');
   if (endless) {
     bp.textContent = 'OWNED ✔'; bp.disabled = true; card.style.opacity = .6;
-    needTip(bp, 0, 'OWNED FOREVER ⭐');
-    sub.textContent = 'Locked in forever — your upgrades never expire';
+    sub.textContent = 'Locked in forever';
   } else {
     bp.textContent = '🪙 ' + PERM_COST.toLocaleString();
     bp.disabled = coins < PERM_COST;
-    needTip(bp, PERM_COST, false);
-    sub.textContent = 'Upgrades never expire and stack past 5 — forever';
+    sub.textContent = 'Never expires, stack past 5';
   }
   syncShopScroll();
 }
