@@ -275,6 +275,12 @@
           <div class="pips" id="pipsLuck"></div>
           <button class="buy" id="buyLuck">🪙 50</button>
         </div>
+        <div class="card" id="cardTurbo">
+          <div class="ci">🏁</div>
+          <div class="cn"><b>TURBO</b><span>+15% car speed and pull-away, each stack</span></div>
+          <div class="pips" id="pipsTurbo"></div>
+          <button class="buy" id="buyTurbo">🪙 60</button>
+        </div>
         <div class="card" id="cardBelly">
           <div class="ci">🍔</div>
           <div class="cn"><b>BIGGER BELLY</b><span>+1 BIG MAC you can carry, +25 more room for max health</span></div>
@@ -653,6 +659,10 @@ function jumpFromBus() {
 const CAR_MAX = 22, CAR_REV = 9, CAR_ACCEL = 13, CAR_TURN = 2.1;
 const CAR_COLORS = [0xd94f4f, 0x3f7fd9, 0xe0b13a, 0x46bf72, 0xf2f2f7, 0x2b2b33, 0xb04fd4, 0xff7a2e];
 
+// 🏁 TURBO from the shop: every stack is +15% on the top speed, and the car pulls away
+// quicker too. Five stacks takes you from about 75 km/h to 130 km/h.
+const turboUp = () => 1 + SHOP.turbo.step * up.turbo;
+
 // the model faces -Z, same as the camera, so one heading number drives both
 function buildCar(color) {
   const g = new THREE.Group();
@@ -758,13 +768,14 @@ function driveCar(dt) {
   if (keys['d']) steer++;
   if (isTouch) { thr += touchMove.y; steer += touchMove.x; }
   thr = clamp(thr, -1, 1); steer = clamp(steer, -1, 1);
+  const boost = turboUp();          // 🏁 TURBO from the shop
   // whatever the mouse or a drag did to the camera, the car follows — so looking steers
   const swing = yaw - c.lookYaw;
   if (Math.abs(swing) < .6) c.h += swing * .4;   // damped, or a fast flick spins you
-  c.speed += (thr > 0 ? CAR_ACCEL : CAR_ACCEL * .7) * thr * dt;
+  c.speed += (thr > 0 ? CAR_ACCEL : CAR_ACCEL * .7) * boost * thr * dt;
   if (!thr) c.speed *= Math.max(0, 1 - 1.2 * dt);         // coasting to a stop
   if (keys[' ']) c.speed *= Math.max(0, 1 - 3.4 * dt);    // handbrake
-  c.speed = clamp(c.speed, -CAR_REV, CAR_MAX);
+  c.speed = clamp(c.speed, -CAR_REV * boost, CAR_MAX * boost);
   if (Math.abs(c.speed) < .06) c.speed = 0;
   const grip = clamp(Math.abs(c.speed) / 5, 0, 1);        // no steering from a dead stop
   c.h -= steer * CAR_TURN * dt * grip * (c.speed < 0 ? -1 : 1);   // turning right means the heading drops
@@ -817,7 +828,8 @@ function driveCar(dt) {
   }
   const pr = $('prompt');
   pr.style.display = 'block';
-  pr.textContent = '🚗 ' + Math.round(Math.abs(c.speed) * 3.4) + ' km/h · ' + (isTouch ? 'GRAB to hop out' : 'E to hop out');
+  pr.textContent = '🚗 ' + Math.round(Math.abs(c.speed) * 3.4) + ' km/h' + (up.turbo ? ' 🏁' : '') +
+    ' · ' + (isTouch ? 'GRAB to hop out' : 'E to hop out');
 }
 
 function buildWorld() {
@@ -3348,7 +3360,7 @@ function endGame(won, place, gaveUp) {
     (timedOn() ? ' · ⏳ MONEY ×2' : '') + `</span>`;
   // the match is over — so are the upgrades you bought for it (unless endless, or you
   // are still inside a 30-minute power window)
-  if (!neverReset()) { up.hp = up.dmg = up.cash = up.belly = up.luck = 0; }
+  if (!neverReset()) { up.hp = up.dmg = up.cash = up.belly = up.luck = up.turbo = 0; }
   showLobby(html);
   paintDiff();
 }
@@ -3518,8 +3530,9 @@ const SHOP = {
   cash: { base: 45, step: .25, label: '+25% win coins' },
   belly: { base: 55, step: 1, label: '🍔 BIGGER BELLY' },
   luck: { base: 50, step: .05, label: '🍀 LUCKY', linear: true },
+  turbo: { base: 60, step: .15, label: '🏁 TURBO', linear: true },
 };
-let coins = 0, endless = false, timedTill = 0, up = { hp: 0, dmg: 0, cash: 0, belly: 0, luck: 0 };
+let coins = 0, endless = false, timedTill = 0, up = { hp: 0, dmg: 0, cash: 0, belly: 0, luck: 0, turbo: 0 };
 // 30-minute power runs on the clock, so it keeps counting even with the page shut
 const timedOn = () => Date.now() < timedTill;
 // the one question every shop rule asks: do my upgrades survive the match?
@@ -3535,6 +3548,7 @@ try {
     up.cash = Math.max(0, +localStorage.getItem('bm3d-up-cash') | 0);
     up.belly = Math.max(0, +localStorage.getItem('bm3d-up-belly') | 0);
     up.luck = Math.max(0, +localStorage.getItem('bm3d-up-luck') | 0);
+    up.turbo = Math.max(0, +localStorage.getItem('bm3d-up-turbo') | 0);
   }
 } catch (e) {}
 function savePurse() {
@@ -3548,6 +3562,7 @@ function savePurse() {
     localStorage.setItem('bm3d-up-cash', keep ? up.cash : 0);
     localStorage.setItem('bm3d-up-belly', keep ? up.belly : 0);
     localStorage.setItem('bm3d-up-luck', keep ? up.luck : 0);
+    localStorage.setItem('bm3d-up-turbo', keep ? up.turbo : 0);
   } catch (e) {}
 }
 function stackCap() { return neverReset() ? Infinity : MAX_STACK; }
@@ -3567,6 +3582,7 @@ function buffTxt() {
   if (up.cash) bits.push('💰+' + Math.round(SHOP.cash.step * up.cash * 100) + '%');
   if (up.belly) bits.push('🍔×' + macStack() + ' ' + macRoom() + ' room');
   if (up.luck) bits.push('🍀+' + Math.round(SHOP.luck.step * up.luck * 100) + '% loot');
+  if (up.turbo) bits.push('🏁+' + Math.round(SHOP.turbo.step * up.turbo * 100) + '% car');
   // so you can see how much of your 30-minute power is left while you are fighting
   if (timedOn() && !endless) bits.push('⏳' + leftStr() + ' 💰×2');
   return bits.length ? ' · ' + bits.join(' ') : '';
@@ -3644,7 +3660,8 @@ function paintShop(bump) {
   pips($('pipsCash'), up.cash);
   pips($('pipsBelly'), up.belly);
   pips($('pipsLuck'), up.luck);
-  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash'], ['buyBelly', 'belly'], ['buyLuck', 'luck']]) {
+  pips($('pipsTurbo'), up.turbo);
+  for (const [id, k] of [['buyHp', 'hp'], ['buyDmg', 'dmg'], ['buyCash', 'cash'], ['buyBelly', 'belly'], ['buyLuck', 'luck'], ['buyTurbo', 'turbo']]) {
     const b = $(id);
     b.textContent = '🪙 ' + upCost(k);
     b.disabled = coins < upCost(k) || up[k] >= stackCap();
@@ -3676,6 +3693,7 @@ $('buyDmg').addEventListener('click', () => buyUp('dmg'));
 $('buyCash').addEventListener('click', () => buyUp('cash'));
 $('buyBelly').addEventListener('click', () => buyUp('belly'));
 $('buyLuck').addEventListener('click', () => buyUp('luck'));
+$('buyTurbo').addEventListener('click', () => buyUp('turbo'));
 $('shopScroll').addEventListener('scroll', syncShopScroll);
 addEventListener('resize', syncShopScroll);
 $('buyPerm').addEventListener('click', buyEndless);
@@ -3690,7 +3708,7 @@ setInterval(() => {
     timedWas = on;
     const inLobby = $('lobby').classList.contains('hidden') === false;
     if (!on && inLobby) {
-      up.hp = up.dmg = up.cash = up.belly = up.luck = 0;
+      up.hp = up.dmg = up.cash = up.belly = up.luck = up.turbo = 0;
       savePurse();
       shopNote('⏳ Your 30-MIN POWER ran out — upgrades are back to normal');
     }
